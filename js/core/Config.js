@@ -1,0 +1,67 @@
+export const Config = {
+    // ==========================================
+    // UNIVERSO Y GENERACIÓN PROCEDURAL
+    // ==========================================
+    UNIVERSE_CHUNK_SIZE: 6000,         // Tamaño de un sector del espacio (u)
+    STARS_PER_CHUNK: 300,              // Cantidad de estrellas decorativas (puntos) por sector
+    SYSTEM_SPAWN_CHANCE: 0.05,          // Probabilidad (0.0 a 1.0) de que aparezcan planetas en un sector vacío
+    MAX_SYSTEMS_PER_CHUNK: 2,          // Número máximo de sistemas solares por sector
+
+    // ==========================================
+    // ASTROS Y SISTEMAS SOLARES
+    // ==========================================
+    STAR_RADIUS_MIN: 50,               // Radio mínimo de la estrella principal
+    STAR_RADIUS_MAX: 300,              // Radio máximo de la estrella
+    PLANETS_MAX_PER_SYSTEM: 4,         // Número máximo de planetas girando alrededor de una estrella
+    GAS_GIANT_CHANCE: 0.2,             // Probabilidad de que un planeta sea gigante gaseoso (0.0 - 1.0)
+    PLANET_ROCKY_RADIUS_MIN: 5,        // Radio mínimo de planeta rocoso
+    PLANET_ROCKY_RADIUS_MAX: 20,       // Radio máximo de planeta rocoso
+    PLANET_GAS_RADIUS_MIN: 20,         // Radio mínimo de planeta gaseoso
+    PLANET_GAS_RADIUS_MAX: 60,         // Radio máximo de planeta gaseoso
+    PLANET_ORBIT_SPEED_BASE: 0.05,     // Velocidad orbital base
+    PLANET_ORBIT_SPEED_VAR: 0.2,       // Variación de velocidad orbital aleatoria
+    PLANET_ROTATION_SPEED: 0.5,        // Velocidad de rotación del planeta sobre su propio eje (día/noche)
+    ORBIT_DISTANCE_START: 150,         // Distancia inicial mínima del primer planeta a su sol
+    ORBIT_DISTANCE_SPACING: 80,        // Espacio mínimo entre las órbitas de los planetas
+    ORBIT_DISTANCE_VAR: 150,           // Variación aleatoria del espacio entre órbitas
+    STAR_BLUE_CHANCE: 0.15,            // Probabilidad (0-1) de que una estrella sea azul (muy caliente)
+    STAR_RED_CHANCE: 0.30,             // Probabilidad (0-1) de que una estrella sea roja (fría)
+    SUN_GLOW_SCALE: 4.5,               // Tamaño del halo de luz visual de las estrellas (1.0 = igual al planeta)
+
+    // ==========================================
+    // 🧬 CÓDIGO GENÉTICO DEL UNIVERSO
+    // ==========================================
+    UNIVERSE_SEED_OFFSET: 666,           // Cambia este número mágico (ej: 1337, 999) para generar un multiverso totalmente diferente
+
+    // ==========================================
+    // FÍSICAS DE LA NAVE (JUGADOR)
+    // ==========================================
+    PLAYER_SPEED: 500,                 // Velocidad base de vuelo (unidades por segundo)
+    PLAYER_BOOST_MULTIPLIER: 20,       // Multiplicador de velocidad al presionar Shift (Hyperdrive)
+    PLAYER_FRICTION: 0.98,             // Fricción en el espacio (1.0 = patinar infinito, 0.5 = freno brusco)
+    PLAYER_BRAKE_FRICTION: 0.90,       // Fricción al presionar [ESPACIO] para frenar
+    MOUSE_SENSITIVITY: 0.0015,         // Sensibilidad del giro de cámara con el ratón
+    ROLL_SPEED: 2.0,                   // Velocidad de alabeo (rotar en el eje Z con Q y E)
+
+    // ==========================================
+    // MOTOR GRÁFICO (RENDER & RENDIMIENTO)
+    // ==========================================
+    RENDER_FOV: 100,                   // Campo de visión de la cámara (Grados)
+    RENDER_PIXEL_RATIO_MAX: 1.0,       // Límite de resolución para no quemar la gráfica (1.0 = rápido, 2.0 = nítido 4K)
+    RENDER_FOG_BASE: 2.5,              // Densidad de la niebla estelar profunda
+    RENDER_STAR_POINT_SIZE: 1,         // Tamaño de los puntos de luz estelares
+    RENDER_ANTIALIAS: false,           // Suavizado de bordes (Apagar para +70% FPS)
+
+    // ==========================================
+    // ILUMINACIÓN AMBIENTAL
+    // ==========================================
+    LIGHT_AMBIENT_COLOR: 0x222233,     // Color de la luz base que baña todo el espacio (Gris azulado oscuro)
+    LIGHT_SUN_INTENSITY: 4,            // Fuerza con la que el Sol más cercano ilumina tus planetas
+    LIGHT_SUN_DISTANCE: 2000000,         // Distancia a la que viaja la luz del Sol más cercano
+
+    // ==========================================
+    // INTERFAZ (HUD) Y ETIQUETAS
+    // ==========================================
+    UI_MAX_LABELS: 30,                 // Máximo de etiquetas de nombres mostrándose al mismo tiempo
+    UI_LABEL_MAX_DISTANCE: 1500        // Distancia máxima (u) a la que ves el nombre de un planeta/estrella
+};
