@@ -21,8 +21,10 @@ export class TerrainControls {
             jump: false
         };
         
-        this.speed = 20; // 20 m/s (carrera espacial)
-        this.jetpackBoost = 30;
+        this.speed = 10; // 10 m/s (carrera humana rápida)
+        this.jetpackBoost = 12; // Salto más realista
+        this.gravity = 25; // Gravedad realista base (2.5G)
+        this.planetScale = 1.0;
         
         this._onClick = () => {
             if (!this.isLocked) {
@@ -40,8 +42,10 @@ export class TerrainControls {
         this._onPointerLockChange = () => {
             this.isLocked = document.pointerLockElement === this.domElement;
         };
+        this._onMouseMoveBound = (e) => this._onMouseMove(e);
+        
         document.addEventListener('pointerlockchange', this._onPointerLockChange);
-        document.addEventListener('mousemove', (e) => this._onMouseMove(e));
+        document.addEventListener('mousemove', this._onMouseMoveBound);
     }
     
     _onMouseMove(event) {
@@ -66,6 +70,10 @@ export class TerrainControls {
         }
     }
     
+    setGravityScale(scale) {
+        this.planetScale = scale;
+    }
+    
     update(dt) {
         if (!this.isLocked) return;
         
@@ -83,11 +91,11 @@ export class TerrainControls {
         this.velocity.x = moveVector.x * currentSpeed;
         this.velocity.z = moveVector.z * currentSpeed;
         
-        // Gravedad y Jetpack
+        // Gravedad y Jetpack adaptados al planeta
         if (this.keys.jump && this.camera.position.y <= this.getGroundHeight(this.camera.position.x, this.camera.position.z) + 2.1) {
-            this.velocity.y = this.jetpackBoost; // Saltar solo si estamos en el suelo
+            this.velocity.y = this.jetpackBoost; // El jetpack nos da la misma fuerza en cualquier planeta, lo que significa que saltamos altísimo en baja gravedad
         } else {
-            this.velocity.y -= 25 * dt; // Gravedad realista (2.5G para buen gamefeel)
+            this.velocity.y -= (this.gravity * this.planetScale) * dt;
         }
         
         this.camera.position.addScaledVector(this.velocity, dt);
@@ -103,7 +111,7 @@ export class TerrainControls {
     dispose() {
         this.domElement.removeEventListener('click', this._onClick);
         document.removeEventListener('pointerlockchange', this._onPointerLockChange);
-        document.removeEventListener('mousemove', this._onMouseMove);
+        document.removeEventListener('mousemove', this._onMouseMoveBound);
         document.removeEventListener('keydown', this._onKeyDown);
         document.removeEventListener('keyup', this._onKeyUp);
     }

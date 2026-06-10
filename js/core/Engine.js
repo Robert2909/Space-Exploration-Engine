@@ -194,6 +194,12 @@ export class Engine {
             this.terrainControls = new TerrainControls(this.camera, document.body, (x, z) => {
                 return this.terrainManager.generator.getHeight(x, z);
             });
+            
+            // Gravedad Planetaria Dinámica
+            // Asumiendo que 2000 es la gravedad "normal" de la Tierra para efectos de juego
+            const earthRadius = 2000;
+            const gravityScale = Math.max(0.1, planet.radius / earthRadius); // Planeta pequeño = 0.1 G mínimo
+            this.terrainControls.setGravityScale(gravityScale);
             // Heredar estado de lock
             if (document.pointerLockElement === document.body) this.terrainControls.isLocked = true;
 
