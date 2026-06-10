@@ -172,6 +172,9 @@ export class Engine {
             
             // Ocultar etiquetas espaciales para que no se queden flotando congeladas en pantalla
             this.ui.labelsContainer.classList.add('hidden');
+            
+            // Mostrar panel de Terreno
+            document.getElementById('jetpack-panel').style.display = 'block';
 
             // Guardar planeta aterrizado para enfocarlo al despegar
             this.lastLandedPlanet = {
@@ -239,6 +242,8 @@ export class Engine {
                 if (this.terrainControls) this.terrainControls.dispose();
                 this.terrainManager = null;
                 this.terrainControls = null;
+                
+                document.getElementById('jetpack-panel').style.display = 'none';
 
                 // Restaurar controles del espacio
                 this.controls = new SpaceControls(this.camera, document.body);

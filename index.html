@@ -43,6 +43,16 @@
                 <span class="comment">[Click] volar | [ESC] cursor | [Q/E] alabeo</span>
             </div>
 
+            <!-- Panel para el modo Terreno -->
+            <div class="hud-panel" id="jetpack-panel" style="display: none;">
+                <h3>traje_espacial</h3>
+                <p><span class="prop-name">jetpack</span> <span class="prop-value string" id="jetpack-status">'Operativo'</span></p>
+                <div class="progress-bar-container" style="width: 100%; height: 10px; background-color: var(--panel-bg); border: 1px solid var(--border-color); margin-top: 5px;">
+                    <div id="jetpack-fuel-bar" style="width: 100%; height: 100%; background-color: var(--keyword-color); transition: width 0.1s linear;"></div>
+                </div>
+                <span class="comment" style="margin-top: 5px;">[Space] Jetpack | [Shift] Correr</span>
+            </div>
+
             <div class="hud-panel">
                 <h3>entorno_exterior</h3>
                 <p><span class="prop-name">gravedad</span> <span class="prop-value" id="sensor-grav">0.0 G</span></p>
