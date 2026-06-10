@@ -64,8 +64,14 @@ export class TerrainControls {
     _onMouseMove(event) {
         if (!this.isLocked) return;
 
-        this.euler.y -= event.movementX * 0.002;
-        this.euler.x -= event.movementY * 0.002;
+        const movementX = event.movementX || 0;
+        const movementY = event.movementY || 0;
+
+        // Evitar tirones extremos e inestabilidades de la API de PointerLock
+        if (Math.abs(movementX) > 100 || Math.abs(movementY) > 100) return;
+
+        this.euler.y -= movementX * 0.002;
+        this.euler.x -= movementY * 0.002;
         this.euler.x = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, this.euler.x));
 
         this.camera.quaternion.setFromEuler(this.euler);
