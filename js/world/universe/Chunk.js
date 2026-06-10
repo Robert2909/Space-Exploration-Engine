@@ -106,23 +106,37 @@ export class Chunk {
                     const pName = generatePlanetName(starName, j, pSeed + 13, this.cx, this.cy, this.cz);
                     const hue = seededRandom(this.cx, this.cy, this.cz, pSeed);
                     const isGasGiant = seededRandom(this.cx, this.cy, this.cz, pSeed + 5) > (1 - Config.GAS_GIANT_CHANCE);
+                    const pType = isGasGiant ? 'Gas Giant' : 'Rocky Planet';
                     
                     let pColor = new THREE.Color();
+                    let atmosphereDensity = 0;
+                    
                     if (isGasGiant) {
                         pColor.setHSL(hue, 0.7 + seededRandom(this.cx, this.cy, this.cz, pSeed + 1) * 0.3, 0.4 + seededRandom(this.cx, this.cy, this.cz, pSeed + 2) * 0.4);
+                        atmosphereDensity = 0.001; // Densidad enorme para gaseosos (aunque no aterricemos)
                     } else {
-                        pColor.setHSL(hue, 0.2 + seededRandom(this.cx, this.cy, this.cz, pSeed + 1) * 0.3, 0.2 + seededRandom(this.cx, this.cy, this.cz, pSeed + 2) * 0.4);
+                        // Color base procedural para el planeta rocoso
+                        pColor.setHSL(hue, 0.2 + seededRandom(this.cx, this.cy, this.cz, pSeed + 1) * 0.4, 0.2 + seededRandom(this.cx, this.cy, this.cz, pSeed + 2) * 0.5);
+                        
+                        // Densidad atmosférica procedural (puede ser 0 = sin atmósfera)
+                        // Aumentar la probabilidad de que algunos no tengan atmósfera
+                        const atmoChance = seededRandom(this.cx, this.cy, this.cz, pSeed + 13);
+                        if (atmoChance > 0.3) {
+                            // De 0.00005 a 0.0005
+                            atmosphereDensity = 0.00005 + seededRandom(this.cx, this.cy, this.cz, pSeed + 14) * 0.00045;
+                        }
                     }
                     
                     const pRadius = isGasGiant ? (Config.PLANET_GAS_RADIUS_MIN + seededRandom(this.cx, this.cy, this.cz, pSeed + 6) * (Config.PLANET_GAS_RADIUS_MAX - Config.PLANET_GAS_RADIUS_MIN)) : (Config.PLANET_ROCKY_RADIUS_MIN + seededRandom(this.cx, this.cy, this.cz, pSeed + 7) * (Config.PLANET_ROCKY_RADIUS_MAX - Config.PLANET_ROCKY_RADIUS_MIN));
                     const orbitRadius = sunRadius * 1.5 + Config.ORBIT_DISTANCE_START + j * (Config.ORBIT_DISTANCE_SPACING + seededRandom(this.cx, this.cy, this.cz, pSeed + 8) * Config.ORBIT_DISTANCE_VAR);
                     const orbitSpeed = (seededRandom(this.cx, this.cy, this.cz, pSeed + 9) * Config.PLANET_ORBIT_SPEED_VAR + Config.PLANET_ORBIT_SPEED_BASE) * (seededRandom(this.cx, this.cy, this.cz, pSeed + 10) > 0.5 ? 1 : -1);
+                    const rotationSpeed = Config.PLANET_ROTATION_SPEED * (0.2 + seededRandom(this.cx, this.cy, this.cz, pSeed + 15) * 1.8);
                     const startAngle = seededRandom(this.cx, this.cy, this.cz, pSeed + 11) * Math.PI * 2;
 
-                    const pType = isGasGiant ? 'Gas Giant' : 'Rocky Planet';
-
                     planets.push({
-                        name: pName, type: pType, radius: pRadius, color: pColor, orbitRadius, orbitSpeed,
+                        name: pName, type: pType, radius: pRadius, color: pColor, 
+                        atmosphereDensity: atmosphereDensity, 
+                        orbitRadius, orbitSpeed, rotationSpeed,
                         angle: startAngle, tiltOffset: seededRandom(this.cx, this.cy, this.cz, pSeed + 12) * Math.PI * 2,
                         rotationY: 0, lx: 0, ly: 0, lz: 0
                     });
@@ -164,7 +178,7 @@ export class Chunk {
         for (let sys of this.systems) {
             for (let p of sys.planets) {
                 p.angle += p.orbitSpeed * dt;
-                p.rotationY += dt * Config.PLANET_ROTATION_SPEED;
+                p.rotationY += dt * p.rotationSpeed;
                 p.lx = sys.lx + Math.cos(p.angle) * p.orbitRadius;
                 p.lz = sys.lz + Math.sin(p.angle) * p.orbitRadius;
                 p.ly = sys.ly + Math.sin(p.angle + p.tiltOffset) * (p.orbitRadius * 0.1);

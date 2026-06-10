@@ -190,7 +190,7 @@ export class TerrainControls {
             if (this.currentFuel < 40) fuelBar.style.backgroundColor = 'var(--error-color)';
             else fuelBar.style.backgroundColor = 'var(--keyword-color)';
 
-            document.getElementById('jetpack-status').innerText = this.currentFuel <= 0 ? "'Agotado'" : (this.jetpackActive) ? "'Vaciando...'" : "'Operativo'";
+            document.getElementById('jetpack-status').innerText = this.currentFuel <= 0 ? "'Agotado'" : (this.jetpackActive) ? "'En uso...'" : "'Disponible'";
         }
     }
 

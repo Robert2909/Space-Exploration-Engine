@@ -81,7 +81,16 @@ export class UIManager {
                     dz = p.lz + cz - cameraPos.z;
                     distSq = dx*dx + dy*dy + dz*dz;
                     if (distSq < maxDistSq) {
-                        nearby.push({ name: p.name, type: p.type, group: 'Planeta', radius: p.radius, x: p.lx+cx, y: p.ly+cy, z: p.lz+cz, distSq: distSq });
+                        nearby.push({ 
+                            name: p.name, type: p.type, group: 'Planeta', 
+                            radius: p.radius, x: p.lx+cx, y: p.ly+cy, z: p.lz+cz, 
+                            distSq: distSq,
+                            color: p.color, // <- PASAR EL COLOR
+                            atmosphereDensity: p.atmosphereDensity, // <- PASAR ATMOSFERA
+                            orbitSpeed: p.orbitSpeed,
+                            rotationSpeed: p.rotationSpeed,
+                            rotationY: p.rotationY
+                        });
                     }
                 }
             }

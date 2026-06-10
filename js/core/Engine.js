@@ -59,41 +59,7 @@ export class Engine {
             if (this.isTransitioning) return;
 
             if (Config.KEYS.TARGET.includes(e.code)) {
-                if (this.targetBody) {
-                    this.targetBody = null;
-                    document.getElementById('target-panel').style.display = 'none';
-                    this.controls.autoPilotTarget = null;
-                    this.controls.autoLookTarget = null;
-                    this.controls.lastAutoLookPos = null;
-                    OSDManager.show('Targeting system disengaged', 'info');
-                } else {
-                    const raycaster = new THREE.Raycaster();
-                    raycaster.setFromCamera(new THREE.Vector2(0, 0), this.camera);
-                    let closest = null;
-                    let closestDist = Infinity;
-                    for (let body of this.ui.lastNearby || []) {
-                        const vec = new THREE.Vector3(body.x, body.y, body.z);
-                        const toBody = vec.clone().sub(this.camera.position);
-                        if (toBody.dot(raycaster.ray.direction) > 0) {
-                            const distToRay = raycaster.ray.distanceSqToPoint(vec);
-                            const hitThreshold = Math.max(body.radius * 3, 200) ** 2;
-                            if (distToRay < hitThreshold && body.distSq < closestDist) {
-                                closestDist = body.distSq;
-                                closest = body;
-                            }
-                        }
-                    }
-                    if (closest) {
-                        this.targetBody = closest;
-                        document.getElementById('target-panel').style.display = 'block';
-                        document.getElementById('target-name').innerText = "'" + closest.name + "'";
-                        document.getElementById('target-type').innerText = "'" + closest.type + "'";
-                        document.getElementById('target-radius').innerText = Math.round(closest.radius);
-                        OSDManager.show('Locked onto: ' + closest.name, 'success');
-                    } else {
-                        OSDManager.show('No valid target in sight', 'error');
-                    }
-                }
+                this.attemptTargeting();
             }
             if (Config.KEYS.AUTOPILOT.includes(e.code) && this.targetBody) {
                 if (!this.controls.autoPilotTarget) {
@@ -113,8 +79,134 @@ export class Engine {
             }
         });
 
+        document.addEventListener('mousedown', (e) => {
+            if (this.isTransitioning) return;
+            if (document.pointerLockElement !== document.body) return; // Solo actuar si ya estamos lockeados
+
+            if (this.gameState === 'SPACE') {
+                if (e.button === 0) { // Clic Izquierdo = Enfocar
+                    this.attemptTargeting();
+                } else if (e.button === 2) { // Clic Derecho = Aterrizar
+                    if (this.targetBody) {
+                        // Check if it's close enough? Or just allow landing?
+                        // Actually let's use triggerLanding with the focused target
+                        this.triggerLanding(this.targetBody);
+                    } else {
+                        OSDManager.show('No target focused to land', 'error');
+                    }
+                }
+            } else if (this.gameState === 'TERRAIN') {
+                if (e.button === 2) { // Clic Derecho = Despegar
+                    this.triggerLiftoff();
+                }
+            }
+        });
+
         this.animate = this.animate.bind(this);
         requestAnimationFrame(this.animate);
+    }
+
+    attemptTargeting() {
+        if (this.targetBody) {
+            this.targetBody = null;
+            document.getElementById('target-panel').style.display = 'none';
+            this.controls.autoPilotTarget = null;
+            this.controls.autoLookTarget = null;
+            this.controls.lastAutoLookPos = null;
+            OSDManager.show('Targeting system disengaged', 'info');
+        } else {
+            const raycaster = new THREE.Raycaster();
+            raycaster.setFromCamera(new THREE.Vector2(0, 0), this.camera);
+            let closest = null;
+            let closestDist = Infinity;
+            for (let body of this.ui.lastNearby || []) {
+                const vec = new THREE.Vector3(body.x, body.y, body.z);
+                const toBody = vec.clone().sub(this.camera.position);
+                if (toBody.dot(raycaster.ray.direction) > 0) {
+                    const distToRay = raycaster.ray.distanceSqToPoint(vec);
+                    const hitThreshold = Math.max(body.radius * 3, 200) ** 2;
+                    if (distToRay < hitThreshold && body.distSq < closestDist) {
+                        closestDist = body.distSq;
+                        closest = body;
+                    }
+                }
+            }
+            if (closest) {
+                this.targetBody = closest;
+                this.updateTargetHUD(closest);
+                OSDManager.show('Locked onto: ' + closest.name, 'success');
+            } else {
+                this.targetBody = null;
+                document.getElementById('target-panel').style.display = 'none';
+                OSDManager.show('No valid target in sight', 'error');
+            }
+        }
+    }
+
+    updateTargetHUD(target) {
+        if (!target) return;
+        document.getElementById('target-panel').style.display = 'block';
+        document.getElementById('target-name').innerText = "'" + target.name + "'";
+        document.getElementById('target-type').innerText = "'" + target.type + "'";
+        document.getElementById('target-radius').innerText = Math.round(target.radius);
+
+        const targetAtmo = document.getElementById('target-atmo');
+        const targetGravity = document.getElementById('target-gravity');
+        const targetOrbit = document.getElementById('target-orbit');
+        const targetRot = document.getElementById('target-rot');
+        const targetTime = document.getElementById('target-time');
+        const targetDist = document.getElementById('target-dist');
+
+        if (targetAtmo) {
+            if (target.type === 'Gas Giant') {
+                targetAtmo.innerText = "'Densa/Tóxica'";
+            } else if (target.atmosphereDensity > 0) {
+                const densityPct = Math.round((target.atmosphereDensity / 0.0005) * 100);
+                targetAtmo.innerText = `'Presente (${densityPct}%)'`;
+            } else {
+                targetAtmo.innerText = "'Nula'";
+            }
+        }
+        if (targetGravity) {
+            // Cálculo real usado en físicas: planet.radius / 2000
+            let baseGravity = target.type === 'Gas Giant' ? 2.5 : 1.0;
+            let radiusFactor = target.radius / 2000;
+            let calculatedG = baseGravity * radiusFactor;
+            targetGravity.innerText = calculatedG.toFixed(2) + ' G';
+        }
+
+        if (targetOrbit && target.orbitSpeed) {
+            targetOrbit.innerText = `'${(Math.abs(target.orbitSpeed) * 1000).toFixed(1)} km/s'`;
+        }
+        if (targetRot && target.rotationSpeed) {
+            targetRot.innerText = `'${(target.rotationSpeed * 1000).toFixed(1)} km/h'`;
+        }
+
+        // Calcular la hora local y actualizar la UI
+        if (targetTime) {
+            let rotationY = target.rotationY || 0;
+            // Si estamos en terreno, usar la rotación local
+            if (this.gameState === 'TERRAIN' && this.terrainManager) {
+                rotationY = this.terrainManager.timeOfDay;
+            }
+
+            let timeOfDay = rotationY % (Math.PI * 2);
+            if (timeOfDay < 0) timeOfDay += Math.PI * 2;
+            let hours = (timeOfDay / (Math.PI * 2)) * 24 + 6;
+            if (hours >= 24) hours -= 24;
+            const hh = Math.floor(hours).toString().padStart(2, '0');
+            const mm = Math.floor((hours % 1) * 60).toString().padStart(2, '0');
+            targetTime.innerText = `'${hh}:${mm}'`;
+        }
+
+        if (targetDist) {
+            if (this.gameState === 'TERRAIN') {
+                targetDist.innerText = "'0u'";
+            } else {
+                const dist = this.camera.position.distanceTo(new THREE.Vector3(target.x, target.y, target.z));
+                targetDist.innerText = Math.round(dist) + 'u';
+            }
+        }
     }
 
     onWindowResize() {
@@ -146,20 +238,22 @@ export class Engine {
         // 1. Calcular Lat/Lon de aterrizaje
         let startX = 0;
         let startZ = 0;
+        let lon = 0;
+
         if (planet) {
             const planetPos = new THREE.Vector3(planet.x, planet.y, planet.z);
             const relativePos = new THREE.Vector3().subVectors(this.camera.position, planetPos);
             const landingDist = relativePos.length();
-            
+
             // Ángulos esféricos
-            const lon = Math.atan2(relativePos.z, relativePos.x); // -PI a PI
+            lon = Math.atan2(relativePos.z, relativePos.x); // -PI a PI
             const lat = Math.asin(Math.max(-1, Math.min(1, relativePos.y / landingDist))); // -PI/2 a PI/2
-            
+
             this.savedOrbitHeight = landingDist - planet.radius;
-            
+
             const tardisScale = 10;
             const terrainRadius = planet.radius * tardisScale;
-            
+
             startX = lon * terrainRadius;
             startZ = lat * terrainRadius;
         }
@@ -169,10 +263,10 @@ export class Engine {
 
             // Destruir Universo (Congelar el espacio)
             this.universe.dispose();
-            
+
             // Ocultar etiquetas espaciales para que no se queden flotando congeladas en pantalla
             this.ui.labelsContainer.classList.add('hidden');
-            
+
             // Mostrar panel de Terreno
             document.getElementById('jetpack-panel').style.display = 'block';
 
@@ -183,21 +277,27 @@ export class Engine {
                 y: planet.y,
                 z: planet.z,
                 radius: planet.radius,
-                type: planet.type || ''
+                type: planet.type || '',
+                color: planet.color,
+                atmosphereDensity: planet.atmosphereDensity
             };
 
             OSDManager.show(`Aterrizaje exitoso en ${planet.name}`, 'success', 3000);
 
             // Inicializar la escena de terreno
             this.controls.dispose(); // Quita listeners del espacio
-            
+
             // Instanciar el gestor de terreno primero para tener acceso al generador de alturas
-            this.terrainManager = new TerrainManager(this.scene, planet, startX, startZ);
-            
+            this.terrainManager = new TerrainManager(this.scene, planet, startX, startZ, lon);
+
             this.terrainControls = new TerrainControls(this.camera, document.body, (x, z) => {
                 return this.terrainManager.generator.getHeight(x, z);
             });
-            
+
+            // Apagar luces espaciales
+            this.lighting.systemLight.visible = false;
+            this.lighting.ambientLight.visible = false;
+
             // Gravedad Planetaria Dinámica
             // Asumiendo que 2000 es la gravedad "normal" de la Tierra para efectos de juego
             const earthRadius = 2000;
@@ -242,8 +342,16 @@ export class Engine {
                 if (this.terrainControls) this.terrainControls.dispose();
                 this.terrainManager = null;
                 this.terrainControls = null;
-                
+
                 document.getElementById('jetpack-panel').style.display = 'none';
+
+                // Restaurar luces espaciales
+                this.lighting.systemLight.visible = true;
+                this.lighting.ambientLight.visible = true;
+
+                // Restaurar fondo y niebla espacial
+                this.scene.background = new THREE.Color(0x000000);
+                this.scene.fog.color.setHex(0x000000);
 
                 // Restaurar controles del espacio
                 this.controls = new SpaceControls(this.camera, document.body);
@@ -253,28 +361,28 @@ export class Engine {
                 if (this.lastLandedPlanet) {
                     const tardisScale = 10;
                     const terrainRadius = this.lastLandedPlanet.radius * tardisScale;
-                    
+
                     const currentX = this.camera.position.x;
                     const currentZ = this.camera.position.z;
-                    
+
                     // Extraer los nuevos ángulos de las coordenadas caminadas
                     const newLon = currentX / terrainRadius;
                     const newLat = currentZ / terrainRadius;
-                    
+
                     const planetPos = new THREE.Vector3(this.lastLandedPlanet.x, this.lastLandedPlanet.y, this.lastLandedPlanet.z);
-                    
+
                     // Vector de dirección desde el centro del planeta hacia el espacio
                     const dir = new THREE.Vector3(
                         Math.cos(newLat) * Math.cos(newLon),
                         Math.sin(newLat),
                         Math.cos(newLat) * Math.sin(newLon)
                     );
-                    
+
                     // Altura orbital original (escala masiva)
                     const orbitDist = this.lastLandedPlanet.radius + (this.savedOrbitHeight || 5000);
-                    
+
                     this.savedSpacePosition = planetPos.clone().add(dir.multiplyScalar(orbitDist));
-                    
+
                     // Hacer que la cámara aparezca mirando hacia el planeta
                     this.camera.position.copy(this.savedSpacePosition);
                     this.camera.lookAt(planetPos);
@@ -283,7 +391,7 @@ export class Engine {
                     this.camera.position.copy(this.savedSpacePosition);
                     this.camera.quaternion.copy(this.savedSpaceQuaternion);
                 }
-                
+
                 // Si aterrizamos manualmente, heredamos la inercia, 
                 // de lo contrario, 0 para poder disfrutar de la órbita en paz
                 if (!this.lastLandedPlanet && this.savedSpaceVelocity) {
@@ -294,16 +402,16 @@ export class Engine {
 
                 // Reconstruir Universo
                 this.universe.rebuild();
-                
+
                 // Restaurar cámara a modo espacio
                 const val = parseInt(document.getElementById('render-dist').value || 3);
                 this.camera.far = val * Config.UNIVERSE_CHUNK_SIZE * 1.5;
                 this.camera.near = 100;
                 this.camera.updateProjectionMatrix();
-                
+
                 const viewDistance = val * Config.UNIVERSE_CHUNK_SIZE;
                 this.scene.fog.density = Config.RENDER_FOG_BASE / viewDistance;
-                
+
                 this.ui.labelsContainer.classList.remove('hidden');
 
                 // Activar el flujo natural de piloto automático fijado al planeta del que despegamos
@@ -354,8 +462,8 @@ export class Engine {
                     }
                 }
 
-                const dist = this.camera.position.distanceTo(new THREE.Vector3(this.targetBody.x, this.targetBody.y, this.targetBody.z));
-                document.getElementById('target-dist').innerText = Math.round(dist) + 'u';
+                this.updateTargetHUD(this.targetBody);
+
                 // Umbral de llegada relativo al tamaño del cuerpo (cinemático)
                 const arrivalThreshold = Math.max(this.targetBody.radius * Config.AUTOPILOT_ARRIVAL_MULT, this.targetBody.radius + 30);
 
@@ -392,6 +500,7 @@ export class Engine {
                 if (!this.controls.lastCameraPos) this.controls.lastCameraPos = new THREE.Vector3();
                 this.controls.lastCameraPos.copy(this.camera.position);
 
+                const dist = this.camera.position.distanceTo(new THREE.Vector3(this.targetBody.x, this.targetBody.y, this.targetBody.z));
                 if (this.controls.autoPilotTarget && (dist < arrivalThreshold || overshot)) {
                     this.controls.autoLookTarget = this.controls.autoPilotTarget;
                     this.controls.autoPilotTarget = null;
@@ -444,6 +553,10 @@ export class Engine {
             if (this.terrainControls && this.terrainManager) {
                 this.terrainControls.update(dt);
                 this.terrainManager.update(dt, this.camera.position);
+
+                if (this.lastLandedPlanet) {
+                    this.updateTargetHUD(this.lastLandedPlanet);
+                }
 
                 // Actualizar OSD
                 document.getElementById('speed').innerText = Math.round(this.terrainControls.velocity.length()) + ' u/s';

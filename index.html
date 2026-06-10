@@ -15,10 +15,10 @@
         }
     </script>
     <script>
-        window.onerror = function(message, source, lineno, colno, error) {
+        window.onerror = function (message, source, lineno, colno, error) {
             alert("Error: " + message + " at " + source + ":" + lineno + ":" + colno);
         };
-        window.addEventListener('unhandledrejection', function(event) {
+        window.addEventListener('unhandledrejection', function (event) {
             alert("Promise Error: " + event.reason);
         });
     </script>
@@ -40,46 +40,61 @@
                 <p style="padding-left: 15px;"><span class="prop-name">z</span> <span class="prop-value"
                         id="pos-z">0</span></p>
                 <span class="small-text" style="color: var(--variable-color);">}</span>
-                <span class="comment">[Click] volar | [ESC] cursor | [Q/E] alabeo</span>
             </div>
 
             <!-- Panel para el modo Terreno -->
             <div class="hud-panel" id="jetpack-panel" style="display: none;">
                 <h3>traje_espacial</h3>
-                <p><span class="prop-name">jetpack</span> <span class="prop-value string" id="jetpack-status">'Operativo'</span></p>
-                <div class="progress-bar-container" style="width: 100%; height: 10px; background-color: var(--panel-bg); border: 1px solid var(--border-color); margin-top: 5px;">
-                    <div id="jetpack-fuel-bar" style="width: 100%; height: 100%; background-color: var(--keyword-color); transition: width 0.1s linear;"></div>
+                <p><span class="prop-name">jetpack</span> <span class="prop-value string"
+                        id="jetpack-status">'Operativo'</span></p>
+                <div class="progress-bar-container"
+                    style="width: 100%; height: 10px; background-color: var(--panel-bg); border: 1px solid var(--border-color); margin-top: 5px;">
+                    <div id="jetpack-fuel-bar"
+                        style="width: 100%; height: 100%; background-color: var(--keyword-color); transition: width 0.1s linear;">
+                    </div>
                 </div>
-                <span class="comment" style="margin-top: 5px;">[Space] Jetpack | [Shift] Correr</span>
             </div>
 
             <div class="hud-panel">
                 <h3>entorno_exterior</h3>
                 <p><span class="prop-name">gravedad</span> <span class="prop-value" id="sensor-grav">0.0 G</span></p>
-                <p><span class="prop-name">tempExterior</span> <span class="prop-value" id="sensor-temp">-270 °C</span></p>
-                <p><span class="prop-name">estadoNave</span> <span class="prop-value" id="sensor-alert" style="color: var(--number-color);">Estable</span></p>
+                <p><span class="prop-name">tempExterior</span> <span class="prop-value" id="sensor-temp">-270 °C</span>
+                </p>
+                <p><span class="prop-name">estadoNave</span> <span class="prop-value" id="sensor-alert"
+                        style="color: var(--number-color);">Estable</span></p>
             </div>
 
             <div class="hud-panel" id="target-panel" style="display: none;">
                 <h3>objetivo_fijado</h3>
-                <p><span class="prop-name">nombre</span> <span class="prop-value string" id="target-name">'Ninguno'</span></p>
+                <p><span class="prop-name">nombre</span> <span class="prop-value string"
+                        id="target-name">'Ninguno'</span></p>
+                <p><span class="prop-name">tipoAstro</span> <span class="prop-value string"
+                        id="target-type">'Desc'</span></p>
                 <p><span class="prop-name">distancia</span> <span class="prop-value" id="target-dist">0u</span></p>
+                <p><span class="prop-name">horaLocal</span> <span class="prop-value string"
+                        id="target-time">'Desc'</span></p>
+                
+                <p><span class="prop-name">gravedad</span> <span class="prop-value" id="target-gravity">0</span></p>
+                <p><span class="prop-name">atmosfera</span> <span class="prop-value string"
+                        id="target-atmo">'Desc'</span></p>
+                
                 <p><span class="prop-name">radioEstimado</span> <span class="prop-value" id="target-radius">0</span></p>
-                <p><span class="prop-name">tipoAstro</span> <span class="prop-value string" id="target-type">'Desc'</span></p>
-                <span class="comment">[J] Autopiloto | [T] Quitar Lock</span>
+                <p><span class="prop-name">vTraslación</span> <span class="prop-value string"
+                        id="target-orbit">'Desc'</span></p>
+                <p><span class="prop-name">vRotación</span> <span class="prop-value string"
+                        id="target-rot">'Desc'</span></p>
             </div>
 
             <div class="hud-panel">
                 <h3>sistema_render</h3>
                 <p><span class="prop-name">distanciaVisual</span> <span class="prop-value" id="dist-val">1</span></p>
                 <input type="range" id="render-dist" min="1" max="10" value="3" style="pointer-events: auto;">
-                <span class="comment">[H] Ocultar HUD | [L] Labels</span>
             </div>
         </div>
 
         <div id="labels-container"></div>
     </div>
-    
+
     <div id="transition-flash"></div>
 
     <script type="module" src="js/main.js"></script>
