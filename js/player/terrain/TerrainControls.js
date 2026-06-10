@@ -22,16 +22,16 @@ export class TerrainControls {
             jump: false
         };
 
-        this.speed = 10; // 10 m/s (carrera humana rápida)
-        this.jetpackBoost = 12; // Salto más realista
-        this.gravity = 25; // Gravedad realista base (2.5G)
+        this.speed = Config.TERRAIN_PLAYER_SPEED;
+        this.jetpackBoost = Config.TERRAIN_JUMP_FORCE;
+        this.gravity = Config.TERRAIN_BASE_GRAVITY;
         this.planetScale = 1.0;
 
         // Físicas del Jetpack
-        this.maxFuel = 250;
-        this.currentFuel = 250;
-        this.fuelConsumeRate = 35; // Unidades por segundo
-        this.fuelRefillRate = 25; // Unidades por segundo
+        this.maxFuel = Config.TERRAIN_JETPACK_MAX_FUEL;
+        this.currentFuel = this.maxFuel;
+        this.fuelConsumeRate = Config.TERRAIN_JETPACK_CONSUME;
+        this.fuelRefillRate = Config.TERRAIN_JETPACK_REFILL;
         this.isGrounded = false;
         this.jetpackActive = false;
         this.jetpackCooldown = 0;
@@ -70,8 +70,8 @@ export class TerrainControls {
         // Evitar tirones extremos e inestabilidades de la API de PointerLock
         if (Math.abs(movementX) > 100 || Math.abs(movementY) > 100) return;
 
-        this.euler.y -= movementX * 0.002;
-        this.euler.x -= movementY * 0.002;
+        this.euler.y -= movementX * Config.TERRAIN_MOUSE_SENSITIVITY;
+        this.euler.x -= movementY * Config.TERRAIN_MOUSE_SENSITIVITY;
         this.euler.x = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, this.euler.x));
 
         this.camera.quaternion.setFromEuler(this.euler);
@@ -103,7 +103,7 @@ export class TerrainControls {
         const moveVector = new THREE.Vector3(this.direction.x, 0, -this.direction.z);
         moveVector.applyQuaternion(new THREE.Quaternion().setFromEuler(new THREE.Euler(0, this.euler.y, 0)));
 
-        const currentSpeed = this.keys.sprint ? this.speed * 2 : this.speed;
+        const currentSpeed = this.keys.sprint ? this.speed * Config.TERRAIN_PLAYER_SPRINT_MULT : this.speed;
 
         this.velocity.x = moveVector.x * currentSpeed;
         this.velocity.z = moveVector.z * currentSpeed;

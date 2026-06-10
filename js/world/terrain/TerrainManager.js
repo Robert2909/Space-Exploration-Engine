@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { TerrainGenerator } from './TerrainGenerator.js';
+import { Config } from '../../core/Config.js';
 
 export class TerrainManager {
     constructor(scene, planetData, startX = 0, startZ = 0, initialTimeOfDay = 0, initialLat = 0) {
@@ -8,8 +9,8 @@ export class TerrainManager {
         this.scene.add(this.group);
 
         // El mapa ahora es infinito y se genera por chunks dinámicos
-        this.chunkSize = 3000;
-        this.renderDistance = 1; // 3x3 chunks
+        this.chunkSize = Config.TERRAIN_CHUNK_SIZE;
+        this.renderDistance = Config.TERRAIN_RENDER_DISTANCE; // 3x3 chunks
 
         // Pasar la semilla del planeta si existe, o aleatoria
         let seed = 0;

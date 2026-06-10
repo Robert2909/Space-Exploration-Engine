@@ -15,9 +15,9 @@ export const Config = {
     PLANETS_MAX_PER_SYSTEM: 4,         // Número máximo de planetas girando alrededor de una estrella
     GAS_GIANT_CHANCE: 0.2,             // Probabilidad de que un planeta sea gigante gaseoso (0.0 - 1.0)
     PLANET_ROCKY_RADIUS_MIN: 500,        // Radio mínimo de planeta rocoso
-    PLANET_ROCKY_RADIUS_MAX: 2000,       // Radio máximo de planeta rocoso
-    PLANET_GAS_RADIUS_MIN: 2000,         // Radio mínimo de planeta gaseoso
-    PLANET_GAS_RADIUS_MAX: 6000,         // Radio máximo de planeta gaseoso
+    PLANET_ROCKY_RADIUS_MAX: 4000,       // Radio máximo de planeta rocoso
+    PLANET_GAS_RADIUS_MIN: 4000,         // Radio mínimo de planeta gaseoso
+    PLANET_GAS_RADIUS_MAX: 10000,         // Radio máximo de planeta gaseoso
     PLANET_ORBIT_SPEED_BASE: 0.05,     // Velocidad orbital base
     PLANET_ORBIT_SPEED_VAR: 0.2,       // Variación de velocidad orbital aleatoria
     PLANET_ROTATION_SPEED: 0.5,        // Velocidad de rotación del planeta sobre su propio eje (día/noche)
@@ -57,6 +57,25 @@ export const Config = {
     CINEMATIC_ORBIT_SPEED: 0.15,       // Velocidad (rad/s) de la órbita de cámara alrededor del objetivo
 
     // ==========================================
+    // FÍSICAS DEL MODO TERRESTRE (JUGADOR)
+    // ==========================================
+    TERRAIN_PLAYER_SPEED: 10,             // Velocidad base al caminar (m/s)
+    TERRAIN_PLAYER_SPRINT_MULT: 2,        // Multiplicador al correr con Shift
+    TERRAIN_JUMP_FORCE: 12,               // Fuerza del salto inicial
+    TERRAIN_BASE_GRAVITY: 25,             // Gravedad base (1G modificado por jugabilidad)
+    TERRAIN_JETPACK_MAX_FUEL: 250,        // Capacidad máxima del jetpack
+    TERRAIN_JETPACK_CONSUME: 35,          // Gasto de combustible por segundo
+    TERRAIN_JETPACK_REFILL: 25,           // Recarga de combustible por segundo
+    TERRAIN_MOUSE_SENSITIVITY: 0.0015,     // Sensibilidad de la vista en tierra
+
+    // ==========================================
+    // GENERACIÓN Y RENDER DE TERRENO
+    // ==========================================
+    TERRAIN_CHUNK_SIZE: 3000,             // Tamaño de cada bloque de terreno generado
+    TERRAIN_RENDER_DISTANCE: 2,           // Distancia de render (1 = 3x3 chunks, 2 = 5x5)
+    TERRAIN_TARDIS_SCALE: 10,             // Factor multiplicador del tamaño del planeta (Ilusión TARDIS)
+
+    // ==========================================
     // CONTROLES Y ATAJOS DE TECLADO (HOTKEYS)
     // ==========================================
     KEYS: {
@@ -73,7 +92,8 @@ export const Config = {
         TOGGLE_HUD: ['KeyH'],
         TOGGLE_LABELS: ['KeyL'],
         TOGGLE_CINEMATIC: ['KeyF'],
-        TOGGLE_LANDING: ['Enter']
+        TOGGLE_LANDING: ['Enter'],
+        TOGGLE_FLASHLIGHT: ['KeyV']
     },
 
     // ==========================================

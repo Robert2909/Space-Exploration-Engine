@@ -35,6 +35,17 @@ export class Engine {
 
         this.clock = new THREE.Clock();
 
+        // Linterna del modo Terrestre
+        this.flashlight = new THREE.SpotLight(0xffeedd, 0, 50000, Math.PI / 6, 0.5, 1);
+        this.flashlight.position.set(0, 0, 0);
+        this.flashlight.target.position.set(0, 0, -1);
+        this.camera.add(this.flashlight);
+        this.camera.add(this.flashlight.target);
+        this.scene.add(this.camera); // Necesario para que las luces adjuntas a la cámara funcionen
+
+        this.isFlashlightOn = false;
+        this.flashlightPower = 2; // Nivel de intensidad (scroll)
+
         window.addEventListener('resize', () => this.onWindowResize());
 
         const distSlider = document.getElementById('render-dist');
@@ -76,6 +87,27 @@ export class Engine {
                 } else if (this.gameState === 'TERRAIN') {
                     this.triggerLiftoff();
                 }
+            }
+            if (Config.KEYS.TOGGLE_FLASHLIGHT && Config.KEYS.TOGGLE_FLASHLIGHT.includes(e.code)) {
+                if (this.gameState === 'TERRAIN') {
+                    this.isFlashlightOn = !this.isFlashlightOn;
+                    this.flashlight.intensity = this.isFlashlightOn ? this.flashlightPower : 0;
+                    OSDManager.show(this.isFlashlightOn ? 'Linterna ENCENDIDA' : 'Linterna APAGADA', 'info', 2000);
+                }
+            }
+        });
+
+        document.addEventListener('wheel', (e) => {
+            if (this.gameState === 'TERRAIN' && this.isFlashlightOn) {
+                // Ajustar intensidad con la rueda del ratón
+                if (e.deltaY < 0) {
+                    this.flashlightPower = Math.min(this.flashlightPower + 0.5, 15);
+                } else {
+                    this.flashlightPower = Math.max(this.flashlightPower - 0.5, 0.5);
+                }
+                this.flashlight.intensity = this.flashlightPower;
+                // Incrementar también el alcance y el ángulo ligeramente según el poder
+                this.flashlight.distance = 10000 + (this.flashlightPower * 2000);
             }
         });
 
@@ -372,6 +404,10 @@ export class Engine {
                 this.lighting.systemLight.visible = true;
                 this.lighting.ambientLight.visible = true;
 
+                // Apagar linterna
+                this.isFlashlightOn = false;
+                if (this.flashlight) this.flashlight.intensity = 0;
+
                 // Restaurar fondo y niebla espacial
                 this.scene.background = new THREE.Color(0x000000);
                 this.scene.fog.color.setHex(0x000000);
@@ -382,7 +418,7 @@ export class Engine {
 
                 // Restaurar posición en el espacio (calculando la nueva órbita)
                 if (this.lastLandedPlanet) {
-                    const tardisScale = 10;
+                    const tardisScale = Config.TERRAIN_TARDIS_SCALE;
                     const terrainRadius = this.lastLandedPlanet.radius * tardisScale;
 
                     const currentX = this.camera.position.x;
@@ -578,7 +614,7 @@ export class Engine {
 
                 // Circunnavegación y Polos (Bucle finito planetario)
                 if (this.lastLandedPlanet) {
-                    const tardisScale = 10;
+                    const tardisScale = Config.TERRAIN_TARDIS_SCALE;
                     const terrainRadius = this.lastLandedPlanet.radius * tardisScale;
                     const circumference = Math.PI * 2 * terrainRadius;
                     const poleZ = (Math.PI / 2) * terrainRadius;
