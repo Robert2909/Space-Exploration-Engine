@@ -45,6 +45,12 @@
             <!-- Panel para el modo Terreno -->
             <div class="hud-panel" id="jetpack-panel" style="display: none;">
                 <h3>traje_espacial</h3>
+                <p><span class="prop-name">latitud</span> <span class="prop-value" id="terr-lat">0</span></p>
+                <p><span class="prop-name">longitud</span> <span class="prop-value" id="terr-lon">0</span></p>
+                <p><span class="prop-name">altitud</span> <span class="prop-value" id="terr-alt">0</span></p>
+                <p><span class="prop-name">brújula</span> <span class="prop-value string" id="terr-compass">'N'</span>
+                </p>
+
                 <p><span class="prop-name">jetpack</span> <span class="prop-value string"
                         id="jetpack-status">'Operativo'</span></p>
                 <div class="progress-bar-container"
@@ -55,14 +61,6 @@
                 </div>
             </div>
 
-            <div class="hud-panel">
-                <h3>entorno_exterior</h3>
-                <p><span class="prop-name">gravedad</span> <span class="prop-value" id="sensor-grav">0.0 G</span></p>
-                <p><span class="prop-name">tempExterior</span> <span class="prop-value" id="sensor-temp">-270 °C</span>
-                </p>
-                <p><span class="prop-name">estadoNave</span> <span class="prop-value" id="sensor-alert"
-                        style="color: var(--number-color);">Estable</span></p>
-            </div>
 
             <div class="hud-panel" id="target-panel" style="display: none;">
                 <h3>objetivo_fijado</h3>
@@ -71,13 +69,15 @@
                 <p><span class="prop-name">tipoAstro</span> <span class="prop-value string"
                         id="target-type">'Desc'</span></p>
                 <p><span class="prop-name">distancia</span> <span class="prop-value" id="target-dist">0u</span></p>
+                <p><span class="prop-name">latOrbital</span> <span class="prop-value" id="target-lat">0</span></p>
+                <p><span class="prop-name">lonOrbital</span> <span class="prop-value" id="target-lon">0</span></p>
                 <p><span class="prop-name">horaLocal</span> <span class="prop-value string"
                         id="target-time">'Desc'</span></p>
-                
+
                 <p><span class="prop-name">gravedad</span> <span class="prop-value" id="target-gravity">0</span></p>
                 <p><span class="prop-name">atmosfera</span> <span class="prop-value string"
                         id="target-atmo">'Desc'</span></p>
-                
+
                 <p><span class="prop-name">radioEstimado</span> <span class="prop-value" id="target-radius">0</span></p>
                 <p><span class="prop-name">vTraslación</span> <span class="prop-value string"
                         id="target-orbit">'Desc'</span></p>

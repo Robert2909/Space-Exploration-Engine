@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { TerrainGenerator } from './TerrainGenerator.js';
 
 export class TerrainManager {
-    constructor(scene, planetData, startX = 0, startZ = 0, initialTimeOfDay = 0) {
+    constructor(scene, planetData, startX = 0, startZ = 0, initialTimeOfDay = 0, initialLat = 0) {
         this.scene = scene;
         this.group = new THREE.Group();
         this.scene.add(this.group);
@@ -21,6 +21,8 @@ export class TerrainManager {
         this.chunks = new Map(); // Ahora usamos un Map para buscar chunks por "x,z"
 
         this.planetData = planetData;
+        this.initialLat = initialLat;
+        this.terrainRadius = planetData ? planetData.radius * 10 : 50000;
 
         // Color base derivado del color del planeta en el espacio
         let groundColor = new THREE.Color(0x228B22);
@@ -163,20 +165,33 @@ export class TerrainManager {
         this.timeOfDay += dt * 0.05; // Velocidad del sol
         const sunOrbitRadius = this.chunkSize * 2;
 
-        // El sol orbita de Este a Oeste
-        const sunX = Math.cos(this.timeOfDay) * sunOrbitRadius;
-        const sunY = Math.sin(this.timeOfDay) * sunOrbitRadius;
+        let currentLat = this.initialLat || 0;
+        if (playerPos) {
+            currentLat = playerPos.z / this.terrainRadius;
+        }
+
+        // El sol orbita de Este a Oeste, inclinado según la latitud actual
+        const eqX = Math.cos(this.timeOfDay) * sunOrbitRadius;
+        const eqY = Math.sin(this.timeOfDay) * sunOrbitRadius;
+        const eqZ = 0;
+
+        const cosLat = Math.cos(currentLat);
+        const sinLat = Math.sin(currentLat);
+
+        const sunX = eqX;
+        const sunY = eqY * cosLat - eqZ * sinLat;
+        const sunZ = eqY * sinLat + eqZ * cosLat;
 
         // Posicionar el sol relativo al jugador para que nunca escape del horizonte visible
         if (playerPos) {
-            this.dirLight.position.set(playerPos.x + sunX, playerPos.y + sunY, playerPos.z);
+            this.dirLight.position.set(playerPos.x + sunX, playerPos.y + sunY, playerPos.z + sunZ);
             this.dirLight.target.position.set(playerPos.x, playerPos.y, playerPos.z);
             this.sunMesh.position.copy(this.dirLight.position);
             this.stars.position.set(playerPos.x, playerPos.y, playerPos.z);
         } else {
-            this.dirLight.position.set(sunX, sunY, 0);
+            this.dirLight.position.set(sunX, sunY, sunZ);
             this.dirLight.target.position.set(0, 0, 0);
-            this.sunMesh.position.set(sunX, sunY, 0);
+            this.sunMesh.position.set(sunX, sunY, sunZ);
         }
 
         // Intensidad y atardecer

@@ -187,16 +187,6 @@ export class UIManager {
         
         if (this.hud.classList.contains('hidden')) return;
         
-        document.getElementById('sensor-grav').innerText = grav.toFixed(1) + ' G';
-        document.getElementById('sensor-temp').innerText = temp.toFixed(0) + ' °C';
-        
-        let alertEl = document.getElementById('sensor-alert');
-        if (temp > 800 || dist < 200) {
-            alertEl.innerText = 'PELIGRO';
-            alertEl.style.color = '#ff5555';
-        } else {
-            alertEl.innerText = 'Estable';
-            alertEl.style.color = 'var(--number-color)';
-        }
+        if (this.hud.classList.contains('hidden')) return;
     }
 }

@@ -87,12 +87,12 @@ export class Engine {
                 if (e.button === 0) { // Clic Izquierdo = Enfocar
                     this.attemptTargeting();
                 } else if (e.button === 2) { // Clic Derecho = Aterrizar
-                    if (this.targetBody) {
-                        // Check if it's close enough? Or just allow landing?
-                        // Actually let's use triggerLanding with the focused target
-                        this.triggerLanding(this.targetBody);
+                    if (this.landingTarget) {
+                        this.triggerLanding(this.landingTarget);
+                    } else if (this.targetBody) {
+                        OSDManager.show('Demasiado lejos de ' + this.targetBody.name + ' para iniciar descenso', 'error');
                     } else {
-                        OSDManager.show('No target focused to land', 'error');
+                        OSDManager.show('Órbita estable requerida para aterrizaje', 'error');
                     }
                 }
             } else if (this.gameState === 'TERRAIN') {
@@ -107,37 +107,48 @@ export class Engine {
     }
 
     attemptTargeting() {
-        if (this.targetBody) {
-            this.targetBody = null;
-            document.getElementById('target-panel').style.display = 'none';
-            this.controls.autoPilotTarget = null;
-            this.controls.autoLookTarget = null;
-            this.controls.lastAutoLookPos = null;
-            OSDManager.show('Targeting system disengaged', 'info');
-        } else {
-            const raycaster = new THREE.Raycaster();
-            raycaster.setFromCamera(new THREE.Vector2(0, 0), this.camera);
-            let closest = null;
-            let closestDist = Infinity;
-            for (let body of this.ui.lastNearby || []) {
-                const vec = new THREE.Vector3(body.x, body.y, body.z);
-                const toBody = vec.clone().sub(this.camera.position);
-                if (toBody.dot(raycaster.ray.direction) > 0) {
-                    const distToRay = raycaster.ray.distanceSqToPoint(vec);
-                    const hitThreshold = Math.max(body.radius * 3, 200) ** 2;
-                    if (distToRay < hitThreshold && body.distSq < closestDist) {
-                        closestDist = body.distSq;
-                        closest = body;
-                    }
+        const raycaster = new THREE.Raycaster();
+        raycaster.setFromCamera(new THREE.Vector2(0, 0), this.camera);
+        let closest = null;
+        let closestDist = Infinity;
+        
+        for (let body of this.ui.lastNearby || []) {
+            const vec = new THREE.Vector3(body.x, body.y, body.z);
+            const toBody = vec.clone().sub(this.camera.position);
+            if (toBody.dot(raycaster.ray.direction) > 0) {
+                const distToRay = raycaster.ray.distanceSqToPoint(vec);
+                const hitThreshold = Math.max(body.radius * 3, 200) ** 2;
+                if (distToRay < hitThreshold && body.distSq < closestDist) {
+                    closestDist = body.distSq;
+                    closest = body;
                 }
             }
-            if (closest) {
+        }
+
+        if (closest) {
+            // Si el nuevo target es igual al actual, lo deseleccionamos
+            if (this.targetBody && this.targetBody.name === closest.name) {
+                this.targetBody = null;
+                document.getElementById('target-panel').style.display = 'none';
+                this.controls.autoPilotTarget = null;
+                this.controls.autoLookTarget = null;
+                this.controls.lastAutoLookPos = null;
+                OSDManager.show('Targeting system disengaged', 'info');
+            } else {
                 this.targetBody = closest;
                 this.updateTargetHUD(closest);
                 OSDManager.show('Locked onto: ' + closest.name, 'success');
-            } else {
+            }
+        } else {
+            if (this.targetBody) {
+                // Click en el vacío = Deseleccionar
                 this.targetBody = null;
                 document.getElementById('target-panel').style.display = 'none';
+                this.controls.autoPilotTarget = null;
+                this.controls.autoLookTarget = null;
+                this.controls.lastAutoLookPos = null;
+                OSDManager.show('Targeting system disengaged', 'info');
+            } else {
                 OSDManager.show('No valid target in sight', 'error');
             }
         }
@@ -156,6 +167,8 @@ export class Engine {
         const targetRot = document.getElementById('target-rot');
         const targetTime = document.getElementById('target-time');
         const targetDist = document.getElementById('target-dist');
+        const targetLat = document.getElementById('target-lat');
+        const targetLon = document.getElementById('target-lon');
 
         if (targetAtmo) {
             if (target.type === 'Gas Giant') {
@@ -203,8 +216,17 @@ export class Engine {
             if (this.gameState === 'TERRAIN') {
                 targetDist.innerText = "'0u'";
             } else {
-                const dist = this.camera.position.distanceTo(new THREE.Vector3(target.x, target.y, target.z));
+                const planetPos = new THREE.Vector3(target.x, target.y, target.z);
+                const relativePos = new THREE.Vector3().subVectors(this.camera.position, planetPos);
+                const dist = relativePos.length();
                 targetDist.innerText = Math.round(dist) + 'u';
+
+                if (targetLat && targetLon) {
+                    const lat = Math.asin(Math.max(-1, Math.min(1, relativePos.y / dist)));
+                    const lon = Math.atan2(relativePos.z, relativePos.x);
+                    targetLat.innerText = (lat * (180 / Math.PI)).toFixed(2) + '°';
+                    targetLon.innerText = (lon * (180 / Math.PI)).toFixed(2) + '°';
+                }
             }
         }
     }
@@ -239,6 +261,7 @@ export class Engine {
         let startX = 0;
         let startZ = 0;
         let lon = 0;
+        let lat = 0;
 
         if (planet) {
             const planetPos = new THREE.Vector3(planet.x, planet.y, planet.z);
@@ -247,7 +270,7 @@ export class Engine {
 
             // Ángulos esféricos
             lon = Math.atan2(relativePos.z, relativePos.x); // -PI a PI
-            const lat = Math.asin(Math.max(-1, Math.min(1, relativePos.y / landingDist))); // -PI/2 a PI/2
+            lat = Math.asin(Math.max(-1, Math.min(1, relativePos.y / landingDist))); // -PI/2 a PI/2
 
             this.savedOrbitHeight = landingDist - planet.radius;
 
@@ -288,7 +311,7 @@ export class Engine {
             this.controls.dispose(); // Quita listeners del espacio
 
             // Instanciar el gestor de terreno primero para tener acceso al generador de alturas
-            this.terrainManager = new TerrainManager(this.scene, planet, startX, startZ, lon);
+            this.terrainManager = new TerrainManager(this.scene, planet, startX, startZ, lon, lat);
 
             this.terrainControls = new TerrainControls(this.camera, document.body, (x, z) => {
                 return this.terrainManager.generator.getHeight(x, z);
@@ -552,17 +575,78 @@ export class Engine {
         } else if (this.gameState === 'TERRAIN') {
             if (this.terrainControls && this.terrainManager) {
                 this.terrainControls.update(dt);
+
+                // Circunnavegación y Polos (Bucle finito planetario)
+                if (this.lastLandedPlanet) {
+                    const tardisScale = 10;
+                    const terrainRadius = this.lastLandedPlanet.radius * tardisScale;
+                    const circumference = Math.PI * 2 * terrainRadius;
+                    const poleZ = (Math.PI / 2) * terrainRadius;
+
+                    let px = this.camera.position.x;
+                    let pz = this.camera.position.z;
+                    let crossedPole = false;
+
+                    // Cruzar los Polos (Norte/Sur)
+                    if (pz > poleZ) {
+                        pz = poleZ - (pz - poleZ);
+                        px += circumference / 2;
+                        crossedPole = true;
+                    } else if (pz < -poleZ) {
+                        pz = -poleZ - (pz + poleZ);
+                        px += circumference / 2;
+                        crossedPole = true;
+                    }
+
+                    // Bucle Este-Oeste (Ecuador/Longitud)
+                    if (px > circumference / 2) px -= circumference;
+                    else if (px < -circumference / 2) px += circumference;
+
+                    if (crossedPole) {
+                        // Girar cámara 180° horizontalmente al cruzar el polo
+                        const euler = new THREE.Euler(0, 0, 0, 'YXZ');
+                        euler.setFromQuaternion(this.camera.quaternion);
+                        euler.y += Math.PI;
+                        this.camera.quaternion.setFromEuler(euler);
+                    }
+
+                    this.camera.position.x = px;
+                    this.camera.position.z = pz;
+                }
+
                 this.terrainManager.update(dt, this.camera.position);
 
                 if (this.lastLandedPlanet) {
                     this.updateTargetHUD(this.lastLandedPlanet);
                 }
 
-                // Actualizar OSD
+                // Actualizar OSD Espacial (legado)
                 document.getElementById('speed').innerText = Math.round(this.terrainControls.velocity.length()) + ' u/s';
                 document.getElementById('pos-x').innerText = Math.round(this.camera.position.x);
                 document.getElementById('pos-y').innerText = Math.round(this.camera.position.y);
                 document.getElementById('pos-z').innerText = Math.round(this.camera.position.z);
+
+                // Actualizar OSD Terreno (Navegación)
+                if (this.lastLandedPlanet) {
+                    const terrainRadius = this.lastLandedPlanet.radius * 10;
+                    
+                    const latDeg = (this.camera.position.z / terrainRadius) * (180 / Math.PI);
+                    const lonDeg = (this.camera.position.x / terrainRadius) * (180 / Math.PI);
+                    
+                    document.getElementById('terr-lat').innerText = latDeg.toFixed(2) + '°';
+                    document.getElementById('terr-lon').innerText = lonDeg.toFixed(2) + '°';
+                    document.getElementById('terr-alt').innerText = Math.round(this.camera.position.y) + 'm';
+                    
+                    // Brújula
+                    const dir = new THREE.Vector3(0, 0, -1).applyQuaternion(this.camera.quaternion);
+                    // dir.z es positivo hacia el Norte (+Z) en nuestro sistema
+                    let heading = Math.atan2(dir.x, dir.z) * (180 / Math.PI);
+                    if (heading < 0) heading += 360;
+                    
+                    const cardinals = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+                    const index = Math.round(heading / 45) % 8;
+                    document.getElementById('terr-compass').innerText = `'${cardinals[index]}'`;
+                }
 
                 if (this.camera.position.y > 100000) {
                     if (!this.showingLiftoffPrompt) {
