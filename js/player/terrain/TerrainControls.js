@@ -2,9 +2,10 @@ import * as THREE from 'three';
 import { Config } from '../../core/Config.js';
 
 export class TerrainControls {
-    constructor(camera, domElement) {
+    constructor(camera, domElement, getGroundHeight) {
         this.camera = camera;
         this.domElement = domElement;
+        this.getGroundHeight = getGroundHeight || ((x, z) => 0);
         
         this.velocity = new THREE.Vector3();
         this.direction = new THREE.Vector3();
@@ -20,8 +21,8 @@ export class TerrainControls {
             jump: false
         };
         
-        this.speed = 50; // Unidades por segundo a pie
-        this.jetpackBoost = 200;
+        this.speed = 20; // 20 m/s (carrera espacial)
+        this.jetpackBoost = 30;
         
         this._onClick = () => {
             if (!this.isLocked) {
@@ -29,32 +30,40 @@ export class TerrainControls {
                 if (promise) promise.catch(e => console.warn("PointerLock:", e));
             }
         };
+        this._onKeyDown = (e) => this._onKey(e, true);
+        this._onKeyUp = (e) => this._onKey(e, false);
+        
+        document.addEventListener('click', this._onClick);
+        document.addEventListener('keydown', this._onKeyDown);
+        document.addEventListener('keyup', this._onKeyUp);
+        
         this._onPointerLockChange = () => {
             this.isLocked = document.pointerLockElement === this.domElement;
         };
-        this._onMouseMove = (e) => {
-            if (!this.isLocked) return;
-            this.euler.y -= e.movementX * Config.MOUSE_SENSITIVITY;
-            this.euler.x -= e.movementY * Config.MOUSE_SENSITIVITY;
-            this.euler.x = Math.max(-Math.PI/2, Math.min(Math.PI/2, this.euler.x));
-            this.camera.quaternion.setFromEuler(this.euler);
-        };
-        this._onKeyDown = (e) => this.onKey(e, true);
-        this._onKeyUp = (e) => this.onKey(e, false);
-        
-        this.domElement.addEventListener('click', this._onClick);
         document.addEventListener('pointerlockchange', this._onPointerLockChange);
-        document.addEventListener('mousemove', this._onMouseMove);
-        document.addEventListener('keydown', this._onKeyDown);
-        document.addEventListener('keyup', this._onKeyUp);
+        document.addEventListener('mousemove', (e) => this._onMouseMove(e));
     }
     
-    onKey(e, isDown) {
-        if (Config.KEYS.FORWARD.includes(e.code)) this.keys.forward = isDown;
-        if (Config.KEYS.BACKWARD.includes(e.code)) this.keys.backward = isDown;
-        if (Config.KEYS.LEFT.includes(e.code)) this.keys.left = isDown;
-        if (Config.KEYS.RIGHT.includes(e.code)) this.keys.right = isDown;
-        if (Config.KEYS.BRAKE.includes(e.code)) this.keys.jump = isDown; // Spacebar to jetpack
+    _onMouseMove(event) {
+        if (!this.isLocked) return;
+        
+        this.euler.y -= event.movementX * 0.002;
+        this.euler.x -= event.movementY * 0.002;
+        this.euler.x = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, this.euler.x));
+        
+        this.camera.quaternion.setFromEuler(this.euler);
+    }
+    
+    _onKey(event, isDown) {
+        switch (event.code) {
+            case 'KeyW': this.keys.forward = isDown; break;
+            case 'KeyS': this.keys.backward = isDown; break;
+            case 'KeyA': this.keys.left = isDown; break;
+            case 'KeyD': this.keys.right = isDown; break;
+            case 'Space': this.keys.jump = isDown; break;
+            case 'ShiftLeft':
+            case 'ShiftRight': this.keys.sprint = isDown; break;
+        }
     }
     
     update(dt) {
@@ -68,21 +77,25 @@ export class TerrainControls {
         const moveVector = new THREE.Vector3(this.direction.x, 0, -this.direction.z);
         moveVector.applyQuaternion(new THREE.Quaternion().setFromEuler(new THREE.Euler(0, this.euler.y, 0)));
         
-        this.velocity.x = moveVector.x * this.speed;
-        this.velocity.z = moveVector.z * this.speed;
+        // Multiplicador de sprint (x2 velocidad)
+        const currentSpeed = this.keys.sprint ? this.speed * 2 : this.speed;
+        
+        this.velocity.x = moveVector.x * currentSpeed;
+        this.velocity.z = moveVector.z * currentSpeed;
         
         // Gravedad y Jetpack
-        if (this.keys.jump) {
-            this.velocity.y = this.jetpackBoost; // Ascender
+        if (this.keys.jump && this.camera.position.y <= this.getGroundHeight(this.camera.position.x, this.camera.position.z) + 2.1) {
+            this.velocity.y = this.jetpackBoost; // Saltar solo si estamos en el suelo
         } else {
-            this.velocity.y -= 300 * dt; // Gravedad cayendo
+            this.velocity.y -= 25 * dt; // Gravedad realista (2.5G para buen gamefeel)
         }
         
         this.camera.position.addScaledVector(this.velocity, dt);
         
-        // Suelo duro temporal en Y = 2 (altura humana)
-        if (this.camera.position.y < 2) {
-            this.camera.position.y = 2;
+        // Suelo duro dinámico según el terreno
+        const groundY = this.getGroundHeight(this.camera.position.x, this.camera.position.z) + 2;
+        if (this.camera.position.y < groundY) {
+            this.camera.position.y = groundY;
             this.velocity.y = 0;
         }
     }

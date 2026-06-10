@@ -1,49 +1,105 @@
 import * as THREE from 'three';
-import { Config } from '../../core/Config.js';
+import { TerrainGenerator } from './TerrainGenerator.js';
 
 export class TerrainManager {
-    constructor(scene) {
+    constructor(scene, planetData, startX = 0, startZ = 0) {
         this.scene = scene;
         this.group = new THREE.Group();
         this.scene.add(this.group);
         
-        this.worldSize = 50000;
-        this.chunkSize = 1000;
+        // El mapa ahora es infinito y se genera por chunks dinámicos
+        this.chunkSize = 3000;
+        this.renderDistance = 1; // 3x3 chunks
         
-        // Simplemente un plano verde por ahora para poder pararnos
-        this.mesh = new THREE.Mesh(
-            new THREE.PlaneGeometry(10000, 10000),
-            new THREE.MeshStandardMaterial({ color: 0x228B22, roughness: 0.8 })
-        );
-        this.mesh.rotation.x = -Math.PI / 2;
-        this.group.add(this.mesh);
+        // Pasar la semilla del planeta si existe, o aleatoria
+        let seed = 0;
+        if (planetData && planetData.name) {
+            for(let i=0; i<planetData.name.length; i++) seed += planetData.name.charCodeAt(i);
+        }
         
+        this.generator = new TerrainGenerator(this.chunkSize * 3, seed);
+        this.chunks = new Map(); // Ahora usamos un Map para buscar chunks por "x,z"
+        
+        // Color base según el tipo de planeta
+        let groundColor = 0x228B22; // default green
+        if (planetData && planetData.type) {
+            if (planetData.type.includes('Ice')) groundColor = 0xddddff;
+            else if (planetData.type.includes('Desert')) groundColor = 0xedc9af;
+            else if (planetData.type.includes('Lava')) groundColor = 0x331111;
+            else if (planetData.type.includes('Barren')) groundColor = 0x888888;
+        }
+
+        this.material = new THREE.MeshStandardMaterial({ 
+            color: groundColor, 
+            roughness: 0.8,
+            flatShading: true // Estilo low-poly!
+        });
+
         // Ambient light for terrain
-        this.ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+        this.ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
         this.group.add(this.ambientLight);
         
         this.dirLight = new THREE.DirectionalLight(0xffddaa, 1.0);
-        this.dirLight.position.set(100, 200, 50);
+        this.dirLight.position.set(1000, 2000, 500);
         this.group.add(this.dirLight);
+        
+        // Generar los chunks iniciales
+        this.update(0, { x: startX, z: startZ });
+    }
+    
+    getChunkKey(cx, cz) {
+        return `${cx},${cz}`;
     }
     
     update(dt, playerPos) {
-        // Lógica toroidal básica: si el jugador se pasa de +- worldSize/2, lo teletransportamos
-        const halfSize = this.worldSize / 2;
+        // ¿En qué chunk está el jugador ahora mismo?
+        const cx = Math.floor(playerPos.x / this.chunkSize);
+        const cz = Math.floor(playerPos.z / this.chunkSize);
         
-        if (playerPos.x > halfSize) playerPos.x -= this.worldSize;
-        if (playerPos.x < -halfSize) playerPos.x += this.worldSize;
+        const activeKeys = new Set();
         
-        if (playerPos.z > halfSize) playerPos.z -= this.worldSize;
-        if (playerPos.z < -halfSize) playerPos.z += this.worldSize;
+        for (let x = cx - this.renderDistance; x <= cx + this.renderDistance; x++) {
+            for (let z = cz - this.renderDistance; z <= cz + this.renderDistance; z++) {
+                const key = this.getChunkKey(x, z);
+                activeKeys.add(key);
+                
+                if (!this.chunks.has(key)) {
+                    // Cargar / Crear Chunk nuevo
+                    const offsetX = x * this.chunkSize;
+                    const offsetZ = z * this.chunkSize;
+                    
+                    const geometry = this.generator.createChunkGeometry(offsetX, offsetZ, this.chunkSize, 64);
+                    const mesh = new THREE.Mesh(geometry, this.material);
+                    
+                    // IMPORTANTE: Ponemos el mesh en su coordenada global real.
+                    // Ya le enviamos el offsetX al generador para calcular la altura, 
+                    // así que la geometría está local (-1500 a 1500) pero el mesh se mueve al mundo.
+                    mesh.position.set(offsetX, 0, offsetZ); 
+                    
+                    this.group.add(mesh);
+                    this.chunks.set(key, mesh);
+                }
+            }
+        }
         
-        // El terreno base siempre sigue al jugador (efecto de infinito temporal)
-        this.mesh.position.set(playerPos.x, 0, playerPos.z);
+        // Destruir Chunks lejanos (Gestión de RAM)
+        for (let [key, mesh] of this.chunks.entries()) {
+            if (!activeKeys.has(key)) {
+                this.group.remove(mesh);
+                mesh.geometry.dispose();
+                this.chunks.delete(key);
+            }
+        }
     }
     
     dispose() {
         this.scene.remove(this.group);
-        this.mesh.geometry.dispose();
-        this.mesh.material.dispose();
+        for (let mesh of this.chunks.values()) {
+            mesh.geometry.dispose();
+        }
+        this.chunks.clear();
+        this.material.dispose();
+        this.ambientLight.dispose();
+        this.dirLight.dispose();
     }
 }

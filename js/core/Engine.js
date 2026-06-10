@@ -13,7 +13,7 @@ export class Engine {
         this.scene = new THREE.Scene();
         this.scene.fog = new THREE.FogExp2(0x000000, 0.00005);
 
-        this.camera = new THREE.PerspectiveCamera(Config.RENDER_FOV, window.innerWidth / window.innerHeight, 0.1, 40000);
+        this.camera = new THREE.PerspectiveCamera(Config.RENDER_FOV, window.innerWidth / window.innerHeight, 100, 2000000);
 
         // TRUCO 2: Apagar el Antialiasing. El antialias multiplica por 4 el trabajo de la GPU.
         this.renderer = new THREE.WebGLRenderer({ antialias: Config.RENDER_ANTIALIAS, alpha: false, powerPreference: "high-performance" });
@@ -45,6 +45,11 @@ export class Engine {
                 this.universe.setRenderDistance(val);
                 const viewDistance = val * this.universe.chunkSize;
                 this.scene.fog.density = Config.RENDER_FOG_BASE / viewDistance;
+                if (this.gameState === 'SPACE') {
+                    this.camera.far = viewDistance * 1.5;
+                    this.camera.near = 100;
+                    this.camera.updateProjectionMatrix();
+                }
             });
             distSlider.dispatchEvent(new Event('input'));
         }
@@ -131,18 +136,44 @@ export class Engine {
         flash.style.backgroundColor = 'black';
         flash.style.opacity = '1';
 
-        // Guardar estado ANTES del timeout por si acaso
+        // Guardar estado de la nave ANTES de transicionar
         this.savedSpacePosition = this.camera.position.clone();
         this.savedSpaceQuaternion = this.camera.quaternion.clone();
-        if (this.controls) this.savedSpaceVelocity = this.controls.velocity.clone();
+        if (this.controls) {
+            this.savedSpaceVelocity = this.controls.velocity.clone();
+        }
+
+        // 1. Calcular Lat/Lon de aterrizaje
+        let startX = 0;
+        let startZ = 0;
+        if (planet) {
+            const planetPos = new THREE.Vector3(planet.x, planet.y, planet.z);
+            const relativePos = new THREE.Vector3().subVectors(this.camera.position, planetPos);
+            const landingDist = relativePos.length();
+            
+            // Ángulos esféricos
+            const lon = Math.atan2(relativePos.z, relativePos.x); // -PI a PI
+            const lat = Math.asin(Math.max(-1, Math.min(1, relativePos.y / landingDist))); // -PI/2 a PI/2
+            
+            this.savedOrbitHeight = landingDist - planet.radius;
+            
+            const tardisScale = 10;
+            const terrainRadius = planet.radius * tardisScale;
+            
+            startX = lon * terrainRadius;
+            startZ = lat * terrainRadius;
+        }
 
         setTimeout(() => {
             this.gameState = 'TERRAIN';
 
             // Destruir Universo (Congelar el espacio)
             this.universe.dispose();
+            
+            // Ocultar etiquetas espaciales para que no se queden flotando congeladas en pantalla
+            this.ui.labelsContainer.classList.add('hidden');
 
-            // Guardar planeta aterrizado para enfocarlo al despegar (lo guardamos como referencia para targetBody)
+            // Guardar planeta aterrizado para enfocarlo al despegar
             this.lastLandedPlanet = {
                 name: planet.name,
                 x: planet.x,
@@ -156,13 +187,25 @@ export class Engine {
 
             // Inicializar la escena de terreno
             this.controls.dispose(); // Quita listeners del espacio
-            this.terrainControls = new TerrainControls(this.camera, document.body);
+            
+            // Instanciar el gestor de terreno primero para tener acceso al generador de alturas
+            this.terrainManager = new TerrainManager(this.scene, planet, startX, startZ);
+            
+            this.terrainControls = new TerrainControls(this.camera, document.body, (x, z) => {
+                return this.terrainManager.generator.getHeight(x, z);
+            });
             // Heredar estado de lock
             if (document.pointerLockElement === document.body) this.terrainControls.isLocked = true;
-            this.terrainManager = new TerrainManager(this.scene);
 
-            // Posicionar jugador y resetear la rotación para evitar empezar chueco
-            this.camera.position.set(0, 100, 0);
+            // Ajustar planos y niebla para la escala del terreno humano
+            this.camera.near = 0.1;
+            this.camera.far = 40000;
+            this.camera.updateProjectionMatrix();
+            this.scene.fog.density = 2.5 / 4500; // Ocultar el pop-in de los chunks a los lados
+
+            // Posicionar jugador en el punto exacto del terreno, garantizando que esté sobre el suelo
+            const spawnY = this.terrainManager.generator.getHeight(startX, startZ) + 10;
+            this.camera.position.set(startX, spawnY, startZ);
             this.camera.rotation.set(0, 0, 0);
             this.camera.quaternion.identity();
 
@@ -195,22 +238,62 @@ export class Engine {
                 this.controls = new SpaceControls(this.camera, document.body);
                 if (document.pointerLockElement === document.body) this.controls.isLocked = true;
 
-                // Restaurar posición en el espacio
-                if (this.savedSpacePosition) {
+                // Restaurar posición en el espacio (calculando la nueva órbita)
+                if (this.lastLandedPlanet) {
+                    const tardisScale = 10;
+                    const terrainRadius = this.lastLandedPlanet.radius * tardisScale;
+                    
+                    const currentX = this.camera.position.x;
+                    const currentZ = this.camera.position.z;
+                    
+                    // Extraer los nuevos ángulos de las coordenadas caminadas
+                    const newLon = currentX / terrainRadius;
+                    const newLat = currentZ / terrainRadius;
+                    
+                    const planetPos = new THREE.Vector3(this.lastLandedPlanet.x, this.lastLandedPlanet.y, this.lastLandedPlanet.z);
+                    
+                    // Vector de dirección desde el centro del planeta hacia el espacio
+                    const dir = new THREE.Vector3(
+                        Math.cos(newLat) * Math.cos(newLon),
+                        Math.sin(newLat),
+                        Math.cos(newLat) * Math.sin(newLon)
+                    );
+                    
+                    // Altura orbital original (escala masiva)
+                    const orbitDist = this.lastLandedPlanet.radius + (this.savedOrbitHeight || 5000);
+                    
+                    this.savedSpacePosition = planetPos.clone().add(dir.multiplyScalar(orbitDist));
+                    
+                    // Hacer que la cámara aparezca mirando hacia el planeta
+                    this.camera.position.copy(this.savedSpacePosition);
+                    this.camera.lookAt(planetPos);
+                    this.savedSpaceQuaternion = this.camera.quaternion.clone();
+                } else if (this.savedSpacePosition) {
                     this.camera.position.copy(this.savedSpacePosition);
                     this.camera.quaternion.copy(this.savedSpaceQuaternion);
-
-                    // Si aterrizamos manualmente, heredamos la inercia, 
-                    // de lo contrario, 0 para poder disfrutar de la órbita en paz
-                    if (!this.lastLandedPlanet && this.savedSpaceVelocity) {
-                        this.controls.velocity.copy(this.savedSpaceVelocity);
-                    } else {
-                        this.controls.velocity.set(0, 0, 0);
-                    }
+                }
+                
+                // Si aterrizamos manualmente, heredamos la inercia, 
+                // de lo contrario, 0 para poder disfrutar de la órbita en paz
+                if (!this.lastLandedPlanet && this.savedSpaceVelocity) {
+                    this.controls.velocity.copy(this.savedSpaceVelocity);
+                } else {
+                    this.controls.velocity.set(0, 0, 0);
                 }
 
                 // Reconstruir Universo
                 this.universe.rebuild();
+                
+                // Restaurar cámara a modo espacio
+                const val = parseInt(document.getElementById('render-dist').value || 3);
+                this.camera.far = val * Config.UNIVERSE_CHUNK_SIZE * 1.5;
+                this.camera.near = 100;
+                this.camera.updateProjectionMatrix();
+                
+                const viewDistance = val * Config.UNIVERSE_CHUNK_SIZE;
+                this.scene.fog.density = Config.RENDER_FOG_BASE / viewDistance;
+                
+                this.ui.labelsContainer.classList.remove('hidden');
 
                 // Activar el flujo natural de piloto automático fijado al planeta del que despegamos
                 if (this.lastLandedPlanet) {
@@ -317,7 +400,7 @@ export class Engine {
                     if (body.group === 'Estrella' || (body.type && body.type.includes('Black Hole'))) continue;
 
                     const dist = this.camera.position.distanceTo(new THREE.Vector3(body.x, body.y, body.z));
-                    const threshold = Math.max(body.radius * 5.0, body.radius + 30);
+                    const threshold = Math.max(body.radius * 5.0, body.radius + 3000);
 
                     if (dist < threshold && dist < minLandingDist) {
                         closestLandingBody = body;
@@ -357,7 +440,7 @@ export class Engine {
                 document.getElementById('pos-y').innerText = Math.round(this.camera.position.y);
                 document.getElementById('pos-z').innerText = Math.round(this.camera.position.z);
 
-                if (this.camera.position.y > 1000) {
+                if (this.camera.position.y > 100000) {
                     if (!this.showingLiftoffPrompt) {
                         OSDManager.show("Atmósfera Alta [ENTER] Despegar", 'warning', 5000);
                         this.showingLiftoffPrompt = true;
