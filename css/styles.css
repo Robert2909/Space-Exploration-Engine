@@ -214,3 +214,16 @@ input[type=range]::-webkit-slider-thumb {
     white-space: nowrap;
     will-change: transform, left, top;
 }
+
+#transition-flash {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background-color: black;
+    opacity: 0;
+    pointer-events: none;
+    z-index: 9999;
+    transition: opacity 0.5s ease-in-out;
+}

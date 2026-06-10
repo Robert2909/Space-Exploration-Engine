@@ -89,4 +89,18 @@ export class Universe {
             }
         }
     }
+
+    dispose() {
+        for(let [key, chunk] of this.chunks.entries()) {
+            if (chunk !== 'pending' && chunk.dispose) {
+                chunk.dispose();
+            }
+        }
+        this.chunks.clear();
+        this.chunkQueue = [];
+    }
+
+    rebuild() {
+        this.dispose();
+    }
 }

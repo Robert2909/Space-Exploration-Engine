@@ -72,7 +72,8 @@ export const Config = {
         AUTOPILOT: ['KeyJ'],
         TOGGLE_HUD: ['KeyH'],
         TOGGLE_LABELS: ['KeyL'],
-        TOGGLE_CINEMATIC: ['KeyF']
+        TOGGLE_CINEMATIC: ['KeyF'],
+        TOGGLE_LANDING: ['Enter']
     },
 
     // ==========================================

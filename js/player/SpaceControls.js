@@ -25,27 +25,16 @@ export class SpaceControls {
     }
 
     initEvents() {
-        document.addEventListener('pointerlockchange', () => {
+        this._onPointerLockChange = () => {
             this.isLocked = document.pointerLockElement === this.domElement;
-        });
-
-        // Evitar agarrar el radar-canvas. El canvas del juego es el que no tiene ID.
-        const canvases = document.querySelectorAll('canvas');
-        let gameCanvas = null;
-        for (let c of canvases) {
-            if (c.id !== 'radar-canvas') {
-                gameCanvas = c;
-                break;
+        };
+        this._onClick = () => {
+            if (!this.isLocked) {
+                const promise = this.domElement.requestPointerLock();
+                if (promise) promise.catch(e => console.warn("PointerLock:", e));
             }
-        }
-
-        if (gameCanvas) {
-            gameCanvas.addEventListener('click', () => {
-                if (!this.isLocked) this.domElement.requestPointerLock();
-            });
-        }
-
-        document.addEventListener('mousemove', (e) => {
+        };
+        this._onMouseMove = (e) => {
             if (!this.isLocked) return;
             const movementX = e.movementX || 0;
             const movementY = e.movementY || 0;
@@ -66,27 +55,29 @@ export class SpaceControls {
                 this.camera.rotateY(-movementX * Config.MOUSE_SENSITIVITY);
                 this.camera.rotateX(-movementY * Config.MOUSE_SENSITIVITY);
             }
-        });
-
-        document.addEventListener('keydown', (e) => this.onKey(e, true));
-        document.addEventListener('keyup', (e) => this.onKey(e, false));
-
-        // Control de velocidad con la rueda del ratón (exponencial)
-        document.addEventListener('wheel', (e) => {
+        };
+        this._onKeyDown = (e) => this.onKey(e, true);
+        this._onKeyUp = (e) => this.onKey(e, false);
+        this._onWheel = (e) => {
             if (!this.isLocked) return;
             
             if (e.deltaY < 0) {
-                // Scroll Arriba: Incrementar velocidad
                 this.speed = this.speed === 0 ? Config.PLAYER_SPEED_MIN_STEP : this.speed * Config.PLAYER_SPEED_SCROLL_MULT;
                 this.speed = Math.min(this.speed, Config.PLAYER_SPEED_MAX);
             } else if (e.deltaY > 0) {
-                // Scroll Abajo: Reducir velocidad
                 this.speed = this.speed / Config.PLAYER_SPEED_SCROLL_MULT;
                 if (this.speed < Config.PLAYER_SPEED_MIN_STEP) this.speed = 0;
             }
             
             OSDManager.show(`Throttle Base Speed: ${Math.round(this.speed)} u/s`, 'info', 1000);
-        });
+        };
+
+        document.addEventListener('pointerlockchange', this._onPointerLockChange);
+        this.domElement.addEventListener('click', this._onClick);
+        document.addEventListener('mousemove', this._onMouseMove);
+        document.addEventListener('keydown', this._onKeyDown);
+        document.addEventListener('keyup', this._onKeyUp);
+        document.addEventListener('wheel', this._onWheel);
     }
 
     onKey(event, isDown) {
@@ -170,9 +161,25 @@ export class SpaceControls {
                     this.camera.position.y += dy;
                     this.camera.position.z += dz;
 
-                    // 2. Órbita cinemática (girar alrededor del objetivo)
+                    // 2. Girar alrededor del planeta independientemente de las interacciones
                     const offset = new THREE.Vector3().subVectors(this.camera.position, targetPos);
-                    const orbitSpeed = Config.CINEMATIC_ORBIT_SPEED * dt; 
+                    
+                    // 3. Ajustar suavemente a la distancia orbital óptima (multiplicador * radio)
+                    const optimalDistance = tgt.radius * 3.0; // Distancia fija óptima
+                    const currentDistance = offset.length();
+                    if (Math.abs(optimalDistance - currentDistance) > 1.0) {
+                        const adjustSpeed = Math.max(10, currentDistance * 0.5); // Velocidad de ajuste
+                        const step = (optimalDistance - currentDistance > 0 ? 1 : -1) * adjustSpeed * dt;
+                        
+                        // Evitar pasarnos del objetivo
+                        if (Math.abs(step) > Math.abs(optimalDistance - currentDistance)) {
+                            offset.setLength(optimalDistance);
+                        } else {
+                            offset.setLength(currentDistance + step);
+                        }
+                    }
+
+                    const orbitSpeed = Config.CINEMATIC_ORBIT_SPEED * dt;
                     offset.applyAxisAngle(new THREE.Vector3(0, 1, 0), orbitSpeed);
 
                     this.camera.position.copy(targetPos).add(offset);
@@ -218,5 +225,14 @@ export class SpaceControls {
 
     getObject() {
         return this.camera;
+    }
+
+    dispose() {
+        document.removeEventListener('pointerlockchange', this._onPointerLockChange);
+        this.domElement.removeEventListener('click', this._onClick);
+        document.removeEventListener('mousemove', this._onMouseMove);
+        document.removeEventListener('keydown', this._onKeyDown);
+        document.removeEventListener('keyup', this._onKeyUp);
+        document.removeEventListener('wheel', this._onWheel);
     }
 }

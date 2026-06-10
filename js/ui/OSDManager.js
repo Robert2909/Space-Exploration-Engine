@@ -61,17 +61,24 @@ export class OSDManager {
             el.style.transform = 'translateY(0)';
         });
         
-        this.timeoutId = setTimeout(() => {
-            if (this.currentEl === el) {
-                el.style.opacity = '0';
-                el.style.transform = 'translateY(-10px)';
-                setTimeout(() => {
-                    if (this.currentEl === el) {
-                        el.remove();
-                        this.currentEl = null;
-                    }
-                }, 200);
-            }
-        }, duration);
+        if (duration > 0) {
+            this.timeoutId = setTimeout(() => {
+                this.hide();
+            }, duration);
+        }
+    }
+
+    static hide() {
+        if (this.currentEl) {
+            const el = this.currentEl;
+            el.style.opacity = '0';
+            el.style.transform = 'translateY(-10px)';
+            setTimeout(() => {
+                if (this.currentEl === el) {
+                    el.remove();
+                    this.currentEl = null;
+                }
+            }, 200);
+        }
     }
 }
