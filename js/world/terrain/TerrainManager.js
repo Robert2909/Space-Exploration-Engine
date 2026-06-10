@@ -78,23 +78,35 @@ export class TerrainManager {
         this.group.add(this.dirLight);
         this.group.add(this.dirLight.target); // Añadir el target a la escena para que actualice la posición correctamente
 
-        // Malla física del sol para que sea visible
-        const sunGeo = new THREE.SphereGeometry(300, 16, 16);
+        // Malla física del sol para que sea visible (más pequeño y nítido si no hay atmósfera)
+        const sunRadius = this.hasAtmosphere ? 250 : 80;
+        const sunGeo = new THREE.SphereGeometry(sunRadius, 16, 16);
         const sunMat = new THREE.MeshBasicMaterial({ color: 0xffffff, fog: false });
         this.sunMesh = new THREE.Mesh(sunGeo, sunMat);
         this.group.add(this.sunMesh);
 
         // Crear un sprite de resplandor para el sol usando un Canvas
         const canvas = document.createElement('canvas');
-        canvas.width = 128;
-        canvas.height = 128;
+        canvas.width = 256;
+        canvas.height = 256;
         const ctx = canvas.getContext('2d');
-        const gradient = ctx.createRadialGradient(64, 64, 0, 64, 64, 64);
-        gradient.addColorStop(0, 'rgba(255, 255, 255, 1)');
-        gradient.addColorStop(0.2, 'rgba(255, 240, 200, 0.8)');
-        gradient.addColorStop(1, 'rgba(255, 240, 200, 0)');
+        const gradient = ctx.createRadialGradient(128, 128, 0, 128, 128, 128);
+        
+        if (this.hasAtmosphere) {
+            // Atmósfera: Brillo disperso
+            gradient.addColorStop(0, 'rgba(255, 255, 255, 1)');
+            gradient.addColorStop(0.2, 'rgba(255, 240, 200, 0.8)');
+            gradient.addColorStop(1, 'rgba(255, 240, 200, 0)');
+        } else {
+            // Vacío: Centro deslumbrante, halo amplio pero translúcido
+            gradient.addColorStop(0, 'rgba(255, 255, 255, 1)');
+            gradient.addColorStop(0.05, 'rgba(255, 255, 255, 0.8)');
+            gradient.addColorStop(0.15, 'rgba(255, 250, 230, 0.2)');
+            gradient.addColorStop(1, 'rgba(255, 250, 230, 0)');
+        }
+        
         ctx.fillStyle = gradient;
-        ctx.fillRect(0, 0, 128, 128);
+        ctx.fillRect(0, 0, 256, 256);
         const texture = new THREE.CanvasTexture(canvas);
 
         const glowMaterial = new THREE.SpriteMaterial({
@@ -105,7 +117,10 @@ export class TerrainManager {
             fog: false
         });
         this.sunGlow = new THREE.Sprite(glowMaterial);
-        this.sunGlow.scale.set(1800, 1800, 1);
+        
+        // El tamaño del glare también cambia
+        const glowScale = this.hasAtmosphere ? 2000 : 3500;
+        this.sunGlow.scale.set(glowScale, glowScale, 1);
         this.sunMesh.add(this.sunGlow);
 
         this.timeOfDay = initialTimeOfDay; // Para el ciclo día y noche
