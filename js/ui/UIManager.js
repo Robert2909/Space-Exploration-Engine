@@ -22,29 +22,19 @@ export class UIManager {
     }
     
     setupToggles() {
-        const toggleBtn = document.getElementById('toggle-ui-btn');
-        const toggleLabelsBtn = document.getElementById('toggle-labels-btn');
-        
         const toggleHUD = () => {
             this.hud.classList.toggle('hidden');
-            if(this.hud.classList.contains('hidden')) {
-                toggleBtn.innerHTML = `<span style="color: #6a9955; font-size: 0.8rem; pointer-events: none;">// UI oculta</span>`;
-            } else {
-                toggleBtn.innerHTML = `<span style="color: var(--keyword-color); font-size: 0.8rem; pointer-events: none;">import</span> <span style="color: var(--string-color); font-size: 0.8rem; pointer-events: none;">'UI'</span><span style="color: #ccc; font-size: 0.8rem; pointer-events: none;">;</span>`;
-            }
         };
         
         const toggleLabels = () => {
             this.labelsContainer.classList.toggle('hidden');
             if(this.labelsContainer.classList.contains('hidden')) {
-                toggleLabelsBtn.innerHTML = `<span style="color: #6a9955; font-size: 0.8rem; pointer-events: none;">// Labels ocultos</span>`;
-            } else {
-                toggleLabelsBtn.innerHTML = `<span style="color: var(--keyword-color); font-size: 0.8rem; pointer-events: none;">import</span> <span style="color: var(--string-color); font-size: 0.8rem; pointer-events: none;">'Labels'</span><span style="color: #ccc; font-size: 0.8rem; pointer-events: none;">;</span>`;
+                for (let i = 0; i < this.labelsPool.length; i++) {
+                    this.labelsPool[i].style.opacity = '0';
+                    this.labelsPool[i]._lastName = '';
+                }
             }
         };
-        
-        toggleBtn.addEventListener('click', toggleHUD);
-        toggleLabelsBtn.addEventListener('click', toggleLabels);
         
         document.addEventListener('keydown', (e) => {
             if(e.code === 'KeyH') toggleHUD();

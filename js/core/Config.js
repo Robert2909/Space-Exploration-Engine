@@ -37,7 +37,7 @@ export const Config = {
     // FÍSICAS DE LA NAVE (JUGADOR)
     // ==========================================
     PLAYER_SPEED: 500,                 // Velocidad base de vuelo (unidades por segundo)
-    PLAYER_BOOST_MULTIPLIER: 20,       // Multiplicador de velocidad al presionar Shift (Hyperdrive)
+    PLAYER_BOOST_MULTIPLIER: 50,       // Multiplicador de velocidad al presionar Shift (Hyperdrive)
     PLAYER_FRICTION: 0.98,             // Fricción en el espacio (1.0 = patinar infinito, 0.5 = freno brusco)
     PLAYER_BRAKE_FRICTION: 0.90,       // Fricción al presionar [ESPACIO] para frenar
     MOUSE_SENSITIVITY: 0.0015,         // Sensibilidad del giro de cámara con el ratón
