@@ -32,12 +32,30 @@
                 <p style="padding-left: 15px;"><span class="prop-name">z</span> <span class="prop-value"
                         id="pos-z">0</span></p>
                 <span class="small-text" style="color: var(--variable-color);">}</span>
-                <span class="comment">[Click] volar | [ESC] soltar cursor | [Q/E] alabeo</span>
+                <span class="comment">[Click] volar | [ESC] cursor | [Q/E] alabeo</span>
             </div>
+
+            <div class="hud-panel">
+                <h3>entorno_exterior</h3>
+                <p><span class="prop-name">gravedad</span> <span class="prop-value" id="sensor-grav">0.0 G</span></p>
+                <p><span class="prop-name">tempExterior</span> <span class="prop-value" id="sensor-temp">-270 °C</span></p>
+                <p><span class="prop-name">estadoNave</span> <span class="prop-value" id="sensor-alert" style="color: var(--number-color);">Estable</span></p>
+            </div>
+
+            <div class="hud-panel" id="target-panel" style="display: none;">
+                <h3>objetivo_fijado</h3>
+                <p><span class="prop-name">nombre</span> <span class="prop-value string" id="target-name">'Ninguno'</span></p>
+                <p><span class="prop-name">distancia</span> <span class="prop-value" id="target-dist">0u</span></p>
+                <p><span class="prop-name">radioEstimado</span> <span class="prop-value" id="target-radius">0</span></p>
+                <p><span class="prop-name">tipoAstro</span> <span class="prop-value string" id="target-type">'Desc'</span></p>
+                <span class="comment">[J] Autopiloto | [T] Quitar Lock</span>
+            </div>
+
             <div class="hud-panel">
                 <h3>sistema_render</h3>
                 <p><span class="prop-name">distanciaVisual</span> <span class="prop-value" id="dist-val">1</span></p>
                 <input type="range" id="render-dist" min="1" max="10" value="3" style="pointer-events: auto;">
+                <span class="comment">[H] Ocultar HUD | [L] Labels</span>
             </div>
         </div>
 

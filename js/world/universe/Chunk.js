@@ -84,10 +84,13 @@ export class Chunk {
                 const starName = generateStarName(seedBase + 13, this.cx, this.cy, this.cz);
                 const isBlue = seededRandom(this.cx, this.cy, this.cz, seedBase + 3) > (1 - Config.STAR_BLUE_CHANCE);
                 const isRed = seededRandom(this.cx, this.cy, this.cz, seedBase + 4) > (1 - Config.STAR_RED_CHANCE);
+                let starType = 'Main Sequence Star';
                 let sunColorObj = new THREE.Color();
                 if (isBlue) {
+                    starType = 'Blue Giant';
                     sunColorObj.setHSL(0.55 + seededRandom(this.cx, this.cy, this.cz, seedBase + 10) * 0.1, 0.8, 0.7 + seededRandom(this.cx, this.cy, this.cz, seedBase + 11) * 0.2);
                 } else if (isRed) {
+                    starType = 'Red Dwarf';
                     sunColorObj.setHSL(0.0 + seededRandom(this.cx, this.cy, this.cz, seedBase + 10) * 0.1, 0.8, 0.5 + seededRandom(this.cx, this.cy, this.cz, seedBase + 11) * 0.2);
                 } else {
                     sunColorObj.setHSL(0.1 + seededRandom(this.cx, this.cy, this.cz, seedBase + 10) * 0.08, 0.6 + seededRandom(this.cx, this.cy, this.cz, seedBase + 11) * 0.4, 0.6 + seededRandom(this.cx, this.cy, this.cz, seedBase + 12) * 0.4);
@@ -116,13 +119,15 @@ export class Chunk {
                     const orbitSpeed = (seededRandom(this.cx, this.cy, this.cz, pSeed + 9) * Config.PLANET_ORBIT_SPEED_VAR + Config.PLANET_ORBIT_SPEED_BASE) * (seededRandom(this.cx, this.cy, this.cz, pSeed + 10) > 0.5 ? 1 : -1);
                     const startAngle = seededRandom(this.cx, this.cy, this.cz, pSeed + 11) * Math.PI * 2;
 
+                    const pType = isGasGiant ? 'Gas Giant' : 'Rocky Planet';
+
                     planets.push({
-                        name: pName, radius: pRadius, color: pColor, orbitRadius, orbitSpeed,
+                        name: pName, type: pType, radius: pRadius, color: pColor, orbitRadius, orbitSpeed,
                         angle: startAngle, tiltOffset: seededRandom(this.cx, this.cy, this.cz, pSeed + 12) * Math.PI * 2,
                         rotationY: 0, lx: 0, ly: 0, lz: 0
                     });
                 }
-                systemsData.push({ name: starName, sunColor, sunRadius, lx, ly, lz, planets });
+                systemsData.push({ name: starName, type: starType, sunColor, sunRadius, lx, ly, lz, planets });
                 totalPlanets += numPlanets;
             }
 

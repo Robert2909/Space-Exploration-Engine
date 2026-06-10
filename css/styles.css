@@ -1,18 +1,31 @@
 @import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@300;400;600&display=swap');
 
 :root {
-    --hud-bg: rgba(37, 37, 38, 0.85); /* VS Code Editor Dark */
+    --hud-bg: rgba(37, 37, 38, 0.85);
+    /* VS Code Editor Dark */
     --hud-border: rgba(69, 69, 69, 0.8);
-    --text-primary: #cccccc; /* VS Code standard text */
-    --accent-color: #007acc; /* VS Code Selection/Accent */
-    --keyword-color: #c586c0; /* Purple */
-    --variable-color: #9cdcfe; /* Light blue */
-    --function-color: #dcdcaa; /* Yellow */
-    --number-color: #b5cea8; /* Light green */
-    --string-color: #ce9178; /* Orange */
+    --text-primary: #cccccc;
+    /* VS Code standard text */
+    --accent-color: #007acc;
+    /* VS Code Selection/Accent */
+    --keyword-color: #c586c0;
+    /* Purple */
+    --variable-color: #9cdcfe;
+    /* Light blue */
+    --function-color: #dcdcaa;
+    /* Yellow */
+    --number-color: #b5cea8;
+    /* Light green */
+    --string-color: #ce9178;
+    /* Orange */
 }
 
-* { margin: 0; padding: 0; box-sizing: border-box; user-select: none; }
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    user-select: none;
+}
 
 body {
     background-color: #000;
@@ -25,22 +38,27 @@ body {
 canvas {
     display: block;
     position: absolute;
-    top: 0; left: 0;
-    width: 100vw; height: 100vh;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
     z-index: 1;
 }
 
 #ui-layer {
     position: absolute;
-    top: 0; left: 0;
-    width: 100%; height: 100%;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
     z-index: 10;
     pointer-events: none;
 }
 
 #crosshair {
     position: absolute;
-    top: 50%; left: 50%;
+    top: 50%;
+    left: 50%;
     transform: translate(-50%, -50%);
     color: rgba(255, 255, 255, 0.4);
     font-size: 20px;
@@ -49,7 +67,8 @@ canvas {
 
 #hud {
     position: absolute;
-    top: 20px; left: 20px;
+    top: 20px;
+    left: 20px;
     display: flex;
     flex-direction: column;
     gap: 15px;
@@ -67,14 +86,16 @@ canvas {
     backdrop-filter: blur(10px);
     -webkit-backdrop-filter: blur(10px);
     border: 1px solid var(--hud-border);
-    border-radius: 4px; /* Less rounded for IDE feel */
+    border-radius: 4px;
+    /* Less rounded for IDE feel */
     padding: 15px 20px;
     box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
     min-width: 260px;
     font-size: 0.85rem;
 }
 
-#toggle-ui-btn, #toggle-labels-btn {
+#toggle-ui-btn,
+#toggle-labels-btn {
     background: var(--hud-bg);
     border: 1px solid var(--hud-border);
     border-radius: 4px;
@@ -82,7 +103,8 @@ canvas {
     backdrop-filter: blur(10px);
 }
 
-#toggle-ui-btn:hover, #toggle-labels-btn:hover {
+#toggle-ui-btn:hover,
+#toggle-labels-btn:hover {
     background: rgba(42, 45, 46, 0.9);
     border-color: var(--accent-color);
 }
@@ -130,14 +152,16 @@ p {
 
 .small-text {
     font-size: 0.8rem;
-    color: #858585; /* VS Code comments */
+    color: #858585;
+    /* VS Code comments */
     margin-bottom: 4px;
     display: block;
     text-align: left;
 }
 
 .comment {
-    color: #6a9955; /* VS Code comment color */
+    color: #6a9955;
+    /* VS Code comment color */
     font-style: italic;
     margin-top: 10px;
     display: block;

@@ -1,96 +1,221 @@
 import * as THREE from 'three';
 import { Config } from '../core/Config.js';
+import { OSDManager } from '../ui/OSDManager.js';
 
 export class SpaceControls {
     constructor(camera, domElement) {
         this.camera = camera;
-        this.domElement = domElement; 
+        this.domElement = domElement;
         this.isLocked = false;
-        
+
         this.velocity = new THREE.Vector3();
-        
+        this.cameraVelocity = new THREE.Vector2(); // Inercia del ratón
+        this.currentRollSpeed = 0; // Inercia del alabeo
+        this.cinematicMode = false;
+
         this.camera.rotation.set(0, 0, 0);
-        
+
         this.speed = Config.PLAYER_SPEED;
         this.boostMultiplier = Config.PLAYER_BOOST_MULTIPLIER;
         this.friction = Config.PLAYER_FRICTION;
-        
+
         this.keys = { w: false, a: false, s: false, d: false, q: false, e: false, shift: false, space: false };
-        
+
         this.initEvents();
     }
-    
+
     initEvents() {
         document.addEventListener('pointerlockchange', () => {
             this.isLocked = document.pointerLockElement === this.domElement;
         });
-        
-        const canvas = document.querySelector('canvas');
-        if (canvas) {
-            canvas.addEventListener('click', () => {
+
+        // Evitar agarrar el radar-canvas. El canvas del juego es el que no tiene ID.
+        const canvases = document.querySelectorAll('canvas');
+        let gameCanvas = null;
+        for (let c of canvases) {
+            if (c.id !== 'radar-canvas') {
+                gameCanvas = c;
+                break;
+            }
+        }
+
+        if (gameCanvas) {
+            gameCanvas.addEventListener('click', () => {
                 if (!this.isLocked) this.domElement.requestPointerLock();
             });
         }
-        
+
         document.addEventListener('mousemove', (e) => {
             if (!this.isLocked) return;
             const movementX = e.movementX || 0;
             const movementY = e.movementY || 0;
-            
+
             if (Math.abs(movementX) > 100 || Math.abs(movementY) > 100) return;
-            
-            this.camera.rotateY(-movementX * Config.MOUSE_SENSITIVITY);
-            this.camera.rotateX(-movementY * Config.MOUSE_SENSITIVITY);
+
+            if (Math.abs(movementX) > 0 || Math.abs(movementY) > 0) {
+                if (this.autoLookTarget) {
+                    this.autoLookTarget = null;
+                    this.lastAutoLookPos = null;
+                }
+            }
+
+            if (this.cinematicMode) {
+                this.cameraVelocity.x += movementX * Config.CINEMATIC_CAMERA_SENSITIVITY;
+                this.cameraVelocity.y += movementY * Config.CINEMATIC_CAMERA_SENSITIVITY;
+            } else {
+                this.camera.rotateY(-movementX * Config.MOUSE_SENSITIVITY);
+                this.camera.rotateX(-movementY * Config.MOUSE_SENSITIVITY);
+            }
         });
-        
+
         document.addEventListener('keydown', (e) => this.onKey(e, true));
         document.addEventListener('keyup', (e) => this.onKey(e, false));
+
+        // Control de velocidad con la rueda del ratón (exponencial)
+        document.addEventListener('wheel', (e) => {
+            if (!this.isLocked) return;
+            
+            if (e.deltaY < 0) {
+                // Scroll Arriba: Incrementar velocidad
+                this.speed = this.speed === 0 ? Config.PLAYER_SPEED_MIN_STEP : this.speed * Config.PLAYER_SPEED_SCROLL_MULT;
+                this.speed = Math.min(this.speed, Config.PLAYER_SPEED_MAX);
+            } else if (e.deltaY > 0) {
+                // Scroll Abajo: Reducir velocidad
+                this.speed = this.speed / Config.PLAYER_SPEED_SCROLL_MULT;
+                if (this.speed < Config.PLAYER_SPEED_MIN_STEP) this.speed = 0;
+            }
+            
+            OSDManager.show(`Throttle Base Speed: ${Math.round(this.speed)} u/s`, 'info', 1000);
+        });
     }
-    
+
     onKey(event, isDown) {
-        switch(event.code) {
-            case 'KeyW': case 'ArrowUp': this.keys.w = isDown; break;
-            case 'KeyA': case 'ArrowLeft': this.keys.a = isDown; break;
-            case 'KeyS': case 'ArrowDown': this.keys.s = isDown; break;
-            case 'KeyD': case 'ArrowRight': this.keys.d = isDown; break;
-            case 'KeyQ': this.keys.q = isDown; break;
-            case 'KeyE': this.keys.e = isDown; break;
-            case 'ShiftLeft': case 'ShiftRight': this.keys.shift = isDown; break;
-            case 'Space': this.keys.space = isDown; break;
+        if (isDown && [...Config.KEYS.FORWARD, ...Config.KEYS.BACKWARD, ...Config.KEYS.LEFT, ...Config.KEYS.RIGHT, ...Config.KEYS.ROLL_LEFT, ...Config.KEYS.ROLL_RIGHT].includes(event.code)) {
+            if (this.autoLookTarget) {
+                this.autoLookTarget = null;
+                this.lastAutoLookPos = null;
+            }
+        }
+
+        if (Config.KEYS.FORWARD.includes(event.code)) this.keys.w = isDown;
+        if (Config.KEYS.LEFT.includes(event.code)) this.keys.a = isDown;
+        if (Config.KEYS.BACKWARD.includes(event.code)) this.keys.s = isDown;
+        if (Config.KEYS.RIGHT.includes(event.code)) this.keys.d = isDown;
+        if (Config.KEYS.ROLL_LEFT.includes(event.code)) this.keys.q = isDown;
+        if (Config.KEYS.ROLL_RIGHT.includes(event.code)) this.keys.e = isDown;
+        if (Config.KEYS.BOOST.includes(event.code)) this.keys.shift = isDown;
+        if (Config.KEYS.BRAKE.includes(event.code)) this.keys.space = isDown;
+        
+        if (isDown && Config.KEYS.TOGGLE_CINEMATIC.includes(event.code)) {
+            this.cinematicMode = !this.cinematicMode;
+            if (this.cinematicMode) {
+                OSDManager.show('Cinematic Camera: ENABLED', 'success', 2000);
+            } else {
+                OSDManager.show('Cinematic Camera: DISABLED', 'warning', 2000);
+            }
         }
     }
-    
+
     update(dt) {
+        if (this.cinematicMode) {
+            this.camera.rotateY(-this.cameraVelocity.x);
+            this.camera.rotateX(-this.cameraVelocity.y);
+            this.cameraVelocity.multiplyScalar(Config.CINEMATIC_CAMERA_FRICTION);
+        }
+
         if (!this.isLocked) {
             this.velocity.multiplyScalar(0.95);
+        } else if (this.autoPilotTarget || this.autoLookTarget) {
+            const tgt = this.autoPilotTarget || this.autoLookTarget;
+            const targetPos = new THREE.Vector3(tgt.x, tgt.y, tgt.z);
+
+            const matrix = new THREE.Matrix4().lookAt(this.camera.position, targetPos, this.camera.up);
+            const targetQuat = new THREE.Quaternion().setFromRotationMatrix(matrix);
+            this.camera.quaternion.slerp(targetQuat, dt * 3.0);
+
+            if (this.autoPilotTarget) {
+                const dir = new THREE.Vector3().subVectors(targetPos, this.camera.position).normalize();
+
+                let targetSpeed = this.speed * this.boostMultiplier * 3.0;
+                const dist = this.camera.position.distanceTo(targetPos);
+
+                // Freno de salto cuántico: calculamos exactamente la distancia de frenado
+                const brakeZone = Math.max(this.autoPilotTarget.radius * Config.AUTOPILOT_BRAKE_ZONE_MULT, 4000);
+
+                if (dist < brakeZone) {
+                    // Frenado violento y agresivo
+                    targetSpeed = this.speed;
+                    if (this.velocity.length() > targetSpeed) {
+                        this.velocity.multiplyScalar(Config.AUTOPILOT_BRAKE_MULTIPLIER); // Desaceleración brutal estilo hiperespacio
+                    }
+                }
+
+                this.velocity.lerp(dir.multiplyScalar(targetSpeed), dt * 5.0);
+
+                // Cancelar con freno de emergencia
+                if (this.keys.space) {
+                    this.autoPilotTarget = null;
+                    this.lastAutoLookPos = null;
+                    this.velocity.multiplyScalar(Config.PLAYER_BRAKE_FRICTION);
+                }
+            } else {
+                // Solo autoLook: acoplar nuestra posición a la órbita del planeta y girar lentamente
+                if (this.lastAutoLookPos) {
+                    // 1. Compensar el desplazamiento orbital del planeta
+                    const dx = targetPos.x - this.lastAutoLookPos.x;
+                    const dy = targetPos.y - this.lastAutoLookPos.y;
+                    const dz = targetPos.z - this.lastAutoLookPos.z;
+
+                    this.camera.position.x += dx;
+                    this.camera.position.y += dy;
+                    this.camera.position.z += dz;
+
+                    // 2. Órbita cinemática (girar alrededor del objetivo)
+                    const offset = new THREE.Vector3().subVectors(this.camera.position, targetPos);
+                    const orbitSpeed = Config.CINEMATIC_ORBIT_SPEED * dt; 
+                    offset.applyAxisAngle(new THREE.Vector3(0, 1, 0), orbitSpeed);
+
+                    this.camera.position.copy(targetPos).add(offset);
+                }
+                this.lastAutoLookPos = targetPos.clone();
+
+                // mantener frenado normal si pulsamos espacio o desaceleramos
+                if (this.keys.space) {
+                    this.velocity.multiplyScalar(Config.PLAYER_BRAKE_FRICTION);
+                } else {
+                    this.velocity.multiplyScalar(this.friction);
+                }
+            }
         } else {
             const currentSpeed = this.speed * (this.keys.shift ? this.boostMultiplier : 1);
-            
+
             const direction = new THREE.Vector3();
             direction.z = Number(this.keys.w) - Number(this.keys.s);
             direction.x = Number(this.keys.d) - Number(this.keys.a);
             direction.normalize();
-            
+
             if (this.keys.w || this.keys.s) this.velocity.z -= direction.z * currentSpeed * dt;
             if (this.keys.a || this.keys.d) this.velocity.x += direction.x * currentSpeed * dt;
+
+            const targetRoll = (Number(this.keys.q) - Number(this.keys.e)) * Config.ROLL_SPEED;
+            this.currentRollSpeed += (targetRoll - this.currentRollSpeed) * dt * 5.0; // Lerp suave
             
-            const rollInput = Number(this.keys.q) - Number(this.keys.e);
-            if (rollInput !== 0) {
-                this.camera.rotateZ(rollInput * Config.ROLL_SPEED * dt);
+            if (Math.abs(this.currentRollSpeed) > 0.001) {
+                this.camera.rotateZ(this.currentRollSpeed * dt);
             }
-            
+
             if (this.keys.space) {
                 this.velocity.multiplyScalar(Config.PLAYER_BRAKE_FRICTION);
             } else {
                 this.velocity.multiplyScalar(this.friction);
             }
         }
-        
+
         this.camera.translateX(this.velocity.x * dt);
         this.camera.translateY(this.velocity.y * dt);
         this.camera.translateZ(this.velocity.z * dt);
     }
-    
+
     getObject() {
         return this.camera;
     }

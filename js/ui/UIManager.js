@@ -37,8 +37,8 @@ export class UIManager {
         };
         
         document.addEventListener('keydown', (e) => {
-            if(e.code === 'KeyH') toggleHUD();
-            if(e.code === 'KeyL') toggleLabels();
+            if(Config.KEYS.TOGGLE_HUD.includes(e.code)) toggleHUD();
+            if(Config.KEYS.TOGGLE_LABELS.includes(e.code)) toggleLabels();
         });
     }
     
@@ -52,8 +52,6 @@ export class UIManager {
     }
     
     updateLabels(universe) {
-        if (this.labelsContainer.classList.contains('hidden')) return;
-        
         const cameraPos = this.camera.position;
         const maxDist = Config.UI_LABEL_MAX_DISTANCE; 
         const maxDistSq = maxDist * maxDist;
@@ -74,7 +72,7 @@ export class UIManager {
                 let distSq = dx*dx + dy*dy + dz*dz;
                 
                 if (distSq < maxDistSq) {
-                    nearby.push({ name: sys.name, type: 'Estrella', radius: sys.sunRadius, x: sys.lx+cx, y: sys.ly+cy, z: sys.lz+cz, distSq: distSq });
+                    nearby.push({ name: sys.name, type: sys.type, group: 'Estrella', radius: sys.sunRadius, x: sys.lx+cx, y: sys.ly+cy, z: sys.lz+cz, distSq: distSq });
                 }
                 
                 for(let p of sys.planets) {
@@ -83,13 +81,18 @@ export class UIManager {
                     dz = p.lz + cz - cameraPos.z;
                     distSq = dx*dx + dy*dy + dz*dz;
                     if (distSq < maxDistSq) {
-                        nearby.push({ name: p.name, type: 'Planeta', radius: p.radius, x: p.lx+cx, y: p.ly+cy, z: p.lz+cz, distSq: distSq });
+                        nearby.push({ name: p.name, type: p.type, group: 'Planeta', radius: p.radius, x: p.lx+cx, y: p.ly+cy, z: p.lz+cz, distSq: distSq });
                     }
                 }
             }
         }
         
         nearby.sort((a, b) => a.distSq - b.distSq);
+        
+        this.lastNearby = nearby;
+        this.updateSensors(nearby);
+
+        if (this.labelsContainer.classList.contains('hidden')) return;
         
         let labelIndex = 0;
         
@@ -110,8 +113,8 @@ export class UIManager {
                 const distText = Math.round(Math.max(0, dist - body.radius)) + 'u';
                 
                 if (el._lastName !== body.name) {
-                    const colorClass = body.type === 'Estrella' ? 'var(--function-color)' : 'var(--variable-color)';
-                    const icon = body.type === 'Estrella' ? '❖' : '○';
+                    const colorClass = body.group === 'Estrella' ? 'var(--function-color)' : 'var(--variable-color)';
+                    const icon = body.group === 'Estrella' ? '❖' : '○';
                     
                     el.innerHTML = `<div style="text-align: left; line-height: 1.2;">
                         <span style="color:${colorClass}; font-size: 0.9rem; margin-right: 4px;">${icon}</span>
@@ -141,9 +144,50 @@ export class UIManager {
                 labelIndex++;
             }
         }
+        
         for(let i = labelIndex; i < this.labelsPool.length; i++) {
             this.labelsPool[i].style.opacity = '0';
             this.labelsPool[i]._lastName = '';
+        }
+    }
+    
+    updateSensors(nearby) {
+        let closestDist = Infinity;
+        let closestStarDist = Infinity;
+        
+        for (let body of nearby) {
+            if (body.group === 'Estrella' && body.distSq < closestStarDist) closestStarDist = body.distSq;
+            if (body.distSq < closestDist) closestDist = body.distSq;
+        }
+        
+        let dist = Math.sqrt(closestDist);
+        let starDist = Math.sqrt(closestStarDist);
+        
+        let grav = Math.max(0, (3000 - dist) / 1000);
+        let temp = starDist < Infinity ? Math.max(-270, 4000 - starDist) : -270;
+        if (closestDist === Infinity) { grav = 0; temp = -270; }
+        
+        let crosshair = document.getElementById('crosshair');
+        if (temp > 800 || dist < 200) {
+            crosshair.style.color = '#ff5555';
+            crosshair.style.transform = 'translate(-50%, -50%) scale(1.5)';
+        } else {
+            crosshair.style.color = 'rgba(255,255,255,0.4)';
+            crosshair.style.transform = 'translate(-50%, -50%) scale(1)';
+        }
+        
+        if (this.hud.classList.contains('hidden')) return;
+        
+        document.getElementById('sensor-grav').innerText = grav.toFixed(1) + ' G';
+        document.getElementById('sensor-temp').innerText = temp.toFixed(0) + ' °C';
+        
+        let alertEl = document.getElementById('sensor-alert');
+        if (temp > 800 || dist < 200) {
+            alertEl.innerText = 'PELIGRO';
+            alertEl.style.color = '#ff5555';
+        } else {
+            alertEl.innerText = 'Estable';
+            alertEl.style.color = 'var(--number-color)';
         }
     }
 }

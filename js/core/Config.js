@@ -37,11 +37,43 @@ export const Config = {
     // FÍSICAS DE LA NAVE (JUGADOR)
     // ==========================================
     PLAYER_SPEED: 500,                 // Velocidad base de vuelo (unidades por segundo)
-    PLAYER_BOOST_MULTIPLIER: 50,       // Multiplicador de velocidad al presionar Shift (Hyperdrive)
-    PLAYER_FRICTION: 0.98,             // Fricción en el espacio (1.0 = patinar infinito, 0.5 = freno brusco)
+    PLAYER_SPEED_SCROLL_MULT: 1.3,     // Multiplicador de velocidad por tic de la rueda del ratón (Exponencial)
+    PLAYER_SPEED_MIN_STEP: 5,          // Velocidad mínima para arrancar desde cero con la rueda
+    PLAYER_SPEED_MAX: 100000,          // Límite de velocidad base para evitar romper la simulación física
+    PLAYER_BOOST_MULTIPLIER: 30,       // Multiplicador de velocidad al presionar Shift (Hyperdrive)
+    PLAYER_FRICTION: 0.985,             // Fricción en el espacio (1.0 = patinar infinito, 0.5 = freno brusco)
     PLAYER_BRAKE_FRICTION: 0.90,       // Fricción al presionar [ESPACIO] para frenar
     MOUSE_SENSITIVITY: 0.0015,         // Sensibilidad del giro de cámara con el ratón
-    ROLL_SPEED: 2.0,                   // Velocidad de alabeo (rotar en el eje Z con Q y E)
+    CINEMATIC_CAMERA_FRICTION: 0.97,   // Conservación de inercia del ratón en modo cinemático (1.0 = infinito)
+    CINEMATIC_CAMERA_SENSITIVITY: 0.0001, // Sensibilidad reducida para el modo cinemático
+    ROLL_SPEED: 2.0,                   // Velocidad máxima de alabeo (rotar en el eje Z con Q y E)
+
+    // ==========================================
+    // PILOTO AUTOMÁTICO Y CINEMÁTICAS
+    // ==========================================
+    AUTOPILOT_BRAKE_MULTIPLIER: 0.70,  // Desaceleración violenta por frame al llegar (Salto cuántico)
+    AUTOPILOT_BRAKE_ZONE_MULT: 5,      // Multiplicador de radio para iniciar la frenada cuántica
+    AUTOPILOT_ARRIVAL_MULT: 3.5,       // Multiplicador de radio para detenerse y orbitar (Cinemático FOV)
+    CINEMATIC_ORBIT_SPEED: 0.15,       // Velocidad (rad/s) de la órbita de cámara alrededor del objetivo
+
+    // ==========================================
+    // CONTROLES Y ATAJOS DE TECLADO (HOTKEYS)
+    // ==========================================
+    KEYS: {
+        FORWARD: ['KeyW', 'ArrowUp'],
+        BACKWARD: ['KeyS', 'ArrowDown'],
+        LEFT: ['KeyA', 'ArrowLeft'],
+        RIGHT: ['KeyD', 'ArrowRight'],
+        ROLL_LEFT: ['KeyQ'],
+        ROLL_RIGHT: ['KeyE'],
+        BOOST: ['ShiftLeft', 'ShiftRight'],
+        BRAKE: ['Space'],
+        TARGET: ['KeyT'],
+        AUTOPILOT: ['KeyJ'],
+        TOGGLE_HUD: ['KeyH'],
+        TOGGLE_LABELS: ['KeyL'],
+        TOGGLE_CINEMATIC: ['KeyF']
+    },
 
     // ==========================================
     // MOTOR GRÁFICO (RENDER & RENDIMIENTO)
