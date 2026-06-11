@@ -1,34 +1,37 @@
 import * as THREE from 'three';
+import { Config } from './Config.js';
 import { SpaceControls } from '../player/SpaceControls.js';
 import { Universe } from '../world/universe/Universe.js';
 import { LightingManager } from '../graphics/LightingManager.js';
 import { UIManager } from '../ui/UIManager.js';
-import { OSDManager } from '../ui/OSDManager.js';
-import { Config } from './Config.js';
 import { TerrainManager } from '../world/terrain/TerrainManager.js';
 import { TerrainControls } from '../player/terrain/TerrainControls.js';
+import { EventManager, EVENTS } from './EventManager.js';
+import { SpaceState } from './states/SpaceState.js';
+import { TerrainState } from './states/TerrainState.js';
+import { RenderSystem } from './systems/RenderSystem.js';
+import { InteractionSystem } from './systems/InteractionSystem.js';
 
 export class Engine {
     constructor() {
-        this.scene = new THREE.Scene();
-        this.scene.fog = new THREE.FogExp2(0x000000, 0.00005);
+        this.renderSystem = new RenderSystem();
+        this.scene = this.renderSystem.scene;
+        this.camera = this.renderSystem.camera;
+        this.renderer = this.renderSystem.renderer;
 
-        this.camera = new THREE.PerspectiveCamera(Config.RENDER_FOV, window.innerWidth / window.innerHeight, 100, 2000000);
-
-        // TRUCO 2: Apagar el Antialiasing. El antialias multiplica por 4 el trabajo de la GPU.
-        this.renderer = new THREE.WebGLRenderer({ antialias: Config.RENDER_ANTIALIAS, alpha: false, powerPreference: "high-performance" });
-        this.renderer.setSize(window.innerWidth, window.innerHeight);
-        // TRUCO EXTREMO: Los monitores 4K/Retina renderizan 4 veces más píxeles y hunden el rendimiento.
-        // Limitamos el Pixel Ratio a 1.25 para que vuele en cualquier pantalla.
-        this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, Config.RENDER_PIXEL_RATIO_MAX));
-        document.body.appendChild(this.renderer.domElement);
+        this.interactionSystem = new InteractionSystem(this);
 
         this.lighting = new LightingManager(this.scene);
         this.controls = new SpaceControls(this.camera, document.body);
         this.universe = new Universe(this.scene);
         this.ui = new UIManager(this.camera);
 
-        this.gameState = 'SPACE'; // 'SPACE' or 'TERRAIN'
+        this.states = {
+            SPACE: new SpaceState(this),
+            TERRAIN: new TerrainState(this)
+        };
+        this.currentState = this.states.SPACE;
+        this.gameState = 'SPACE'; // 'SPACE' or 'TERRAIN' for legacy checks
         this.landingTarget = null; // Planeta en el que estamos actualmente
         this.currentOrbitBody = null;
         this.isTransitioning = false;
@@ -45,8 +48,6 @@ export class Engine {
 
         this.isFlashlightOn = false;
         this.flashlightPower = 2; // Nivel de intensidad (scroll)
-
-        window.addEventListener('resize', () => this.onWindowResize());
 
         const distSlider = document.getElementById('render-dist');
         if (distSlider) {
@@ -70,15 +71,15 @@ export class Engine {
             if (this.isTransitioning) return;
 
             if (Config.KEYS.TARGET.includes(e.code)) {
-                this.attemptTargeting();
+                this.interactionSystem.attemptTargeting();
             }
             if (Config.KEYS.AUTOPILOT.includes(e.code) && this.targetBody) {
                 if (!this.controls.autoPilotTarget) {
                     this.controls.autoPilotTarget = this.targetBody;
-                    OSDManager.show(`Autopilot engaged: Intercepting ${this.targetBody.name}`, 'warning', 4000);
+                    EventManager.emit(EVENTS.OSD_MESSAGE, { message: `Autopilot engaged: Intercepting ${this.targetBody.name}`, type: 'warning', duration: 4000 });
                 } else {
                     this.controls.autoPilotTarget = null;
-                    OSDManager.show(`Autopilot aborted manually`, 'error');
+                    EventManager.emit(EVENTS.OSD_MESSAGE, { message: `Autopilot aborted manually`, type: 'error' });
                 }
             }
             if (Config.KEYS.TOGGLE_LANDING.includes(e.code)) {
@@ -92,7 +93,7 @@ export class Engine {
                 if (this.gameState === 'TERRAIN') {
                     this.isFlashlightOn = !this.isFlashlightOn;
                     this.flashlight.intensity = this.isFlashlightOn ? this.flashlightPower : 0;
-                    OSDManager.show(this.isFlashlightOn ? 'Linterna ENCENDIDA' : 'Linterna APAGADA', 'info', 2000);
+                    EventManager.emit(EVENTS.OSD_MESSAGE, { message: this.isFlashlightOn ? 'Linterna ENCENDIDA' : 'Linterna APAGADA', type: 'info', duration: 2000 });
                 }
             }
         });
@@ -117,14 +118,14 @@ export class Engine {
 
             if (this.gameState === 'SPACE') {
                 if (e.button === 0) { // Clic Izquierdo = Enfocar
-                    this.attemptTargeting();
+                    this.interactionSystem.attemptTargeting();
                 } else if (e.button === 2) { // Clic Derecho = Aterrizar
                     if (this.landingTarget) {
                         this.triggerLanding(this.landingTarget);
                     } else if (this.targetBody) {
-                        OSDManager.show('Demasiado lejos de ' + this.targetBody.name + ' para iniciar descenso', 'error');
+                        EventManager.emit(EVENTS.OSD_MESSAGE, { message: 'Demasiado lejos de ' + this.targetBody.name + ' para iniciar descenso', type: 'error' });
                     } else {
-                        OSDManager.show('Órbita estable requerida para aterrizaje', 'error');
+                        EventManager.emit(EVENTS.OSD_MESSAGE, { message: 'Órbita estable requerida para aterrizaje', type: 'error' });
                     }
                 }
             } else if (this.gameState === 'TERRAIN') {
@@ -138,53 +139,7 @@ export class Engine {
         requestAnimationFrame(this.animate);
     }
 
-    attemptTargeting() {
-        const raycaster = new THREE.Raycaster();
-        raycaster.setFromCamera(new THREE.Vector2(0, 0), this.camera);
-        let closest = null;
-        let closestDist = Infinity;
-        
-        for (let body of this.ui.lastNearby || []) {
-            const vec = new THREE.Vector3(body.x, body.y, body.z);
-            const toBody = vec.clone().sub(this.camera.position);
-            if (toBody.dot(raycaster.ray.direction) > 0) {
-                const distToRay = raycaster.ray.distanceSqToPoint(vec);
-                const hitThreshold = Math.max(body.radius * 3, 200) ** 2;
-                if (distToRay < hitThreshold && body.distSq < closestDist) {
-                    closestDist = body.distSq;
-                    closest = body;
-                }
-            }
-        }
-
-        if (closest) {
-            // Si el nuevo target es igual al actual, lo deseleccionamos
-            if (this.targetBody && this.targetBody.name === closest.name) {
-                this.targetBody = null;
-                document.getElementById('target-panel').style.display = 'none';
-                this.controls.autoPilotTarget = null;
-                this.controls.autoLookTarget = null;
-                this.controls.lastAutoLookPos = null;
-                OSDManager.show('Targeting system disengaged', 'info');
-            } else {
-                this.targetBody = closest;
-                this.updateTargetHUD(closest);
-                OSDManager.show('Locked onto: ' + closest.name, 'success');
-            }
-        } else {
-            if (this.targetBody) {
-                // Click en el vacío = Deseleccionar
-                this.targetBody = null;
-                document.getElementById('target-panel').style.display = 'none';
-                this.controls.autoPilotTarget = null;
-                this.controls.autoLookTarget = null;
-                this.controls.lastAutoLookPos = null;
-                OSDManager.show('Targeting system disengaged', 'info');
-            } else {
-                OSDManager.show('No valid target in sight', 'error');
-            }
-        }
-    }
+    // attemptTargeting moved to InteractionSystem.js
 
     updateTargetHUD(target) {
         if (!target) return;
@@ -263,15 +218,11 @@ export class Engine {
         }
     }
 
-    onWindowResize() {
-        this.camera.aspect = window.innerWidth / window.innerHeight;
-        this.camera.updateProjectionMatrix();
-        this.renderer.setSize(window.innerWidth, window.innerHeight);
-    }
+    // onWindowResize moved to RenderSystem.js
 
     triggerLanding(planet) {
         if (planet.type.includes('Gas')) {
-            OSDManager.show('Planeta no explorable (Superficie no sólida)', 'error', 3000);
+            EventManager.emit(EVENTS.OSD_MESSAGE, { message: 'Planeta no explorable (Superficie no sólida)', type: 'error', duration: 3000 });
             return;
         }
 
@@ -315,6 +266,8 @@ export class Engine {
 
         setTimeout(() => {
             this.gameState = 'TERRAIN';
+            this.currentState = this.states.TERRAIN;
+            this.currentState.enter();
 
             // Destruir Universo (Congelar el espacio)
             this.universe.dispose();
@@ -337,7 +290,7 @@ export class Engine {
                 atmosphereDensity: planet.atmosphereDensity
             };
 
-            OSDManager.show(`Aterrizaje exitoso en ${planet.name}`, 'success', 3000);
+            EventManager.emit(EVENTS.OSD_MESSAGE, { message: `Aterrizaje exitoso en ${planet.name}`, type: 'success', duration: 3000 });
 
             // Inicializar la escena de terreno
             this.controls.dispose(); // Quita listeners del espacio
@@ -392,6 +345,8 @@ export class Engine {
         setTimeout(() => {
             try {
                 this.gameState = 'SPACE';
+                this.currentState = this.states.SPACE;
+                this.currentState.enter();
                 // Destruir Terreno
                 if (this.terrainManager) this.terrainManager.dispose();
                 if (this.terrainControls) this.terrainControls.dispose();
@@ -496,205 +451,10 @@ export class Engine {
         requestAnimationFrame(this.animate);
         const dt = this.clock.getDelta();
 
-        if (this.gameState === 'SPACE') {
-            this.controls.update(dt);
-            const pos = this.camera.position;
-
-            this.universe.update(pos.x, pos.y, pos.z, dt);
-            this.lighting.update(this.camera.position, this.universe);
-
-            this.ui.updateHUD(this.controls.velocity.length(), pos);
-            this.ui.updateLabels(this.universe);
-
-            this.landingTarget = null;
-
-            if (this.targetBody) {
-                // Actualizar la referencia del objetivo en cada frame porque los planetas se mueven
-                const freshBody = this.ui.lastNearby.find(b => b.name === this.targetBody.name);
-                if (freshBody) {
-                    this.targetBody = freshBody;
-                    if (this.controls.autoPilotTarget) {
-                        this.controls.autoPilotTarget = freshBody;
-                    }
-                    if (this.controls.autoLookTarget) {
-                        this.controls.autoLookTarget = freshBody;
-                    }
-                }
-
-                this.updateTargetHUD(this.targetBody);
-
-                // Umbral de llegada relativo al tamaño del cuerpo (cinemático)
-                const arrivalThreshold = Math.max(this.targetBody.radius * Config.AUTOPILOT_ARRIVAL_MULT, this.targetBody.radius + 30);
-
-                // Detección de Overshoot (Tunneling de físicas): Si nos pasamos de largo por lag o velocidad excesiva
-                let overshot = false;
-                if (this.controls.autoPilotTarget && this.controls.lastCameraPos) {
-                    // Matemáticamente perfecto: ¿El segmento de línea del último frame al actual cruza el umbral de llegada?
-                    const A = this.controls.lastCameraPos;
-                    const B = this.camera.position;
-                    const C = new THREE.Vector3(this.targetBody.x, this.targetBody.y, this.targetBody.z);
-
-                    const AB = new THREE.Vector3().subVectors(B, A);
-                    const AC = new THREE.Vector3().subVectors(C, A);
-
-                    const ab2 = AB.lengthSq();
-                    if (ab2 > 0.001) {
-                        let t = AC.dot(AB) / ab2;
-                        t = Math.max(0, Math.min(1, t)); // Limitar al segmento entre el frame anterior y el actual
-
-                        const closestPoint = new THREE.Vector3().copy(A).add(AB.multiplyScalar(t));
-                        const distToSegment = closestPoint.distanceTo(C);
-
-                        // Si el punto más cercano de nuestro movimiento de este frame estuvo dentro del umbral de llegada...
-                        if (distToSegment < arrivalThreshold) {
-                            // Y si realmente nos acercamos y luego nos alejamos (t > 0 significa que pasamos por el punto más cercano)
-                            if (t > 0 && t <= 1) {
-                                overshot = true;
-                            }
-                        }
-                    }
-                }
-
-                // Guardar posición para el próximo frame
-                if (!this.controls.lastCameraPos) this.controls.lastCameraPos = new THREE.Vector3();
-                this.controls.lastCameraPos.copy(this.camera.position);
-
-                const dist = this.camera.position.distanceTo(new THREE.Vector3(this.targetBody.x, this.targetBody.y, this.targetBody.z));
-                if (this.controls.autoPilotTarget && (dist < arrivalThreshold || overshot)) {
-                    this.controls.autoLookTarget = this.controls.autoPilotTarget;
-                    this.controls.autoPilotTarget = null;
-                    this.controls.velocity.set(0, 0, 0); // Freno perfecto absoluto
-                    OSDManager.show(`Destination reached: ${this.targetBody.name}. Orbital insertion complete`, 'success', 5000);
-                }
-            } // Cierra if (this.targetBody)
-
-            // Comprobar proximidad para aterrizar en cualquier cuerpo cercano (incluso sin Lock)
-            let closestLandingBody = null;
-            let minLandingDist = Infinity;
-            let isGasGiant = false;
-
-            if (this.ui.lastNearby && this.ui.lastNearby.length > 0) {
-                for (const body of this.ui.lastNearby) {
-                    // Filtrar estrellas (usando group) y agujeros negros, pero dejar gaseosos para advertir
-                    if (body.group === 'Estrella' || (body.type && body.type.includes('Black Hole'))) continue;
-
-                    const dist = this.camera.position.distanceTo(new THREE.Vector3(body.x, body.y, body.z));
-                    const threshold = Math.max(body.radius * 5.0, body.radius + 3000);
-
-                    if (dist < threshold && dist < minLandingDist) {
-                        closestLandingBody = body;
-                        minLandingDist = dist;
-                        isGasGiant = body.type.includes('Gas');
-                    }
-                }
-            }
-
-            if (closestLandingBody && !this.controls.autoPilotTarget) {
-                // Comparar por nombre ya que lastNearby regenera los objetos cada frame
-                if (!this.currentOrbitBody || this.currentOrbitBody.name !== closestLandingBody.name) {
-                    this.currentOrbitBody = closestLandingBody;
-                    if (isGasGiant) {
-                        OSDManager.show(`Órbita en ${closestLandingBody.name}: Superficie no sólida (Inhóspito)`, 'error', 0); // 0 = Persistente
-                    } else {
-                        OSDManager.show(`Órbita estable en ${closestLandingBody.name} [ENTER] Aterrizar`, 'info', 0); // Persistente
-                    }
-                }
-                if (!isGasGiant) this.landingTarget = closestLandingBody;
-            } else {
-                if (this.currentOrbitBody) {
-                    OSDManager.hide();
-                }
-                this.currentOrbitBody = null;
-                this.landingTarget = null;
-            }
-
-        } else if (this.gameState === 'TERRAIN') {
-            if (this.terrainControls && this.terrainManager) {
-                this.terrainControls.update(dt);
-
-                // Circunnavegación y Polos (Bucle finito planetario)
-                if (this.lastLandedPlanet) {
-                    const tardisScale = Config.TERRAIN_TARDIS_SCALE;
-                    const terrainRadius = this.lastLandedPlanet.radius * tardisScale;
-                    const circumference = Math.PI * 2 * terrainRadius;
-                    const poleZ = (Math.PI / 2) * terrainRadius;
-
-                    let px = this.camera.position.x;
-                    let pz = this.camera.position.z;
-                    let crossedPole = false;
-
-                    // Cruzar los Polos (Norte/Sur)
-                    if (pz > poleZ) {
-                        pz = poleZ - (pz - poleZ);
-                        px += circumference / 2;
-                        crossedPole = true;
-                    } else if (pz < -poleZ) {
-                        pz = -poleZ - (pz + poleZ);
-                        px += circumference / 2;
-                        crossedPole = true;
-                    }
-
-                    // Bucle Este-Oeste (Ecuador/Longitud)
-                    if (px > circumference / 2) px -= circumference;
-                    else if (px < -circumference / 2) px += circumference;
-
-                    if (crossedPole) {
-                        // Girar cámara 180° horizontalmente al cruzar el polo
-                        const euler = new THREE.Euler(0, 0, 0, 'YXZ');
-                        euler.setFromQuaternion(this.camera.quaternion);
-                        euler.y += Math.PI;
-                        this.camera.quaternion.setFromEuler(euler);
-                    }
-
-                    this.camera.position.x = px;
-                    this.camera.position.z = pz;
-                }
-
-                this.terrainManager.update(dt, this.camera.position);
-
-                if (this.lastLandedPlanet) {
-                    this.updateTargetHUD(this.lastLandedPlanet);
-                }
-
-                // Actualizar OSD Espacial (legado)
-                document.getElementById('speed').innerText = Math.round(this.terrainControls.velocity.length()) + ' u/s';
-                document.getElementById('pos-x').innerText = Math.round(this.camera.position.x);
-                document.getElementById('pos-y').innerText = Math.round(this.camera.position.y);
-                document.getElementById('pos-z').innerText = Math.round(this.camera.position.z);
-
-                // Actualizar OSD Terreno (Navegación)
-                if (this.lastLandedPlanet) {
-                    const terrainRadius = this.lastLandedPlanet.radius * 10;
-                    
-                    const latDeg = (this.camera.position.z / terrainRadius) * (180 / Math.PI);
-                    const lonDeg = (this.camera.position.x / terrainRadius) * (180 / Math.PI);
-                    
-                    document.getElementById('terr-lat').innerText = latDeg.toFixed(2) + '°';
-                    document.getElementById('terr-lon').innerText = lonDeg.toFixed(2) + '°';
-                    document.getElementById('terr-alt').innerText = Math.round(this.camera.position.y) + 'm';
-                    
-                    // Brújula
-                    const dir = new THREE.Vector3(0, 0, -1).applyQuaternion(this.camera.quaternion);
-                    // dir.z es positivo hacia el Norte (+Z) en nuestro sistema
-                    let heading = Math.atan2(dir.x, dir.z) * (180 / Math.PI);
-                    if (heading < 0) heading += 360;
-                    
-                    const cardinals = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
-                    const index = Math.round(heading / 45) % 8;
-                    document.getElementById('terr-compass').innerText = `'${cardinals[index]}'`;
-                }
-
-                if (this.camera.position.y > 100000) {
-                    if (!this.showingLiftoffPrompt) {
-                        OSDManager.show("Atmósfera Alta [ENTER] Despegar", 'warning', 5000);
-                        this.showingLiftoffPrompt = true;
-                    }
-                } else {
-                    this.showingLiftoffPrompt = false;
-                }
-            }
+        if (this.currentState) {
+            this.currentState.update(dt);
         }
 
-        this.renderer.render(this.scene, this.camera);
+        this.renderSystem.render();
     }
 }

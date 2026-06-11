@@ -2,6 +2,8 @@ import * as THREE from 'three';
 import { seededRandom } from '../../utils/MathUtils.js';
 import { generateStarName, generatePlanetName } from '../generators/NameGenerator.js';
 import { Config } from '../../core/Config.js';
+import { Star } from '../entities/Star.js';
+import { Planet } from '../entities/Planet.js';
 
 const SHARED_SPHERE_GEO = new THREE.SphereGeometry(1, 10, 10);
 const SHARED_STAR_MAT = new THREE.PointsMaterial({
@@ -106,7 +108,16 @@ export class Chunk {
                     const pName = generatePlanetName(starName, j, pSeed + 13, this.cx, this.cy, this.cz);
                     const hue = seededRandom(this.cx, this.cy, this.cz, pSeed);
                     const isGasGiant = seededRandom(this.cx, this.cy, this.cz, pSeed + 5) > (1 - Config.GAS_GIANT_CHANCE);
-                    const pType = isGasGiant ? 'Gas Giant' : 'Rocky Planet';
+                    let pType = 'Rocky Planet';
+                    if (isGasGiant) {
+                        pType = 'Gas Giant';
+                    } else {
+                        const typeRand = seededRandom(this.cx, this.cy, this.cz, pSeed + 20);
+                        if (typeRand > 0.85) pType = 'Ocean Planet';
+                        else if (typeRand > 0.70) pType = 'Lava Planet';
+                        else if (typeRand > 0.55) pType = 'Ice Planet';
+                        else if (typeRand > 0.45) pType = 'Crystal Planet';
+                    }
                     
                     let pColor = new THREE.Color();
                     let atmosphereDensity = 0;
@@ -115,15 +126,24 @@ export class Chunk {
                         pColor.setHSL(hue, 0.7 + seededRandom(this.cx, this.cy, this.cz, pSeed + 1) * 0.3, 0.4 + seededRandom(this.cx, this.cy, this.cz, pSeed + 2) * 0.4);
                         atmosphereDensity = 0.001; // Densidad enorme para gaseosos (aunque no aterricemos)
                     } else {
-                        // Color base procedural para el planeta rocoso
-                        pColor.setHSL(hue, 0.2 + seededRandom(this.cx, this.cy, this.cz, pSeed + 1) * 0.4, 0.2 + seededRandom(this.cx, this.cy, this.cz, pSeed + 2) * 0.5);
-                        
-                        // Densidad atmosférica procedural (puede ser 0 = sin atmósfera)
-                        // Aumentar la probabilidad de que algunos no tengan atmósfera
-                        const atmoChance = seededRandom(this.cx, this.cy, this.cz, pSeed + 13);
-                        if (atmoChance > 0.3) {
-                            // De 0.00005 a 0.0005
-                            atmosphereDensity = 0.00005 + seededRandom(this.cx, this.cy, this.cz, pSeed + 14) * 0.00045;
+                        // Color base procedural dependiente del tipo
+                        if (pType === 'Ocean Planet') {
+                            pColor.setHSL(0.55 + seededRandom(this.cx, this.cy, this.cz, pSeed)*0.1, 0.8, 0.3);
+                            atmosphereDensity = 0.0003 + seededRandom(this.cx, this.cy, this.cz, pSeed)*0.0002;
+                        } else if (pType === 'Lava Planet') {
+                            pColor.setHSL(0.0 + seededRandom(this.cx, this.cy, this.cz, pSeed)*0.1, 0.9, 0.4);
+                            atmosphereDensity = 0.0004; // Mucha niebla y ceniza
+                        } else if (pType === 'Ice Planet') {
+                            pColor.setHSL(0.5 + seededRandom(this.cx, this.cy, this.cz, pSeed)*0.1, 0.4, 0.8);
+                        } else if (pType === 'Crystal Planet') {
+                            pColor.setHSL(hue, 0.9, 0.6);
+                        } else {
+                            // Rocky
+                            pColor.setHSL(hue, 0.2 + seededRandom(this.cx, this.cy, this.cz, pSeed + 1) * 0.4, 0.2 + seededRandom(this.cx, this.cy, this.cz, pSeed + 2) * 0.5);
+                            const atmoChance = seededRandom(this.cx, this.cy, this.cz, pSeed + 13);
+                            if (atmoChance > 0.3) {
+                                atmosphereDensity = 0.00005 + seededRandom(this.cx, this.cy, this.cz, pSeed + 14) * 0.00045;
+                            }
                         }
                     }
                     
@@ -132,16 +152,19 @@ export class Chunk {
                     const orbitSpeed = (seededRandom(this.cx, this.cy, this.cz, pSeed + 9) * Config.PLANET_ORBIT_SPEED_VAR + Config.PLANET_ORBIT_SPEED_BASE) * (seededRandom(this.cx, this.cy, this.cz, pSeed + 10) > 0.5 ? 1 : -1);
                     const rotationSpeed = Config.PLANET_ROTATION_SPEED * (0.2 + seededRandom(this.cx, this.cy, this.cz, pSeed + 15) * 1.8);
                     const startAngle = seededRandom(this.cx, this.cy, this.cz, pSeed + 11) * Math.PI * 2;
-
-                    planets.push({
+                    const planetInstance = new Planet({
                         name: pName, type: pType, radius: pRadius, color: pColor, 
                         atmosphereDensity: atmosphereDensity, 
                         orbitRadius, orbitSpeed, rotationSpeed,
                         angle: startAngle, tiltOffset: seededRandom(this.cx, this.cy, this.cz, pSeed + 12) * Math.PI * 2,
                         rotationY: 0, lx: 0, ly: 0, lz: 0
                     });
+                    planets.push(planetInstance);
                 }
-                systemsData.push({ name: starName, type: starType, sunColor, sunRadius, lx, ly, lz, planets });
+                const starInstance = new Star({
+                    name: starName, type: starType, sunColor, radius: sunRadius, lx, ly, lz, planets
+                });
+                systemsData.push(starInstance);
                 totalPlanets += numPlanets;
             }
 
@@ -158,7 +181,7 @@ export class Chunk {
                     map: SHARED_SUN_TEXTURE, color: sys.sunColor, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false
                 });
                 const sunSprite = new THREE.Sprite(spriteMaterial);
-                sunSprite.scale.set(sys.sunRadius * Config.SUN_GLOW_SCALE, sys.sunRadius * Config.SUN_GLOW_SCALE, 1);
+                sunSprite.scale.set(sys.radius * Config.SUN_GLOW_SCALE, sys.radius * Config.SUN_GLOW_SCALE, 1);
                 sunSprite.position.set(sys.lx, sys.ly, sys.lz);
                 sunSprite.frustumCulled = true; // No dibujar soles a tus espaldas
                 this.group.add(sunSprite);
@@ -176,12 +199,11 @@ export class Chunk {
     update(dt) {
         let matricesUpdated = false;
         for (let sys of this.systems) {
+            sys.update(dt);
             for (let p of sys.planets) {
-                p.angle += p.orbitSpeed * dt;
-                p.rotationY += dt * p.rotationSpeed;
-                p.lx = sys.lx + Math.cos(p.angle) * p.orbitRadius;
-                p.lz = sys.lz + Math.sin(p.angle) * p.orbitRadius;
-                p.ly = sys.ly + Math.sin(p.angle + p.tiltOffset) * (p.orbitRadius * 0.1);
+                // Update absolute positions for UI calculations
+                sys.updateAbsolutePosition(this.group.position.x, this.group.position.y, this.group.position.z);
+                p.updateAbsolutePosition(this.group.position.x, this.group.position.y, this.group.position.z);
 
                 if (this.planetMesh) {
                     dummy.position.set(p.lx, p.ly, p.lz);

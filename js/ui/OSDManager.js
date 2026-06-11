@@ -1,7 +1,10 @@
+import { EventManager, EVENTS } from '../core/EventManager.js';
+
 export class OSDManager {
     static container = null;
     static currentEl = null;
     static timeoutId = null;
+    static isListening = false;
 
     static init() {
         if (this.container) return;
@@ -21,6 +24,13 @@ export class OSDManager {
             uiLayer.appendChild(this.container);
         } else {
             document.body.appendChild(this.container);
+        }
+
+        if (!this.isListening) {
+            EventManager.on(EVENTS.OSD_MESSAGE, (payload) => this.show(payload.message, payload.type, payload.duration));
+            EventManager.on(EVENTS.TARGET_CHANGED, (target) => this.show('Locked onto: ' + target.name, 'success'));
+            EventManager.on(EVENTS.TARGET_CLEARED, () => this.show('Targeting system disengaged', 'info'));
+            this.isListening = true;
         }
     }
 

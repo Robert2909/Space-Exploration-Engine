@@ -18,7 +18,7 @@ export class TerrainManager {
             for (let i = 0; i < planetData.name.length; i++) seed += planetData.name.charCodeAt(i);
         }
 
-        this.generator = new TerrainGenerator(this.chunkSize * 3, seed);
+        this.generator = new TerrainGenerator(this.chunkSize * 3, seed, planetData ? planetData.type : 'Rocky Planet', planetData ? planetData.radius * 10 : 50000);
         this.chunks = new Map(); // Ahora usamos un Map para buscar chunks por "x,z"
 
         this.planetData = planetData;
@@ -53,8 +53,10 @@ export class TerrainManager {
         // El terreno varía su brillo para no ser exactamente del mismo tono
         groundColor.offsetHSL(0, -0.1, -0.1);
 
+        this.groundColor = groundColor; // Guardar para pasarlo al generador
+        
         this.material = new THREE.MeshStandardMaterial({
-            color: groundColor.getHex(),
+            vertexColors: true,
             roughness: 0.8,
             flatShading: true // Estilo low-poly!
         });
@@ -127,6 +129,22 @@ export class TerrainManager {
         this.sunMesh.add(this.sunGlow);
 
         this.timeOfDay = initialTimeOfDay; // Para el ciclo día y noche
+
+        // Añadir agua global si es planeta oceánico
+        if (planetData && planetData.type === 'Ocean Planet') {
+            const waterGeo = new THREE.PlaneGeometry(this.chunkSize * 15, this.chunkSize * 15);
+            waterGeo.rotateX(-Math.PI / 2);
+            const waterMat = new THREE.MeshStandardMaterial({
+                color: 0x1155cc,
+                transparent: true,
+                opacity: 0.8,
+                roughness: 0.1,
+                metalness: 0.8
+            });
+            this.waterMesh = new THREE.Mesh(waterGeo, waterMat);
+            // El agua siempre en y = 0, pero centrada al jugador horizontalmente en el update
+            this.group.add(this.waterMesh);
+        }
 
         // Generar los chunks iniciales
         this.update(0, { x: startX, z: startZ });
@@ -254,6 +272,12 @@ export class TerrainManager {
 
         // ¿En qué chunk está el jugador ahora mismo?
         if (!playerPos) return;
+        
+        if (this.waterMesh) {
+            // El agua sigue al jugador en X y Z para parecer infinita
+            this.waterMesh.position.set(playerPos.x, 0, playerPos.z);
+        }
+
         const cx = Math.floor(playerPos.x / this.chunkSize);
         const cz = Math.floor(playerPos.z / this.chunkSize);
 
@@ -269,7 +293,7 @@ export class TerrainManager {
                     const offsetX = x * this.chunkSize;
                     const offsetZ = z * this.chunkSize;
 
-                    const geometry = this.generator.createChunkGeometry(offsetX, offsetZ, this.chunkSize, 64);
+                    const geometry = this.generator.createChunkGeometry(offsetX, offsetZ, this.chunkSize, 64, this.groundColor);
                     const mesh = new THREE.Mesh(geometry, this.material);
 
                     // IMPORTANTE: Ponemos el mesh en su coordenada global real.

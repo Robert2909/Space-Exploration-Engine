@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { Config } from '../core/Config.js';
+import { OSDManager } from './OSDManager.js';
 
 export class UIManager {
     constructor(camera) {
@@ -7,6 +8,8 @@ export class UIManager {
         this.labelsPool = [];
         this.hud = document.getElementById('hud');
         this.labelsContainer = document.getElementById('labels-container');
+        
+        OSDManager.init();
         
         for(let i=0; i<Config.UI_MAX_LABELS; i++) { 
             const el = document.createElement('div');
@@ -72,7 +75,7 @@ export class UIManager {
                 let distSq = dx*dx + dy*dy + dz*dz;
                 
                 if (distSq < maxDistSq) {
-                    nearby.push({ name: sys.name, type: sys.type, group: 'Estrella', radius: sys.sunRadius, x: sys.lx+cx, y: sys.ly+cy, z: sys.lz+cz, distSq: distSq });
+                    nearby.push({ name: sys.name, type: sys.type, group: 'Estrella', radius: sys.radius, x: sys.lx+cx, y: sys.ly+cy, z: sys.lz+cz, distSq: distSq });
                 }
                 
                 for(let p of sys.planets) {

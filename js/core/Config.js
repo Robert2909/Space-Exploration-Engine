@@ -59,8 +59,8 @@ export const Config = {
     // ==========================================
     // FÍSICAS DEL MODO TERRESTRE (JUGADOR)
     // ==========================================
-    TERRAIN_PLAYER_SPEED: 10,             // Velocidad base al caminar (m/s)
-    TERRAIN_PLAYER_SPRINT_MULT: 2,        // Multiplicador al correr con Shift
+    TERRAIN_PLAYER_SPEED: 15,             // Velocidad base al caminar (m/s)
+    TERRAIN_PLAYER_SPRINT_MULT: 2.5,        // Multiplicador al correr con Shift
     TERRAIN_JUMP_FORCE: 12,               // Fuerza del salto inicial
     TERRAIN_BASE_GRAVITY: 25,             // Gravedad base (1G modificado por jugabilidad)
     TERRAIN_JETPACK_MAX_FUEL: 250,        // Capacidad máxima del jetpack
