@@ -192,7 +192,7 @@ export class TerrainManager {
         if (chance > 0.90) {
             const px = offsetX + (Math.sin(seedValue * 1.1) - 0.5) * this.chunkSize * 0.8;
             const pz = offsetZ + (Math.cos(seedValue * 1.2) - 0.5) * this.chunkSize * 0.8;
-            const py = this.generator.getHeight(px, pz);
+            const py = this.generator.getVisualHeightAt(px, pz);
 
             // No construir bajo el agua
             if (this.planetData && this.planetData.type === 'Ocean Planet' && py < 0) return;

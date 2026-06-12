@@ -141,7 +141,7 @@ export const Config = {
     // ==========================================
     RENDER_FOV: 100,                   // Campo de visión de la cámara (Grados)
     RENDER_FAR_PLANE: 100000000,      // Límite visual de la cámara (1 billón de u para ver quásares)
-    RENDER_LOGARITHMIC_DEPTH: false,    // Mantiene matemáticas estables a trillones de km sin romper la textura (Z-Fighting)
+    RENDER_LOGARITHMIC_DEPTH: true,    // Mantiene matemáticas estables a trillones de km sin romper la textura (Z-Fighting)
     RENDER_PIXEL_RATIO_MAX: 1.0,       // Límite de resolución para no quemar la gráfica (1.0 = rápido, 2.0 = nítido 4K)
     RENDER_FOG_BASE: 3,              // Densidad de la niebla estelar profunda
     RENDER_STAR_POINT_SIZE: 100,         // Tamaño de los puntos de luz estelares

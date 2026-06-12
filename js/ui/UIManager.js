@@ -261,6 +261,28 @@ export class UIManager {
             if (payload.gameState === 'TERRAIN' && payload.terrainManager) {
                 let rotationY = payload.terrainManager.timeOfDay;
                 let timeOfDay = rotationY % (Math.PI * 2);
+                if (target.rotationSpeed < 0) {
+                    timeOfDay = Math.PI - timeOfDay;
+                }
+                if (timeOfDay < 0) timeOfDay += Math.PI * 2;
+                let hours = (timeOfDay / (Math.PI * 2)) * 24 + 6;
+                if (hours >= 24) hours -= 24;
+                const hh = Math.floor(hours).toString().padStart(2, '0');
+                const mm = Math.floor((hours % 1) * 60).toString().padStart(2, '0');
+                targetTime.innerText = `'${hh}:${mm}'`;
+            } else if (payload.landingMarker && payload.landingMarker.planetName === target.name) {
+                // Calcular tiempo local en el marcador basado en la rotación actual del planeta
+                const rotY = target.rotationY || 0;
+                // El vector del planeta a la estrella determina dónde da el sol
+                const starAngle = Math.atan2(target.starZ - target.z, target.starX - target.x);
+                // Longitud actual rotada en el espacio = marker.lon - rotY
+                const currentWorldLon = payload.landingMarker.lon - rotY;
+                
+                let timeOfDay = (starAngle - currentWorldLon) + Math.PI / 2;
+                if (target.rotationSpeed < 0) {
+                    timeOfDay = Math.PI - timeOfDay;
+                }
+                timeOfDay = timeOfDay % (Math.PI * 2);
                 if (timeOfDay < 0) timeOfDay += Math.PI * 2;
                 let hours = (timeOfDay / (Math.PI * 2)) * 24 + 6;
                 if (hours >= 24) hours -= 24;
@@ -284,10 +306,17 @@ export class UIManager {
                 targetDist.innerText = Math.round(dist) + 'u';
 
                 if (targetLat && targetLon) {
-                    const lat = Math.asin(Math.max(-1, Math.min(1, relativePos.y / dist)));
-                    const lon = Math.atan2(relativePos.z, relativePos.x);
-                    targetLat.innerText = (lat * (180 / Math.PI)).toFixed(2) + '°';
-                    targetLon.innerText = (lon * (180 / Math.PI)).toFixed(2) + '°';
+                    if (payload.landingMarker && payload.landingMarker.planetName === target.name) {
+                        targetLat.innerText = (payload.landingMarker.lat * (180 / Math.PI)).toFixed(2) + '° (Fijado)';
+                        targetLon.innerText = (payload.landingMarker.lon * (180 / Math.PI)).toFixed(2) + '° (Fijado)';
+                    } else {
+                        const lat = Math.asin(Math.max(-1, Math.min(1, relativePos.y / dist)));
+                        const lon = Math.atan2(relativePos.z, relativePos.x);
+                        // Convertir a lon estática (despejando de worldLon = surfaceLon - rotY -> surfaceLon = worldLon + rotY)
+                        const surfaceLon = lon + (target.rotationY || 0);
+                        targetLat.innerText = (lat * (180 / Math.PI)).toFixed(2) + '°';
+                        targetLon.innerText = (surfaceLon * (180 / Math.PI)).toFixed(2) + '°';
+                    }
                 }
             }
         }

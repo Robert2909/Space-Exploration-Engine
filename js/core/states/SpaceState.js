@@ -60,7 +60,9 @@ export class SpaceState extends GameState {
                             name: p.name, type: p.type, group: 'Planeta', 
                             radius: p.radius, x: p.lx+cx, y: p.ly+cy, z: p.lz+cz, 
                             distSq: distSq, color: p.color, atmosphereDensity: p.atmosphereDensity,
-                            orbitSpeed: p.orbitSpeed, rotationSpeed: p.rotationSpeed, rotationY: p.rotationY
+                            orbitSpeed: p.orbitSpeed, rotationSpeed: p.rotationSpeed, rotationY: p.rotationY,
+                            mesh: p.mesh, terrainVariance: p.terrainVariance,
+                            starX: sys.lx+cx, starY: sys.ly+cy, starZ: sys.lz+cz
                         });
                     }
                 }
@@ -198,6 +200,27 @@ export class SpaceState extends GameState {
                     minLandingDist = dist;
                     isGasGiant = body.type.includes('Gas');
                 }
+            }
+        }
+
+        // Actualizar posición del marcador de aterrizaje si existe
+        if (engine.landingMarker && engine.interactionSystem.landingMarkerMesh) {
+            const marker = engine.landingMarker;
+            // Buscar el planeta al que pertenece el marcador en nearbyBodies
+            const planet = nearbyBodies.find(b => b.name === marker.planetName);
+            if (planet) {
+                const rotY = planet.rotationY || 0;
+                // La longitud estática original rotada en el espacio = marker.lon - rotY (porque el modelo rota y el punto gira)
+                const currentLon = marker.lon - rotY;
+                
+                const localX = Math.cos(marker.lat) * Math.cos(currentLon) * planet.radius;
+                const localY = Math.sin(marker.lat) * planet.radius;
+                const localZ = Math.cos(marker.lat) * Math.sin(currentLon) * planet.radius;
+                const localPoint = new THREE.Vector3(localX, localY, localZ);
+                
+                const normal = localPoint.clone().normalize();
+                engine.interactionSystem.landingMarkerMesh.position.copy(localPoint.add(new THREE.Vector3(planet.x, planet.y, planet.z)));
+                engine.interactionSystem.landingMarkerMesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), normal);
             }
         }
 

@@ -95,7 +95,7 @@ export class TerrainState extends GameState {
                 // Brújula
                 const dir = new THREE.Vector3(0, 0, -1).applyQuaternion(engine.camera.quaternion);
                 // dir.z es positivo hacia el Norte (+Z) en nuestro sistema
-                let heading = Math.atan2(dir.x, dir.z) * (180 / Math.PI);
+                let heading = Math.atan2(dir.x, -dir.z) * (180 / Math.PI);
                 if (heading < 0) heading += 360;
                 
                 let cardinal = "N";

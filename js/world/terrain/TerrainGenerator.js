@@ -62,6 +62,48 @@ export class TerrainGenerator {
         return finalHeight;
     }
 
+    getVisualHeightAt(globalX, globalZ) {
+        const chunkSize = Config.TERRAIN_CHUNK_SIZE;
+        const resolution = Config.TERRAIN_CHUNK_RESOLUTION;
+        
+        const cx = Math.round(globalX / chunkSize);
+        const cz = Math.round(globalZ / chunkSize);
+        
+        const offsetX = cx * chunkSize;
+        const offsetZ = cz * chunkSize;
+        
+        const step = chunkSize / resolution;
+        
+        const startX = offsetX - chunkSize / 2;
+        const startZ = offsetZ - chunkSize / 2;
+        
+        const localX = globalX - startX;
+        const localZ = globalZ - startZ;
+        
+        let col = Math.floor(localX / step);
+        let row = Math.floor(localZ / step);
+        
+        col = Math.max(0, Math.min(resolution - 1, col));
+        row = Math.max(0, Math.min(resolution - 1, row));
+        
+        const fx = (localX - col * step) / step;
+        const fz = (localZ - row * step) / step;
+        
+        const vx0 = startX + col * step;
+        const vz0 = startZ + row * step;
+        
+        const h00 = this.getHeight(vx0, vz0);
+        const h10 = this.getHeight(vx0 + step, vz0);
+        const h01 = this.getHeight(vx0, vz0 + step);
+        const h11 = this.getHeight(vx0 + step, vz0 + step);
+        
+        if (fx + fz < 1) {
+            return h00 + fx * (h10 - h00) + fz * (h01 - h00);
+        } else {
+            return h11 + (1 - fx) * (h01 - h11) + (1 - fz) * (h10 - h11);
+        }
+    }
+
     createChunkGeometry(offsetX, offsetZ, chunkSize, resolution, baseColor) {
         let geometry = new THREE.PlaneGeometry(chunkSize, chunkSize, resolution, resolution);
         geometry.rotateX(-Math.PI / 2);

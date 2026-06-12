@@ -84,7 +84,7 @@ export class Engine {
             }
             if (Config.KEYS.TOGGLE_LANDING.includes(e.code)) {
                 if (this.gameState === 'SPACE' && this.landingTarget) {
-                    this.triggerLanding(this.landingTarget);
+                    this.interactionSystem.attemptLandingZone(this.landingTarget);
                 } else if (this.gameState === 'TERRAIN') {
                     this.triggerLiftoff();
                 }
@@ -121,7 +121,7 @@ export class Engine {
                     this.interactionSystem.attemptTargeting();
                 } else if (e.button === 2) { // Clic Derecho = Aterrizar
                     if (this.landingTarget) {
-                        this.triggerLanding(this.landingTarget);
+                        this.interactionSystem.attemptLandingZone(this.landingTarget);
                     } else if (this.targetBody) {
                         EventManager.emit(EVENTS.OSD_MESSAGE, { message: 'Demasiado lejos de ' + this.targetBody.name + ' para iniciar descenso', type: 'error' });
                     } else {
@@ -147,13 +147,14 @@ export class Engine {
             target: target,
             gameState: this.gameState,
             cameraPos: this.camera.position,
-            terrainManager: this.terrainManager
+            terrainManager: this.terrainManager,
+            landingMarker: this.landingMarker
         });
     }
 
     // onWindowResize moved to RenderSystem.js
 
-    triggerLanding(planet) {
+    triggerLanding(planet, fixedLat, fixedLon) {
         if (planet.type.includes('Gas')) {
             EventManager.emit(EVENTS.OSD_MESSAGE, { message: 'Planeta no explorable (Superficie no sólida)', type: 'error', duration: 3000 });
             return;
@@ -176,34 +177,22 @@ export class Engine {
         // 1. Calcular Lat/Lon de aterrizaje
         let startX = 0;
         let startZ = 0;
-        let lon = 0;
-        let lat = 0;
 
         if (planet) {
             const planetPos = new THREE.Vector3(planet.x, planet.y, planet.z);
-            const relativePos = new THREE.Vector3().subVectors(this.camera.position, planetPos);
-            const landingDist = relativePos.length();
+            const landingDist = this.camera.position.distanceTo(planetPos);
 
-            // Ángulos esféricos del aterrizaje
-            lon = Math.atan2(relativePos.z, relativePos.x); // -PI a PI
-            lat = Math.asin(Math.max(-1, Math.min(1, relativePos.y / landingDist))); // -PI/2 a PI/2
-
-            // Ángulo de la estrella madre desde el planeta (asumiendo que la estrella está en 0,0,0 local del chunk)
-            const starAngle = Math.atan2(-planet.z, -planet.x);
-
-            // El tiempo local depende de la diferencia entre la posición de aterrizaje y la estrella
-            // + PI/2 porque en el TerrainManager, PI/2 representa el mediodía visual (Zénit)
-            this.landingTimeOfDay = (starAngle - lon) + Math.PI / 2;
+            // Coordenadas calculadas y fijadas desde el marcador
+            const lat = fixedLat;
+            const lon = fixedLon;
 
             this.savedOrbitHeight = landingDist - planet.radius;
 
             const tardisScale = 10;
             const terrainRadius = planet.radius * tardisScale;
 
-            // La coordenada física del terreno debe rotar con el planeta
-            const surfaceLon = lon - (planet.rotationY || 0);
-
-            startX = surfaceLon * terrainRadius;
+            // La coordenada física del terreno es la longitud estática (ya calculada como 'lon')
+            startX = lon * terrainRadius;
             startZ = lat * terrainRadius;
         }
 
@@ -233,7 +222,8 @@ export class Engine {
                 color: planet.color,
                 atmosphereDensity: planet.atmosphereDensity,
                 orbitSpeed: planet.orbitSpeed,
-                rotationSpeed: planet.rotationSpeed
+                rotationSpeed: planet.rotationSpeed,
+                terrainVariance: planet.terrainVariance
             };
 
             EventManager.emit(EVENTS.OSD_MESSAGE, { message: `Aterrizaje exitoso en ${planet.name}`, type: 'success', duration: 3000 });
@@ -242,10 +232,14 @@ export class Engine {
             this.controls.dispose(); // Quita listeners del espacio
 
             // Instanciar el gestor de terreno primero para tener acceso al generador de alturas
-            this.terrainManager = new TerrainManager(this.scene, planet, startX, startZ, this.landingTimeOfDay, lat);
+            const starAngle = Math.atan2(planet.starZ - planet.z, planet.starX - planet.x);
+            const currentWorldLon = fixedLon - (planet.rotationY || 0);
+            this.landingTimeOfDay = (starAngle - currentWorldLon) + Math.PI / 2;
+
+            this.terrainManager = new TerrainManager(this.scene, planet, startX, startZ, this.landingTimeOfDay, fixedLat);
 
             this.terrainControls = new TerrainControls(this.camera, document.body, (x, z) => {
-                return this.terrainManager.generator.getHeight(x, z);
+                return this.terrainManager.generator.getVisualHeightAt(x, z);
             });
 
             // Apagar luces espaciales
@@ -267,7 +261,7 @@ export class Engine {
             this.scene.fog.density = 2.5 / 4500; // Ocultar el pop-in de los chunks a los lados
 
             // Posicionar jugador en el punto exacto del terreno, garantizando que esté sobre el suelo
-            const spawnY = this.terrainManager.generator.getHeight(startX, startZ) + 10;
+            const spawnY = this.terrainManager.generator.getVisualHeightAt(startX, startZ) + 10;
             this.camera.position.set(startX, spawnY, startZ);
             this.camera.rotation.set(0, 0, 0);
             this.camera.quaternion.identity();
