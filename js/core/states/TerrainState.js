@@ -120,39 +120,39 @@ export class TerrainState extends GameState {
                     }
                 }
 
-                document.getElementById('terr-compass').innerText = Math.round(heading) + '° ' + cardinal + shipDistText;
-
-                // Actualizar Termómetro
+                // Calcular Termómetro (Física local)
                 const currentSunHeight = Math.sin(engine.terrainManager.timeOfDay); // 1 = Mediodía, -1 = Medianoche
                 const distToSunMultiplier = 5000 / (engine.lastLandedPlanet.orbitRadius || 5000); 
                 
-                const isIcePlanet = engine.lastLandedPlanet.color && engine.lastLandedPlanet.color.getHSL(new THREE.Object3D()).l > 0.6;
-                const isLavaPlanet = engine.lastLandedPlanet.color && engine.lastLandedPlanet.color.getHSL(new THREE.Object3D()).h < 0.1 && engine.lastLandedPlanet.color.getHSL(new THREE.Object3D()).s > 0.8;
-                
+                const pType = engine.lastLandedPlanet.type;
                 let baseTemp = 15; 
-                if (isIcePlanet) baseTemp = -60;
-                else if (isLavaPlanet) baseTemp = 400;
+                if (pType === 'Ice Planet') baseTemp = -60;
+                else if (pType === 'Lava Planet') baseTemp = 400;
+                else if (pType === 'Desert Planet') baseTemp = 45;
+                else if (pType === 'Toxic Planet') baseTemp = 70;
+                else if (pType === 'Ocean Planet') baseTemp = 10;
+                else if (pType === 'Jungle Planet') baseTemp = 30;
+                else if (pType === 'Barren Planet') baseTemp = -10;
                 
-                // Variación por Latitud (Ecuador más caliente, Polos más fríos)
-                // latDeg va de -90 a 90. Coseno de latitud da 1 en el ecuador, 0 en los polos.
                 const latMultiplier = Math.cos(latDeg * (Math.PI / 180));
-                
-                let timeTempOffset = (currentSunHeight * 20); // Día añade 20°, noche resta 20°
-                let latTempOffset = (latMultiplier * 30) - 15; // Ecuador añade 15°, polos restan 15°
+                let timeTempOffset = (currentSunHeight * 20);
+                let latTempOffset = (latMultiplier * 30) - 15;
                 
                 let finalTemp = (baseTemp + timeTempOffset + latTempOffset) * distToSunMultiplier;
-                
                 const tempColor = finalTemp > 50 ? '#ff5555' : (finalTemp < 0 ? '#55aaff' : '#ffffff');
-                const tempEl = document.getElementById('terr-temp');
-                tempEl.innerText = Math.round(finalTemp) + ' °C';
-                tempEl.style.color = tempColor;
 
-                // Actualizar Jetpack Fuel
+                // Calcular Jetpack Fuel
                 const fuelPct = (engine.terrainControls.jetpackFuel / engine.terrainControls.maxJetpackFuel) * 100;
-                const fuelBar = document.getElementById('jetpack-fuel-bar');
-                fuelBar.style.width = fuelPct + '%';
-                if (fuelPct < 20) fuelBar.style.backgroundColor = '#ff5555';
-                else fuelBar.style.backgroundColor = 'var(--string-color)';
+
+                // Emitir evento HUD Terrain Updated
+                EventManager.emit(EVENTS.HUD_TERRAIN_UPDATED, {
+                    heading,
+                    cardinal,
+                    shipDistText,
+                    finalTemp,
+                    tempColor,
+                    fuelPct
+                });
             }
 
             if (engine.camera.position.y > 100000) {

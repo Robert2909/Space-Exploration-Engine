@@ -15,6 +15,14 @@ export class Planet extends CelestialBody {
         this.tiltOffset = config.tiltOffset || 0;
         this.rotationY = config.rotationY || 0;
         
+        // Terrain Variance Modifiers
+        this.terrainVariance = config.terrainVariance || {
+            heightMod: 1.0,
+            freqMod: 1.0,
+            octavesMod: 0,
+            exponentMod: 1.0
+        };
+        
         // Instanced rendering specific
         this.instanceId = config.instanceId !== undefined ? config.instanceId : -1;
     }

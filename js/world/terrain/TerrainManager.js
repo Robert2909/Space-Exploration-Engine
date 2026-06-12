@@ -18,7 +18,7 @@ export class TerrainManager {
             for (let i = 0; i < planetData.name.length; i++) seed += planetData.name.charCodeAt(i);
         }
 
-        this.generator = new TerrainGenerator(this.chunkSize * 3, seed, planetData ? planetData.type : 'Rocky Planet', planetData ? planetData.radius * 10 : 50000);
+        this.generator = new TerrainGenerator(this.chunkSize * 3, seed, planetData ? planetData.type : 'Rocky Planet', planetData ? planetData.radius * 10 : 50000, planetData ? planetData.terrainVariance : null);
         this.chunks = new Map(); // Ahora usamos un Map para buscar chunks por "x,z"
 
         this.planetData = planetData;
@@ -64,11 +64,11 @@ export class TerrainManager {
         // Configurar la atmósfera y el cielo
         this.scene.background = new THREE.Color(this.skyColorBase);
         if (this.hasAtmosphere) {
-            // Utilizamos la densidad del planeta (0.00005 a 0.0005)
-            this.scene.fog = new THREE.FogExp2(this.skyColorBase, this.baseAtmosphereDensity);
+            // Utilizamos la densidad del planeta modificada por tu control maestro
+            this.scene.fog = new THREE.FogExp2(this.skyColorBase, this.baseAtmosphereDensity * Config.TERRAIN_FOG_MULTIPLIER);
         } else {
-            // Una niebla mínima y negra para ocultar el fin de los chunks sin que parezca atmósfera
-            this.scene.fog = new THREE.FogExp2(0x000000, 0.00005);
+            // Niebla para planetas "sin atmósfera" controlable para permitir visión a inmensas distancias
+            this.scene.fog = new THREE.FogExp2(0x000000, Config.TERRAIN_FOG_FALLBACK);
         }
 
         // Generar Estrellas en el cielo
@@ -83,8 +83,15 @@ export class TerrainManager {
         this.group.add(this.dirLight);
         this.group.add(this.dirLight.target); // Añadir el target a la escena para que actualice la posición correctamente
 
-        // Malla física del sol para que sea visible (más pequeño y nítido si no hay atmósfera)
-        const sunRadius = this.hasAtmosphere ? 250 : 80;
+        // Calcular multiplicador de distancia estelar (Afecta tamaño visual y temperatura)
+        this.sunDistanceMultiplier = 1.0;
+        if (this.planetData && this.planetData.orbitRadius) {
+            // Asumimos 15000 como distancia base media
+            this.sunDistanceMultiplier = 15000 / Math.max(1000, this.planetData.orbitRadius);
+        }
+
+        // Malla física del sol para que sea visible (escala con la cercanía a la estrella madre)
+        const sunRadius = (this.hasAtmosphere ? 250 : 80) * this.sunDistanceMultiplier;
         const sunGeo = new THREE.SphereGeometry(sunRadius, 16, 16);
         const sunMat = new THREE.MeshBasicMaterial({ color: 0xffffff, fog: false });
         this.sunMesh = new THREE.Mesh(sunGeo, sunMat);
@@ -123,8 +130,8 @@ export class TerrainManager {
         });
         this.sunGlow = new THREE.Sprite(glowMaterial);
         
-        // El tamaño del glare también cambia
-        const glowScale = this.hasAtmosphere ? 2000 : 3500;
+        // El tamaño del glare también cambia con la distancia
+        const glowScale = (this.hasAtmosphere ? 2000 : 3500) * this.sunDistanceMultiplier;
         this.sunGlow.scale.set(glowScale, glowScale, 1);
         this.sunMesh.add(this.sunGlow);
 
@@ -227,8 +234,9 @@ export class TerrainManager {
     }
 
     update(dt, playerPos) {
-        // Ciclo Día/Noche
-        this.timeOfDay += dt * 0.05; // Velocidad del sol
+        // Ciclo Día/Noche: Escalar por la velocidad de rotación real del planeta
+        const rotSpeed = (this.planetData && this.planetData.rotationSpeed) ? this.planetData.rotationSpeed : 0.05;
+        this.timeOfDay += dt * rotSpeed;
         const sunOrbitRadius = this.chunkSize * 2;
 
         let currentLat = this.initialLat || 0;
@@ -260,11 +268,10 @@ export class TerrainManager {
             this.sunMesh.position.set(sunX, sunY, sunZ);
         }
 
-        // Intensidad y atardecer
-        // Consideramos que la transición dura más tiempo. sunY va de -sunOrbitRadius a +sunOrbitRadius
+        // Intensidad estelar
         const sunNormalized = sunY / sunOrbitRadius; // de -1 a 1
         const sunIntensity = Math.max(0, sunNormalized);
-        this.dirLight.intensity = sunIntensity * 1.5;
+        this.dirLight.intensity = sunIntensity * 1.5 * Math.min(2.0, this.sunDistanceMultiplier);
 
         // La luz ambiente se ajusta más abajo dependiento de la atmósfera
         if (this.hasAtmosphere) {
@@ -300,8 +307,8 @@ export class TerrainManager {
         }
 
         if (this.hasAtmosphere) {
-            // Densidad de niebla baja un poco de noche para dejar ver "siluetas"
-            this.scene.fog.density = this.baseAtmosphereDensity * (0.5 + sunIntensity * 0.5);
+            // Densidad de niebla baja un poco de noche para dejar ver "siluetas", multiplicada por Config
+            this.scene.fog.density = this.baseAtmosphereDensity * Config.TERRAIN_FOG_MULTIPLIER * (0.5 + sunIntensity * 0.5);
 
             // Estrellas (Si la atmósfera es MUY densa, apenas se ven de noche)
             // baseAtmosphereDensity va de 0 a 0.0005. 
@@ -336,11 +343,11 @@ export class TerrainManager {
                 activeKeys.add(key);
 
                 if (!this.chunks.has(key)) {
-                    // Cargar / Crear Chunk nuevo
+                    // Cargar / Crear Chunk nuevo con la resolución del Config
                     const offsetX = x * this.chunkSize;
                     const offsetZ = z * this.chunkSize;
 
-                    const geometry = this.generator.createChunkGeometry(offsetX, offsetZ, this.chunkSize, 64, this.groundColor);
+                    const geometry = this.generator.createChunkGeometry(offsetX, offsetZ, this.chunkSize, Config.TERRAIN_CHUNK_RESOLUTION, this.groundColor);
                     const mesh = new THREE.Mesh(geometry, this.material);
 
                     // IMPORTANTE: Ponemos el mesh en su coordenada global real.

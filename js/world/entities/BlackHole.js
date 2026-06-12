@@ -177,6 +177,15 @@ export class BlackHole extends CelestialBody {
         this.accretionGroup.rotation.z = seededRandom(this.lx, this.ly, this.lz, seed + 3) * Math.PI * 2;
 
         this.mesh.add(this.accretionGroup);
+
+        // PLAN MOTOR GRAFICO: FASE 2
+        // Desactivamos el Frustum Culling para anomalías inmensas.
+        // Esto asegura que si su centro sale de cámara, los 200 Millones de KM de jets sigan dibujándose.
+        this.mesh.traverse((child) => {
+            if (child.isMesh || child.isSprite) {
+                child.frustumCulled = false;
+            }
+        });
     }
 
     update(dt) {

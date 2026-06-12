@@ -143,79 +143,12 @@ export class Engine {
 
     updateTargetHUD(target) {
         if (!target) return;
-        document.getElementById('target-panel').style.display = 'block';
-        document.getElementById('target-name').innerText = "'" + target.name + "'";
-        document.getElementById('target-type').innerText = "'" + target.type + "'";
-        document.getElementById('target-radius').innerText = Math.round(target.radius);
-
-        const targetAtmo = document.getElementById('target-atmo');
-        const targetGravity = document.getElementById('target-gravity');
-        const targetOrbit = document.getElementById('target-orbit');
-        const targetRot = document.getElementById('target-rot');
-        const targetTime = document.getElementById('target-time');
-        const targetDist = document.getElementById('target-dist');
-        const targetLat = document.getElementById('target-lat');
-        const targetLon = document.getElementById('target-lon');
-
-        if (targetAtmo) {
-            if (target.type === 'Gas Giant') {
-                targetAtmo.innerText = "'Densa/Tóxica'";
-            } else if (target.atmosphereDensity > 0) {
-                const densityPct = Math.round((target.atmosphereDensity / 0.0005) * 100);
-                targetAtmo.innerText = `'Presente (${densityPct}%)'`;
-            } else {
-                targetAtmo.innerText = "'Nula'";
-            }
-        }
-        if (targetGravity) {
-            // Cálculo real usado en físicas: planet.radius / 2000
-            let baseGravity = target.type === 'Gas Giant' ? 2.5 : 1.0;
-            let radiusFactor = target.radius / 2000;
-            let calculatedG = baseGravity * radiusFactor;
-            targetGravity.innerText = calculatedG.toFixed(2) + ' G';
-        }
-
-        if (targetOrbit && target.orbitSpeed) {
-            targetOrbit.innerText = `'${(Math.abs(target.orbitSpeed) * 1000).toFixed(1)} km/s'`;
-        }
-        if (targetRot && target.rotationSpeed) {
-            targetRot.innerText = `'${(target.rotationSpeed * 1000).toFixed(1)} km/h'`;
-        }
-
-        // Calcular la hora local y actualizar la UI
-        if (targetTime) {
-            let rotationY = target.rotationY || 0;
-            // Si estamos en terreno, usar la rotación local
-            if (this.gameState === 'TERRAIN' && this.terrainManager) {
-                rotationY = this.terrainManager.timeOfDay;
-            }
-
-            let timeOfDay = rotationY % (Math.PI * 2);
-            if (timeOfDay < 0) timeOfDay += Math.PI * 2;
-            let hours = (timeOfDay / (Math.PI * 2)) * 24 + 6;
-            if (hours >= 24) hours -= 24;
-            const hh = Math.floor(hours).toString().padStart(2, '0');
-            const mm = Math.floor((hours % 1) * 60).toString().padStart(2, '0');
-            targetTime.innerText = `'${hh}:${mm}'`;
-        }
-
-        if (targetDist) {
-            if (this.gameState === 'TERRAIN') {
-                targetDist.innerText = "'0u'";
-            } else {
-                const planetPos = new THREE.Vector3(target.x, target.y, target.z);
-                const relativePos = new THREE.Vector3().subVectors(this.camera.position, planetPos);
-                const dist = relativePos.length();
-                targetDist.innerText = Math.round(dist) + 'u';
-
-                if (targetLat && targetLon) {
-                    const lat = Math.asin(Math.max(-1, Math.min(1, relativePos.y / dist)));
-                    const lon = Math.atan2(relativePos.z, relativePos.x);
-                    targetLat.innerText = (lat * (180 / Math.PI)).toFixed(2) + '°';
-                    targetLon.innerText = (lon * (180 / Math.PI)).toFixed(2) + '°';
-                }
-            }
-        }
+        EventManager.emit(EVENTS.HUD_TARGET_UPDATED, {
+            target: target,
+            gameState: this.gameState,
+            cameraPos: this.camera.position,
+            terrainManager: this.terrainManager
+        });
     }
 
     // onWindowResize moved to RenderSystem.js
@@ -251,16 +184,26 @@ export class Engine {
             const relativePos = new THREE.Vector3().subVectors(this.camera.position, planetPos);
             const landingDist = relativePos.length();
 
-            // Ángulos esféricos
+            // Ángulos esféricos del aterrizaje
             lon = Math.atan2(relativePos.z, relativePos.x); // -PI a PI
             lat = Math.asin(Math.max(-1, Math.min(1, relativePos.y / landingDist))); // -PI/2 a PI/2
+
+            // Ángulo de la estrella madre desde el planeta (asumiendo que la estrella está en 0,0,0 local del chunk)
+            const starAngle = Math.atan2(-planet.z, -planet.x);
+
+            // El tiempo local depende de la diferencia entre la posición de aterrizaje y la estrella
+            // + PI/2 porque en el TerrainManager, PI/2 representa el mediodía visual (Zénit)
+            this.landingTimeOfDay = (starAngle - lon) + Math.PI / 2;
 
             this.savedOrbitHeight = landingDist - planet.radius;
 
             const tardisScale = 10;
             const terrainRadius = planet.radius * tardisScale;
 
-            startX = lon * terrainRadius;
+            // La coordenada física del terreno debe rotar con el planeta
+            const surfaceLon = lon - (planet.rotationY || 0);
+
+            startX = surfaceLon * terrainRadius;
             startZ = lat * terrainRadius;
         }
 
@@ -288,7 +231,9 @@ export class Engine {
                 radius: planet.radius,
                 type: planet.type || '',
                 color: planet.color,
-                atmosphereDensity: planet.atmosphereDensity
+                atmosphereDensity: planet.atmosphereDensity,
+                orbitSpeed: planet.orbitSpeed,
+                rotationSpeed: planet.rotationSpeed
             };
 
             EventManager.emit(EVENTS.OSD_MESSAGE, { message: `Aterrizaje exitoso en ${planet.name}`, type: 'success', duration: 3000 });
@@ -297,7 +242,7 @@ export class Engine {
             this.controls.dispose(); // Quita listeners del espacio
 
             // Instanciar el gestor de terreno primero para tener acceso al generador de alturas
-            this.terrainManager = new TerrainManager(this.scene, planet, startX, startZ, lon, lat);
+            this.terrainManager = new TerrainManager(this.scene, planet, startX, startZ, this.landingTimeOfDay, lat);
 
             this.terrainControls = new TerrainControls(this.camera, document.body, (x, z) => {
                 return this.terrainManager.generator.getHeight(x, z);

@@ -1,13 +1,17 @@
 import * as THREE from 'three';
 import { ImprovedNoise } from 'https://unpkg.com/three@0.160.0/examples/jsm/math/ImprovedNoise.js';
+import { Config } from '../../core/Config.js';
 
 export class TerrainGenerator {
-    constructor(worldSize, seed, planetType = 'Rocky Planet', terrainRadius = 50000) {
+    constructor(worldSize, seed, planetType = 'Rocky Planet', terrainRadius = 50000, terrainVariance = null) {
         this.worldSize = worldSize;
         this.seed = seed || Math.random();
         this.perlin = new ImprovedNoise();
         this.planetType = planetType;
         this.terrainRadius = terrainRadius;
+        this.terrainVariance = terrainVariance || {
+            heightMod: 1.0, freqMod: 1.0, octavesMod: 0, exponentMod: 1.0
+        };
     }
 
     // Función para obtener ruido infinito basado en la semilla
@@ -23,29 +27,21 @@ export class TerrainGenerator {
 
         let elevation = 0;
         let amplitude = 1.0;
-        let frequency = 0.0005; 
         let maxElevation = 0;
 
-        let octaves = 4;
-        let exponent = 1.5;
-        let heightMultiplier = 800;
+        // 1. Tomar bases matemáticas del Config
+        // 2. Aplicar la Varianza Aleatoria ÚNICA de este planeta (anomalías geológicas dentro de los límites)
+        let frequency = Config.TERRAIN_BASE_FREQUENCY * this.terrainVariance.freqMod; 
+        let octaves = Math.max(1, Config.TERRAIN_BASE_OCTAVES + this.terrainVariance.octavesMod);
+        let exponent = Config.TERRAIN_BASE_EXPONENT * this.terrainVariance.exponentMod;
+        let heightMultiplier = Config.TERRAIN_BASE_HEIGHT * this.terrainVariance.heightMod;
 
-        if (this.planetType === 'Ocean Planet') {
-            octaves = 3;
-            exponent = 1.2;
-            heightMultiplier = 300;
-        } else if (this.planetType === 'Lava Planet') {
-            octaves = 5;
-            exponent = 2.0;
-            heightMultiplier = 1200;
-        } else if (this.planetType === 'Crystal Planet') {
-            octaves = 4;
-            exponent = 3.0; // Picos escarpados
-            heightMultiplier = 1500;
-        } else if (this.planetType === 'Ice Planet') {
-            octaves = 3;
-            exponent = 1.0;
-            heightMultiplier = 500;
+        // 3. Aplicar modificadores radicales leyendo el Diccionario (Data-Driven)
+        const biome = Config.PLANET_BIOMES[this.planetType] || Config.PLANET_BIOMES['Rocky Planet'];
+        if (biome.terrainMods) {
+            octaves = Math.max(1, Math.min(5, octaves + biome.terrainMods.octavesAdd));
+            exponent *= biome.terrainMods.exponentMult;
+            heightMultiplier *= biome.terrainMods.heightMult;
         }
 
         // Variación por Latitud (Ecuador más plano, Polos más montañosos)
@@ -84,28 +80,53 @@ export class TerrainGenerator {
             const normalizedLat = Math.min(1.0, Math.abs(vz / this.terrainRadius) / (Math.PI / 2));
             colorObj.copy(baseColor || new THREE.Color(0x888888));
 
-            // Colorear Biomas por altura y latitud
-            if (this.planetType === 'Ice Planet') {
-                colorObj.lerp(new THREE.Color(0xffffff), 0.5 + normalizedLat * 0.5);
-            } else if (this.planetType === 'Lava Planet') {
-                if (vy < -100) colorObj.setHex(0xff3300); // Lava en grietas
-                else colorObj.lerp(new THREE.Color(0x1a1a1a), 0.9);
-            } else if (this.planetType === 'Ocean Planet') {
-                if (vy < 0) colorObj.setHex(0x1144aa);
-                else colorObj.lerp(new THREE.Color(0xddccaa), 0.6); // Islas de arena
-            } else if (this.planetType === 'Crystal Planet') {
-                if (vy > 500) colorObj.offsetHSL(0, 0, 0.3);
-                else colorObj.offsetHSL(0, 0, -0.2);
-            } else {
-                // Rocky Planet
-                const snowLine = 600 - (normalizedLat * 500); 
-                if (vy > snowLine) {
-                    colorObj.lerp(new THREE.Color(0xffffff), Math.min(1, (vy - snowLine) / 200));
-                } else if (vy < -100) {
+            // Leer datos del diccionario
+            const biome = Config.PLANET_BIOMES[this.planetType] || Config.PLANET_BIOMES['Rocky Planet'];
+            const a = biome.aesthetics || {};
+
+            // Textura Falsa mediante Ruido (Manchas en el terreno)
+            const dirtNoise = this.getInfiniteNoise(vx, vz, 0.05); // Alta frecuencia
+            
+            // Gradiente general por altura (Sombras/Luces falsas para resaltar planicies)
+            const elevationFactor = THREE.MathUtils.clamp(vy / Config.TERRAIN_BASE_HEIGHT, -0.5, 0.5);
+
+            // 1. Aplicar Patrones Estéticos Especiales
+            if (a.globalLerpColor !== undefined) {
+                colorObj.lerp(new THREE.Color(a.globalLerpColor), a.globalLerpBase + normalizedLat * a.globalLerpLat);
+                colorObj.offsetHSL(0, 0, dirtNoise * 0.05 + elevationFactor * 0.2);
+            } else if (a.crackLevel !== undefined) {
+                if (vy < a.crackLevel) colorObj.setHex(a.crackColor); // Lava en grietas
+                else {
+                    colorObj.lerp(new THREE.Color(a.baseLerpColor), a.baseLerp);
+                    colorObj.offsetHSL(0, 0, dirtNoise * 0.1 + elevationFactor * 0.1);
+                }
+            } else if (a.waterLevel !== undefined) {
+                if (vy < a.waterLevel) colorObj.setHex(a.waterColor); // Océano
+                else {
+                    colorObj.lerp(new THREE.Color(a.beachColor), a.beachBlend); // Islas de arena
+                    colorObj.offsetHSL(0, 0, dirtNoise * 0.08 + elevationFactor * 0.1);
+                }
+            } else if (a.invertLighting) {
+                if (vy > 500) colorObj.offsetHSL(0, 0, 0.3 + dirtNoise * 0.1); // Picos de cristal
+                else colorObj.offsetHSL(0, 0, -0.2 + dirtNoise * 0.1);
+            } 
+            // 2. Patrón de Terreno Estándar (Rocky, Desert, Toxic, Jungle, Barren)
+            else {
+                colorObj.offsetHSL(0, 0, dirtNoise * 0.08 + elevationFactor * 0.2);
+
+                if (a.hasSnow) {
+                    const snowLine = 600 - (normalizedLat * 500); 
+                    if (vy > snowLine) {
+                        colorObj.lerp(new THREE.Color(0xffffff), Math.min(1, (vy - snowLine) / 200));
+                    }
+                }
+                
+                if (vy < -100) { // Valles oscuros
                     colorObj.lerp(new THREE.Color(0x000000), 0.2);
                 }
-                if (normalizedLat < 0.2) { // Ecuador arenoso
-                    colorObj.lerp(new THREE.Color(0xddbb55), 0.3 * (1 - normalizedLat/0.2));
+                
+                if (a.hasSand && normalizedLat < 0.2) { // Ecuador arenoso
+                    colorObj.lerp(new THREE.Color(a.sandColor), 0.3 * (1 - normalizedLat/0.2));
                 }
             }
             colors.push(colorObj.r, colorObj.g, colorObj.b);

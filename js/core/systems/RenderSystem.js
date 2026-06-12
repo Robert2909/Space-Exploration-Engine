@@ -7,10 +7,15 @@ export class RenderSystem {
         this.scene.fog = new THREE.FogExp2(0x000000, 0.00005);
         this.scene.background = new THREE.Color(0x000000);
 
-        this.camera = new THREE.PerspectiveCamera(Config.RENDER_FOV, window.innerWidth / window.innerHeight, 100, 2000000);
+        this.camera = new THREE.PerspectiveCamera(Config.RENDER_FOV, window.innerWidth / window.innerHeight, 100, Config.RENDER_FAR_PLANE);
 
         // TRUCO 2: Apagar el Antialiasing. El antialias multiplica por 4 el trabajo de la GPU.
-        this.renderer = new THREE.WebGLRenderer({ antialias: Config.RENDER_ANTIALIAS, alpha: false, powerPreference: "high-performance" });
+        this.renderer = new THREE.WebGLRenderer({ 
+            antialias: Config.RENDER_ANTIALIAS, 
+            alpha: false, 
+            powerPreference: "high-performance",
+            logarithmicDepthBuffer: Config.RENDER_LOGARITHMIC_DEPTH 
+        });
         this.renderer.setSize(window.innerWidth, window.innerHeight);
         
         // TRUCO EXTREMO: Los monitores 4K/Retina renderizan 4 veces más píxeles y hunden el rendimiento.
