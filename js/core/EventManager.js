@@ -10,7 +10,9 @@ export const EVENTS = {
 
     // Telemetría de Interfaz
     PLAYER_TELEMETRY_UPDATED: 'PLAYER_TELEMETRY_UPDATED',
+    HUD_UPDATED: 'HUD_UPDATED',
     OSD_MESSAGE: 'OSD_MESSAGE',
+    BLACKHOLE_PANIC: 'BLACKHOLE_PANIC',
     
     // Comandos de Utilidad / Controles
     TOGGLE_LABELS: 'TOGGLE_LABELS',

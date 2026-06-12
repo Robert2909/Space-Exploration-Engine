@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { GameState } from '../GameState.js';
 import { Config } from '../Config.js';
 import { EventManager, EVENTS } from '../EventManager.js';
+import { ShipEntity } from '../../world/entities/ShipEntity.js';
 
 export class TerrainState extends GameState {
     constructor(engine) {
@@ -16,6 +17,18 @@ export class TerrainState extends GameState {
         const engine = this.engine;
         
         if (engine.terrainControls && engine.terrainManager) {
+            // Inicialización diferida de entidades terrestres en el primer frame
+            if (!this.shipEntity) {
+                this.shipEntity = new ShipEntity();
+                const startX = engine.camera.position.x;
+                const startZ = engine.camera.position.z;
+                
+                // Alineamos y posicionamos la nave basada en la deformación del terreno
+                this.shipEntity.alignToTerrain(engine.terrainManager.generator, startX, startZ);
+                
+                engine.scene.add(this.shipEntity.getMesh());
+            }
+
             engine.terrainControls.update(dt);
 
             // Circunnavegación y Polos (Bucle finito planetario)
@@ -94,7 +107,20 @@ export class TerrainState extends GameState {
                 else if (heading > 247.5 && heading <= 292.5) cardinal = "O";
                 else if (heading > 292.5 && heading <= 337.5) cardinal = "NO";
                 
-                document.getElementById('terr-compass').innerText = Math.round(heading) + '° ' + cardinal;
+                // Distancia y marcador a la Nave
+                let shipDistText = '';
+                if (this.shipEntity) {
+                    const toShip = new THREE.Vector3().subVectors(this.shipEntity.getMesh().position, engine.camera.position);
+                    const distToShip = toShip.length();
+                    shipDistText = ` (Nave: ${Math.round(distToShip)}m)`;
+                    
+                    const dot = dir.clone().setY(0).normalize().dot(toShip.clone().setY(0).normalize());
+                    if (dot > 0.98) { // Mirando directamente a la nave
+                        cardinal = "NAVE";
+                    }
+                }
+
+                document.getElementById('terr-compass').innerText = Math.round(heading) + '° ' + cardinal + shipDistText;
 
                 // Actualizar Termómetro
                 const currentSunHeight = Math.sin(engine.terrainManager.timeOfDay); // 1 = Mediodía, -1 = Medianoche
@@ -141,6 +167,10 @@ export class TerrainState extends GameState {
     }
 
     exit() {
-        // Limpieza
+        // Limpieza de entidades locales al despegar
+        if (this.shipEntity) {
+            this.engine.scene.remove(this.shipEntity.getMesh());
+            this.shipEntity = null;
+        }
     }
 }

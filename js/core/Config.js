@@ -6,6 +6,7 @@ export const Config = {
     STARS_PER_CHUNK: 300,              // Cantidad de estrellas decorativas (puntos) por sector
     SYSTEM_SPAWN_CHANCE: 0.05,          // Probabilidad (0.0 a 1.0) de que aparezcan planetas en un sector vacío
     MAX_SYSTEMS_PER_CHUNK: 2,          // Número máximo de sistemas solares por sector
+    BLACK_HOLE_SPAWN_CHANCE: 0.005,    // Probabilidad de que un chunk contenga un agujero negro (aislado)
 
     // ==========================================
     // ASTROS Y SISTEMAS SOLARES

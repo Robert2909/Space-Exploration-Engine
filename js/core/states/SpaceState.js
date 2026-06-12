@@ -23,6 +23,60 @@ export class SpaceState extends GameState {
         engine.universe.update(pos.x, pos.y, pos.z, dt);
         engine.lighting.update(engine.camera.position, engine.universe);
 
+        // --- GRAVEDAD DE AGUJEROS NEGROS ---
+        let maxPanic = 0;
+        
+        // Iterar por todos los chunks cargados para detectar agujeros negros a gran escala
+        for (let [key, chunk] of engine.universe.chunks.entries()) {
+            if (chunk === 'pending') continue;
+            const cx = chunk.group.position.x;
+            const cy = chunk.group.position.y;
+            const cz = chunk.group.position.z;
+            
+            for (let sys of chunk.systems) {
+                if (sys.group === 'BlackHole') {
+                    const bhPos = new THREE.Vector3(sys.lx + cx, sys.ly + cy, sys.lz + cz);
+                    const dist = pos.distanceTo(bhPos);
+                    const pullRadius = sys.radius * 30; // 30 veces su tamaño de alcance gravitatorio
+                    
+                    if (dist < pullRadius) {
+                        const normalizedDist = Math.max(0.005, dist / pullRadius);
+                        
+                        // Gravedad estilo 1/r^2
+                        let forceStr = (1 / (normalizedDist * normalizedDist)) * 50;
+                        
+                        // Limitar la fuerza para evitar ser disparado a Narnia
+                        forceStr = Math.min(forceStr, Config.PLAYER_SPEED_MAX * 0.8);
+                        
+                        // El vector 'dir' está en espacio del mundo. La velocidad de la nave está en espacio local.
+                        // Convertimos 'dir' a espacio local usando el cuaternión inverso de la cámara.
+                        const worldDir = new THREE.Vector3().subVectors(bhPos, pos).normalize();
+                        const localDir = worldDir.clone().applyQuaternion(engine.camera.quaternion.clone().invert());
+                        
+                        engine.controls.velocity.add(localDir.multiplyScalar(forceStr * dt));
+
+                        // Fricción aplastante si cruzas el horizonte de eventos
+                        if (dist < sys.radius * 2.0) {
+                            engine.controls.velocity.multiplyScalar(0.95);
+                        }
+                    }
+
+                    // Pánico visual (Glitches): Aumentamos el rango para que dé miedo antes
+                    const panicRadius = sys.radius * 18;
+                    if (dist < panicRadius) {
+                        const panicNorm = Math.max(0, 1 - (dist / panicRadius));
+                        // Curva exponencial: Empieza suave, y cuando estás muy cerca (0.8) tiembla horriblemente
+                        const panic = Math.pow(panicNorm, 3) * 2.5; 
+                        if (panic > maxPanic) maxPanic = panic;
+                    }
+                }
+            }
+        }
+        
+        // Notificar nivel de pánico al UI
+        EventManager.emit(EVENTS.BLACKHOLE_PANIC, { level: maxPanic });
+        // -----------------------------------
+
         engine.ui.updateHUD(engine.controls.velocity.length(), pos);
         engine.ui.updateLabels(engine.universe);
 

@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { Config } from '../core/Config.js';
 import { OSDManager } from './OSDManager.js';
+import { EventManager, EVENTS } from '../core/EventManager.js';
 
 export class UIManager {
     constructor(camera) {
@@ -22,6 +23,38 @@ export class UIManager {
         }
         
         this.setupToggles();
+        
+        // Efecto Pánico (Agujeros Negros)
+        EventManager.on(EVENTS.BLACKHOLE_PANIC, (payload) => {
+            const level = payload.level || 0;
+            if (level > 0.05) {
+                const blur = Math.random() * level * 5;
+                const shiftX = (Math.random() - 0.5) * level * 20;
+                const shiftY = (Math.random() - 0.5) * level * 10;
+                const colorGlitch = Math.random() > 0.8 ? 'red' : 'var(--keyword-color)';
+                
+                this.hud.style.filter = `blur(${blur}px) hue-rotate(${level * 90}deg)`;
+                this.hud.style.transform = `translate(${shiftX}px, ${shiftY}px)`;
+                this.labelsContainer.style.filter = `blur(${blur}px)`;
+                this.labelsContainer.style.transform = `translate(${shiftX * -1}px, ${shiftY}px)`;
+                
+                // Texto corrupto ocasional
+                if (Math.random() > 0.9 && level > 0.5) {
+                    const titles = this.hud.querySelectorAll('h3');
+                    titles.forEach(t => t.style.color = colorGlitch);
+                } else {
+                    const titles = this.hud.querySelectorAll('h3');
+                    titles.forEach(t => t.style.color = '');
+                }
+            } else {
+                this.hud.style.filter = 'none';
+                this.hud.style.transform = 'translate(0, 0)';
+                this.labelsContainer.style.filter = 'none';
+                this.labelsContainer.style.transform = 'translate(0, 0)';
+                const titles = this.hud.querySelectorAll('h3');
+                titles.forEach(t => t.style.color = '');
+            }
+        });
     }
     
     setupToggles() {
@@ -73,9 +106,11 @@ export class UIManager {
                 let dy = sys.ly + cy - cameraPos.y;
                 let dz = sys.lz + cz - cameraPos.z;
                 let distSq = dx*dx + dy*dy + dz*dz;
+                let allowDistSq = maxDistSq;
+                if (sys.group === 'BlackHole') allowDistSq = maxDistSq * 100; // 10x distancia (al cuadrado = 100x distSq)
                 
-                if (distSq < maxDistSq) {
-                    nearby.push({ name: sys.name, type: sys.type, group: 'Estrella', radius: sys.radius, x: sys.lx+cx, y: sys.ly+cy, z: sys.lz+cz, distSq: distSq });
+                if (distSq < allowDistSq) {
+                    nearby.push({ name: sys.name, type: sys.type, group: sys.group || 'Estrella', radius: sys.radius, x: sys.lx+cx, y: sys.ly+cy, z: sys.lz+cz, distSq: distSq });
                 }
                 
                 for(let p of sys.planets) {
@@ -125,8 +160,10 @@ export class UIManager {
                 const distText = Math.round(Math.max(0, dist - body.radius)) + 'u';
                 
                 if (el._lastName !== body.name) {
-                    const colorClass = body.group === 'Estrella' ? 'var(--function-color)' : 'var(--variable-color)';
-                    const icon = body.group === 'Estrella' ? '❖' : '○';
+                    const isStar = body.group === 'Estrella';
+                    const isBlackHole = body.group === 'BlackHole';
+                    const colorClass = isStar ? 'var(--function-color)' : (isBlackHole ? '#8a2be2' : 'var(--variable-color)');
+                    const icon = isStar ? '❖' : (isBlackHole ? '🌀' : '○');
                     
                     el.innerHTML = `<div style="text-align: left; line-height: 1.2;">
                         <span style="color:${colorClass}; font-size: 0.9rem; margin-right: 4px;">${icon}</span>

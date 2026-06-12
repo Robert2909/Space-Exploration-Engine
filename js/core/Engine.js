@@ -39,7 +39,7 @@ export class Engine {
         this.clock = new THREE.Clock();
 
         // Linterna del modo Terrestre
-        this.flashlight = new THREE.SpotLight(0xffeedd, 0, 50000, Math.PI / 6, 0.5, 1);
+        this.flashlight = new THREE.SpotLight(0xffeedd, 0, 10000, Math.PI / 4, 0.5, 0.75);
         this.flashlight.position.set(0, 0, 0);
         this.flashlight.target.position.set(0, 0, -1);
         this.camera.add(this.flashlight);
@@ -265,9 +265,10 @@ export class Engine {
         }
 
         setTimeout(() => {
+            if (this.currentState) this.currentState.exit();
             this.gameState = 'TERRAIN';
             this.currentState = this.states.TERRAIN;
-            this.currentState.enter();
+            this.currentState.enter({ planet, startX, startZ });
 
             // Destruir Universo (Congelar el espacio)
             this.universe.dispose();
@@ -344,6 +345,7 @@ export class Engine {
 
         setTimeout(() => {
             try {
+                if (this.currentState) this.currentState.exit();
                 this.gameState = 'SPACE';
                 this.currentState = this.states.SPACE;
                 this.currentState.enter();

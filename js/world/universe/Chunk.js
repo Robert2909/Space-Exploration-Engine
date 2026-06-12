@@ -4,6 +4,7 @@ import { generateStarName, generatePlanetName } from '../generators/NameGenerato
 import { Config } from '../../core/Config.js';
 import { Star } from '../entities/Star.js';
 import { Planet } from '../entities/Planet.js';
+import { BlackHole } from '../entities/BlackHole.js';
 
 const SHARED_SPHERE_GEO = new THREE.SphereGeometry(1, 10, 10);
 const SHARED_STAR_MAT = new THREE.PointsMaterial({
@@ -72,6 +73,51 @@ export class Chunk {
     }
 
     generateSystems() {
+        const hasBlackHole = seededRandom(this.cx, this.cy, this.cz, 500) > (1 - Config.BLACK_HOLE_SPAWN_CHANCE);
+        if (hasBlackHole) {
+            const bhSeed = 505;
+            const lx = (seededRandom(this.cx, this.cy, this.cz, bhSeed) - 0.5) * this.size * 0.8;
+            const ly = (seededRandom(this.cx, this.cy, this.cz, bhSeed + 1) - 0.5) * this.size * 0.8;
+            const lz = (seededRandom(this.cx, this.cy, this.cz, bhSeed + 2) - 0.5) * this.size * 0.8;
+
+            // Variar tamaño: 5% de que sea un monstruo "Supermasivo" (Ultra-Massive)
+            let bhSizeMult = 1.0;
+            if (seededRandom(this.cx, this.cy, this.cz, bhSeed + 10) > 0.95) {
+                bhSizeMult = 6.0; // ¡6 veces el tamaño máximo!
+            }
+            const radius = Config.STAR_RADIUS_MAX * (1 + seededRandom(this.cx, this.cy, this.cz, bhSeed + 3) * 2) * bhSizeMult;
+
+            const bhPrefixes = [
+                'Leviatán', 'Abismo', 'Vacío', 'Fauces', 'Devorador', 'Singularidad', 'Érebus',
+                'Vórtice', 'Horizonte', 'Tártaro', 'Colapso', 'Maelstrom', 'Cenotafio', 'Gehena',
+                'Ruina', 'Olvido', 'Génesis Oscuro', 'Enigma', 'Tirano', 'Demolición',
+                'Supreme', 'Macro', 'Prime', 'Ultimate', 'Titan', 'Mega', 'Final', 'Morgoth', 'Sauron', 'Melkor',
+                'Surtur', 'Shiva', 'Zeus', 'Odin', 'Ragnarok', 'Doomsday', 'Apocalypse', 'Extinction', 'Oblivion',
+                'Inferno', 'Purgatory', 'Hellfire', 'Nether', 'Abaddon', 'Moloch', 'Belial', 'Asmodeus', 'Beelzebub',
+                'Lucifer', 'Samael', 'Mammon', 'Leviathan', 'Rahab', 'Tiamat', 'Set', 'Typhon', 'Fenrir', 'Jormungandr',
+                'Cerberus', 'Charon', 'Hades', 'Pluto', 'Orcus', 'Nyx', 'Erebus', 'Thanatos', 'Hypnos', 'Morpheus'
+            ];
+
+            const realSciFiPrefixes = ['NGC-', 'Cygnus X-', 'Sgr A*', 'Messier ', 'V404-', 'GRO J', 'Quasar ', 'Omega ', 'Epsilon Void '];
+            const allPrefixes = [...bhPrefixes, ...realSciFiPrefixes];
+
+            let bhName = allPrefixes[Math.floor(seededRandom(this.cx, this.cy, this.cz, bhSeed + 5) * allPrefixes.length)] + ' ';
+            const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+            const suffix = chars[Math.floor(seededRandom(this.cx, this.cy, this.cz, bhSeed + 6) * chars.length)];
+
+            let finalName = bhName + Math.floor(seededRandom(this.cx, this.cy, this.cz, bhSeed + 4) * 10000) + suffix;
+            if (bhSizeMult > 1) finalName = 'Gargantúa ' + finalName;
+
+            const blackHole = new BlackHole({
+                name: finalName,
+                radius: radius,
+                lx: lx, ly: ly, lz: lz
+            });
+            this.systems.push(blackHole);
+            this.group.add(blackHole.mesh);
+            return; // Si hay agujero negro, devora todo lo demás, no hay estrellas normales.
+        }
+
         const hasSystem = seededRandom(this.cx, this.cy, this.cz, 100) > (1 - Config.SYSTEM_SPAWN_CHANCE);
         if (hasSystem || (this.cx === 0 && this.cy === 0 && this.cz === 0)) {
             const numSystems = Math.floor(seededRandom(this.cx, this.cy, this.cz, 101) * Config.MAX_SYSTEMS_PER_CHUNK) + 1;
@@ -118,23 +164,23 @@ export class Chunk {
                         else if (typeRand > 0.55) pType = 'Ice Planet';
                         else if (typeRand > 0.45) pType = 'Crystal Planet';
                     }
-                    
+
                     let pColor = new THREE.Color();
                     let atmosphereDensity = 0;
-                    
+
                     if (isGasGiant) {
                         pColor.setHSL(hue, 0.7 + seededRandom(this.cx, this.cy, this.cz, pSeed + 1) * 0.3, 0.4 + seededRandom(this.cx, this.cy, this.cz, pSeed + 2) * 0.4);
                         atmosphereDensity = 0.001; // Densidad enorme para gaseosos (aunque no aterricemos)
                     } else {
                         // Color base procedural dependiente del tipo
                         if (pType === 'Ocean Planet') {
-                            pColor.setHSL(0.55 + seededRandom(this.cx, this.cy, this.cz, pSeed)*0.1, 0.8, 0.3);
-                            atmosphereDensity = 0.0003 + seededRandom(this.cx, this.cy, this.cz, pSeed)*0.0002;
+                            pColor.setHSL(0.55 + seededRandom(this.cx, this.cy, this.cz, pSeed) * 0.1, 0.8, 0.3);
+                            atmosphereDensity = 0.0003 + seededRandom(this.cx, this.cy, this.cz, pSeed) * 0.0002;
                         } else if (pType === 'Lava Planet') {
-                            pColor.setHSL(0.0 + seededRandom(this.cx, this.cy, this.cz, pSeed)*0.1, 0.9, 0.4);
+                            pColor.setHSL(0.0 + seededRandom(this.cx, this.cy, this.cz, pSeed) * 0.1, 0.9, 0.4);
                             atmosphereDensity = 0.0004; // Mucha niebla y ceniza
                         } else if (pType === 'Ice Planet') {
-                            pColor.setHSL(0.5 + seededRandom(this.cx, this.cy, this.cz, pSeed)*0.1, 0.4, 0.8);
+                            pColor.setHSL(0.5 + seededRandom(this.cx, this.cy, this.cz, pSeed) * 0.1, 0.4, 0.8);
                         } else if (pType === 'Crystal Planet') {
                             pColor.setHSL(hue, 0.9, 0.6);
                         } else {
@@ -146,15 +192,15 @@ export class Chunk {
                             }
                         }
                     }
-                    
+
                     const pRadius = isGasGiant ? (Config.PLANET_GAS_RADIUS_MIN + seededRandom(this.cx, this.cy, this.cz, pSeed + 6) * (Config.PLANET_GAS_RADIUS_MAX - Config.PLANET_GAS_RADIUS_MIN)) : (Config.PLANET_ROCKY_RADIUS_MIN + seededRandom(this.cx, this.cy, this.cz, pSeed + 7) * (Config.PLANET_ROCKY_RADIUS_MAX - Config.PLANET_ROCKY_RADIUS_MIN));
                     const orbitRadius = sunRadius * 1.5 + Config.ORBIT_DISTANCE_START + j * (Config.ORBIT_DISTANCE_SPACING + seededRandom(this.cx, this.cy, this.cz, pSeed + 8) * Config.ORBIT_DISTANCE_VAR);
                     const orbitSpeed = (seededRandom(this.cx, this.cy, this.cz, pSeed + 9) * Config.PLANET_ORBIT_SPEED_VAR + Config.PLANET_ORBIT_SPEED_BASE) * (seededRandom(this.cx, this.cy, this.cz, pSeed + 10) > 0.5 ? 1 : -1);
                     const rotationSpeed = Config.PLANET_ROTATION_SPEED * (0.2 + seededRandom(this.cx, this.cy, this.cz, pSeed + 15) * 1.8);
                     const startAngle = seededRandom(this.cx, this.cy, this.cz, pSeed + 11) * Math.PI * 2;
                     const planetInstance = new Planet({
-                        name: pName, type: pType, radius: pRadius, color: pColor, 
-                        atmosphereDensity: atmosphereDensity, 
+                        name: pName, type: pType, radius: pRadius, color: pColor,
+                        atmosphereDensity: atmosphereDensity,
                         orbitRadius, orbitSpeed, rotationSpeed,
                         angle: startAngle, tiltOffset: seededRandom(this.cx, this.cy, this.cz, pSeed + 12) * Math.PI * 2,
                         rotationY: 0, lx: 0, ly: 0, lz: 0

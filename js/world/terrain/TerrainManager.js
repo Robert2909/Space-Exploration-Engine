@@ -142,13 +142,14 @@ export class TerrainManager {
                 metalness: 0.8
             });
             this.waterMesh = new THREE.Mesh(waterGeo, waterMat);
-            // El agua siempre en y = 0, pero centrada al jugador horizontalmente en el update
             this.group.add(this.waterMesh);
         }
-
+        
         // Generar los chunks iniciales
         this.update(0, { x: startX, z: startZ });
     }
+
+
 
     createStars() {
         const geometry = new THREE.BufferGeometry();
@@ -173,6 +174,52 @@ export class TerrainManager {
         const material = new THREE.PointsMaterial({ color: 0xffffff, size: 15, sizeAttenuation: true, fog: false });
         this.stars = new THREE.Points(geometry, material);
         this.group.add(this.stars);
+    }
+
+    generatePOIsForChunk(cx, cz, offsetX, offsetZ) {
+        // Semilla local del chunk
+        const seedValue = this.generator.seed + cx * 1000 + cz;
+        // Probabilidad de que haya un POI en este chunk (10%)
+        const chance = Math.abs(Math.sin(seedValue * 12.345));
+        
+        if (chance > 0.90) {
+            const px = offsetX + (Math.sin(seedValue * 1.1) - 0.5) * this.chunkSize * 0.8;
+            const pz = offsetZ + (Math.cos(seedValue * 1.2) - 0.5) * this.chunkSize * 0.8;
+            const py = this.generator.getHeight(px, pz);
+
+            // No construir bajo el agua
+            if (this.planetData && this.planetData.type === 'Ocean Planet' && py < 0) return;
+
+            let mesh;
+            const poiType = Math.abs(Math.sin(seedValue * 2.34));
+            
+            if (poiType > 0.5) {
+                // Monolito alienígena
+                const geo = new THREE.BoxGeometry(10, 100, 10);
+                const mat = new THREE.MeshStandardMaterial({ color: 0x111111, metalness: 0.9, roughness: 0.1 });
+                mesh = new THREE.Mesh(geo, mat);
+                mesh.position.set(px, py + 50, pz);
+                
+                // Luz de faro
+                const light = new THREE.PointLight(0xff00ff, 3, 300);
+                light.position.y = 50;
+                mesh.add(light);
+            } else {
+                // Cristal gigante / Ruina
+                const geo = new THREE.DodecahedronGeometry(20, 0);
+                const mat = new THREE.MeshStandardMaterial({ color: 0x00ffff, emissive: 0x003355, roughness: 0.2, transparent: true, opacity: 0.8 });
+                mesh = new THREE.Mesh(geo, mat);
+                mesh.position.set(px, py + 10, pz);
+                
+                const light = new THREE.PointLight(0x00ffff, 2, 200);
+                mesh.add(light);
+            }
+
+            this.group.add(mesh);
+            if (!this.pois) this.pois = new Map();
+            if (!this.pois.has(`${cx},${cz}`)) this.pois.set(`${cx},${cz}`, []);
+            this.pois.get(`${cx},${cz}`).push(mesh);
+        }
     }
 
     getChunkKey(cx, cz) {
@@ -303,6 +350,9 @@ export class TerrainManager {
 
                     this.group.add(mesh);
                     this.chunks.set(key, mesh);
+
+                    // Generar POIs para este chunk
+                    this.generatePOIsForChunk(x, z, offsetX, offsetZ);
                 }
             }
         }
@@ -313,6 +363,15 @@ export class TerrainManager {
                 this.group.remove(mesh);
                 mesh.geometry.dispose();
                 this.chunks.delete(key);
+                
+                // Destruir POIs asociados
+                if (this.pois && this.pois.has(key)) {
+                    for (let poiMesh of this.pois.get(key)) {
+                        this.group.remove(poiMesh);
+                        poiMesh.geometry.dispose();
+                    }
+                    this.pois.delete(key);
+                }
             }
         }
     }
