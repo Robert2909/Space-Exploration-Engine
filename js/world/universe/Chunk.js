@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { seededRandom } from '../../utils/MathUtils.js';
-import { generateStarName, generatePlanetName } from '../generators/NameGenerator.js';
+import { generateStarName, generatePlanetName, generateBlackHoleName } from '../generators/NameGenerator.js';
 import { Config } from '../../core/Config.js';
 import { Star } from '../entities/Star.js';
 import { Planet } from '../entities/Planet.js';
@@ -75,38 +75,19 @@ export class Chunk {
     generateSystems() {
         const hasBlackHole = seededRandom(this.cx, this.cy, this.cz, 500) > (1 - Config.BLACK_HOLE_SPAWN_CHANCE);
         if (hasBlackHole) {
-            const bhSeed = 505;
+            const bhSeed = this.cx * 73856 + this.cy * 1920 + this.cz * 8831 + Config.UNIVERSE_SEED_OFFSET;
             const lx = (seededRandom(this.cx, this.cy, this.cz, bhSeed) - 0.5) * this.size * 0.8;
             const ly = (seededRandom(this.cx, this.cy, this.cz, bhSeed + 1) - 0.5) * this.size * 0.8;
             const lz = (seededRandom(this.cx, this.cy, this.cz, bhSeed + 2) - 0.5) * this.size * 0.8;
 
-            // Variar tamaño: 5% de que sea un monstruo "Supermasivo" (Ultra-Massive)
-            let bhSizeMult = 1.0;
-            if (seededRandom(this.cx, this.cy, this.cz, bhSeed + 10) > 0.95) {
-                bhSizeMult = 6.0; // ¡6 veces el tamaño máximo!
+            let bhSizeMult = 1.0 + seededRandom(this.cx, this.cy, this.cz, bhSeed + 9) * Config.BLACK_HOLE_SIZE_MULT_NORMAL;
+
+            if (seededRandom(this.cx, this.cy, this.cz, bhSeed + 10) > (1 - Config.BLACK_HOLE_ULTRA_MASSIVE_CHANCE)) {
+                bhSizeMult = 4.0 + seededRandom(this.cx, this.cy, this.cz, bhSeed + 11) * Config.BLACK_HOLE_SIZE_MULT_ULTRA;
             }
-            const radius = Config.STAR_RADIUS_MAX * (1 + seededRandom(this.cx, this.cy, this.cz, bhSeed + 3) * 2) * bhSizeMult;
+            const radius = Config.STAR_RADIUS_MAX * (1 + seededRandom(this.cx, this.cy, this.cz, bhSeed + 3) * Config.BLACK_HOLE_BASE_RADIUS_VAR) * bhSizeMult;
 
-            const bhPrefixes = [
-                'Leviatán', 'Abismo', 'Vacío', 'Fauces', 'Devorador', 'Singularidad', 'Érebus',
-                'Vórtice', 'Horizonte', 'Tártaro', 'Colapso', 'Maelstrom', 'Cenotafio', 'Gehena',
-                'Ruina', 'Olvido', 'Génesis Oscuro', 'Enigma', 'Tirano', 'Demolición',
-                'Supreme', 'Macro', 'Prime', 'Ultimate', 'Titan', 'Mega', 'Final', 'Morgoth', 'Sauron', 'Melkor',
-                'Surtur', 'Shiva', 'Zeus', 'Odin', 'Ragnarok', 'Doomsday', 'Apocalypse', 'Extinction', 'Oblivion',
-                'Inferno', 'Purgatory', 'Hellfire', 'Nether', 'Abaddon', 'Moloch', 'Belial', 'Asmodeus', 'Beelzebub',
-                'Lucifer', 'Samael', 'Mammon', 'Leviathan', 'Rahab', 'Tiamat', 'Set', 'Typhon', 'Fenrir', 'Jormungandr',
-                'Cerberus', 'Charon', 'Hades', 'Pluto', 'Orcus', 'Nyx', 'Erebus', 'Thanatos', 'Hypnos', 'Morpheus'
-            ];
-
-            const realSciFiPrefixes = ['NGC-', 'Cygnus X-', 'Sgr A*', 'Messier ', 'V404-', 'GRO J', 'Quasar ', 'Omega ', 'Epsilon Void '];
-            const allPrefixes = [...bhPrefixes, ...realSciFiPrefixes];
-
-            let bhName = allPrefixes[Math.floor(seededRandom(this.cx, this.cy, this.cz, bhSeed + 5) * allPrefixes.length)] + ' ';
-            const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-            const suffix = chars[Math.floor(seededRandom(this.cx, this.cy, this.cz, bhSeed + 6) * chars.length)];
-
-            let finalName = bhName + Math.floor(seededRandom(this.cx, this.cy, this.cz, bhSeed + 4) * 10000) + suffix;
-            if (bhSizeMult > 1) finalName = 'Gargantúa ' + finalName;
+            const finalName = generateBlackHoleName(bhSeed, this.cx, this.cy, this.cz, bhSizeMult);
 
             const blackHole = new BlackHole({
                 name: finalName,
@@ -159,10 +140,22 @@ export class Chunk {
                         pType = 'Gas Giant';
                     } else {
                         const typeRand = seededRandom(this.cx, this.cy, this.cz, pSeed + 20);
-                        if (typeRand > 0.85) pType = 'Ocean Planet';
-                        else if (typeRand > 0.70) pType = 'Lava Planet';
-                        else if (typeRand > 0.55) pType = 'Ice Planet';
-                        else if (typeRand > 0.45) pType = 'Crystal Planet';
+                        let cumulative = 1.0;
+                        
+                        cumulative -= Config.PLANET_OCEAN_CHANCE;
+                        if (typeRand > cumulative) { pType = 'Ocean Planet'; }
+                        else {
+                            cumulative -= Config.PLANET_LAVA_CHANCE;
+                            if (typeRand > cumulative) { pType = 'Lava Planet'; }
+                            else {
+                                cumulative -= Config.PLANET_ICE_CHANCE;
+                                if (typeRand > cumulative) { pType = 'Ice Planet'; }
+                                else {
+                                    cumulative -= Config.PLANET_CRYSTAL_CHANCE;
+                                    if (typeRand > cumulative) { pType = 'Crystal Planet'; }
+                                }
+                            }
+                        }
                     }
 
                     let pColor = new THREE.Color();

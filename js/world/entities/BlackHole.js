@@ -1,5 +1,7 @@
 import * as THREE from 'three';
 import { CelestialBody } from './CelestialBody.js';
+import { seededRandom } from '../../utils/MathUtils.js';
+import { Config } from '../../core/Config.js';
 
 export class BlackHole extends CelestialBody {
     constructor(config) {
@@ -48,36 +50,55 @@ export class BlackHole extends CelestialBody {
             return new THREE.CanvasTexture(canvas);
         };
 
+        const seed = Math.abs(this.lx * 738 + this.ly * 19 + this.lz * 88);
+        
+        const getColor = (cArr, a) => `hsla(${cArr[0]}, ${cArr[1]}%, ${cArr[2]}%, ${a})`;
+
+        const palettes = [
+            // Standard (Orange/White)
+            { o: [340, 100, 30], m: [15, 100, 50], i: [35, 100, 70], core: [0, 0, 100], j1: [210, 100, 80], j2: [230, 100, 50], j3: [250, 100, 20], c: [270, 100, 30], glow: [260, 100, 50] },
+            // Hot Blue
+            { o: [240, 100, 30], m: [220, 100, 50], i: [200, 100, 70], core: [0, 0, 100], j1: [190, 100, 80], j2: [210, 100, 50], j3: [230, 100, 20], c: [240, 100, 30], glow: [220, 100, 50] },
+            // Emerald
+            { o: [120, 100, 20], m: [140, 100, 40], i: [160, 100, 60], core: [0, 0, 100], j1: [130, 100, 80], j2: [150, 100, 50], j3: [170, 100, 20], c: [120, 100, 20], glow: [140, 100, 40] },
+            // Crimson
+            { o: [0, 100, 20], m: [350, 100, 40], i: [340, 100, 60], core: [330, 100, 80], j1: [0, 100, 70], j2: [350, 100, 40], j3: [340, 100, 10], c: [0, 100, 20], glow: [350, 100, 40] },
+            // Violet / Pure Energy
+            { o: [270, 100, 30], m: [290, 100, 50], i: [310, 100, 70], core: [0, 0, 100], j1: [280, 100, 80], j2: [300, 100, 50], j3: [320, 100, 20], c: [270, 100, 30], glow: [290, 100, 50] }
+        ];
+        
+        const p = palettes[Math.floor(seededRandom(this.lx, this.ly, this.lz, seed) * palettes.length)];
+
         const createBeamTexture = () => {
             const canvas = document.createElement('canvas');
             canvas.width = 256; canvas.height = 512;
             const ctx = canvas.getContext('2d');
             
-            // Gradiente radial estirado (Ovalo perfecto) para que difumine lados Y puntas
             ctx.scale(1, 2);
             const grad = ctx.createRadialGradient(128, 128, 0, 128, 128, 128);
-            grad.addColorStop(0, 'rgba(200,230,255,1)');
-            grad.addColorStop(0.1, 'rgba(100,180,255,0.8)');
-            grad.addColorStop(0.3, 'rgba(0,100,255,0.4)');
-            grad.addColorStop(1, 'rgba(0,0,255,0)');
+            grad.addColorStop(0, getColor(p.j1, 1));
+            grad.addColorStop(0.1, getColor(p.j2, 0.8));
+            grad.addColorStop(0.3, getColor(p.j3, 0.4));
+            grad.addColorStop(1, 'rgba(0,0,0,0)');
             
             ctx.fillStyle = grad;
-            ctx.fillRect(0, 0, 256, 256); // Afecta el área escalada (256x512)
-            ctx.setTransform(1, 0, 0, 1, 0, 0); // Reset scale
+            ctx.fillRect(0, 0, 256, 256);
+            ctx.setTransform(1, 0, 0, 1, 0, 0);
             
             return new THREE.CanvasTexture(canvas);
         };
 
-        const texDisk1 = createGradientTexture('rgba(150,0,50,0.3)', 'rgba(255,0,0,0)', true); // Anillo extra exterior
-        const texDisk2 = createGradientTexture('rgba(255,50,0,0.6)', 'rgba(255,0,0,0)', true);
-        const texDisk3 = createGradientTexture('rgba(255,170,0,0.8)', 'rgba(255,50,0,0)', true);
-        const texDisk4 = createGradientTexture('rgba(255,255,255,1)', 'rgba(100,0,255,0)', true); // Anillo extra interior
+        const texDisk1 = createGradientTexture(getColor(p.o, 0.3), 'rgba(0,0,0,0)', true);
+        const texDisk2 = createGradientTexture(getColor(p.m, 0.6), 'rgba(0,0,0,0)', true);
+        const texDisk3 = createGradientTexture(getColor(p.i, 0.8), 'rgba(0,0,0,0)', true);
+        const texDisk4 = createGradientTexture(getColor(p.core, 1), 'rgba(0,0,0,0)', true);
 
         // Usar PlaneGeometry en vez de Ring para evitar bordes duros cortados
-        const diskSizeOuterMost = this.radius * 24.0;
-        const diskSizeOuter = this.radius * 16.0;
-        const diskSizeMid = this.radius * 8.0;
-        const diskSizeInner = this.radius * 4.0;
+        const s = Config.BLACK_HOLE_DISK_SCALE;
+        const diskSizeOuterMost = this.radius * 24.0 * s;
+        const diskSizeOuter = this.radius * 16.0 * s;
+        const diskSizeMid = this.radius * 8.0 * s;
+        const diskSizeInner = this.radius * 4.0 * s;
         
         const diskGeoOuterMost = new THREE.PlaneGeometry(diskSizeOuterMost, diskSizeOuterMost);
         const diskGeoOuter = new THREE.PlaneGeometry(diskSizeOuter, diskSizeOuter);
@@ -107,13 +128,15 @@ export class BlackHole extends CelestialBody {
         this.diskMid = new THREE.Mesh(diskGeoMid, diskMatMid);
         this.diskInner = new THREE.Mesh(diskGeoInner, diskMatInner);
         
-        this.mesh.add(this.diskOuterMost);
-        this.mesh.add(this.diskOuter);
-        this.mesh.add(this.diskMid);
-        this.mesh.add(this.diskInner);
+        // Agrupamos el disco de acreción para rotarlo entero
+        this.accretionGroup = new THREE.Group();
+        this.accretionGroup.add(this.diskOuterMost);
+        this.accretionGroup.add(this.diskOuter);
+        this.accretionGroup.add(this.diskMid);
+        this.accretionGroup.add(this.diskInner);
         
         // Aura gravitacional de alta radiación (Corona tridimensional suave)
-        const texCorona = createGradientTexture('rgba(106,13,173,0.3)', 'rgba(106,13,173,0)', true);
+        const texCorona = createGradientTexture(getColor(p.c, 0.3), 'rgba(0,0,0,0)', true);
         const coronaMat = new THREE.SpriteMaterial({
             map: texCorona, transparent: true, opacity: 0.8, blending: THREE.AdditiveBlending, depthWrite: false
         });
@@ -122,7 +145,7 @@ export class BlackHole extends CelestialBody {
         this.mesh.add(this.corona);
 
         // ==== SUPER RESPLANDOR (BLOOM PROCEDURAL) ====
-        const texGlow = createGradientTexture('rgba(255,255,255,1)', 'rgba(60,0,150,0)', true);
+        const texGlow = createGradientTexture('rgba(255,255,255,1)', getColor(p.glow, 0), true);
         const glowMat = new THREE.SpriteMaterial({
             map: texGlow, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false
         });
@@ -132,10 +155,8 @@ export class BlackHole extends CelestialBody {
         // ===========================================
 
         // Jets Relativistas (Quásar) disparados desde los polos
-        // Volvemos a las Cross-Planes (Planos cruzados), pero usamos 3 planos y un gradiente ovalado
-        // Esto elimina por completo los bordes duros laterales y verticales, creando un "volumen" perfecto
         const texJet = createBeamTexture();
-        const jetGeo = new THREE.PlaneGeometry(this.radius * 6.0, this.radius * 120.0);
+        const jetGeo = new THREE.PlaneGeometry(this.radius * Config.BLACK_HOLE_JET_WIDTH, this.radius * Config.BLACK_HOLE_JET_LENGTH);
         const jetMat = new THREE.MeshBasicMaterial({
             map: texJet, transparent: true, opacity: 0.6, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, depthWrite: false
         });
@@ -148,7 +169,14 @@ export class BlackHole extends CelestialBody {
             this.jet.add(plane);
         }
         
-        this.mesh.add(this.jet);
+        this.accretionGroup.add(this.jet);
+        
+        // Orientación Aleatoria de la anomalía
+        this.accretionGroup.rotation.x = seededRandom(this.lx, this.ly, this.lz, seed + 1) * Math.PI * 2;
+        this.accretionGroup.rotation.y = seededRandom(this.lx, this.ly, this.lz, seed + 2) * Math.PI * 2;
+        this.accretionGroup.rotation.z = seededRandom(this.lx, this.ly, this.lz, seed + 3) * Math.PI * 2;
+
+        this.mesh.add(this.accretionGroup);
     }
 
     update(dt) {

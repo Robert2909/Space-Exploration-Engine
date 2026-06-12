@@ -55,6 +55,11 @@ export class UIManager {
                 titles.forEach(t => t.style.color = '');
             }
         });
+        // Telemetría ciega desde el SpaceState
+        EventManager.on(EVENTS.PLAYER_TELEMETRY_UPDATED, (payload) => {
+            this.updateHUD(payload.speed, payload.pos);
+            this.updateLabels(payload.nearby);
+        });
     }
     
     setupToggles() {
@@ -87,56 +92,12 @@ export class UIManager {
         document.getElementById('pos-z').innerText = Math.round(pos.z);
     }
     
-    updateLabels(universe) {
-        const cameraPos = this.camera.position;
-        const maxDist = Config.UI_LABEL_MAX_DISTANCE; 
-        const maxDistSq = maxDist * maxDist;
-        
-        const nearby = [];
+    updateLabels(nearby) {
+        if (!nearby) return;
         const tempV = new THREE.Vector3();
+        const maxDist = Config.UI_LABEL_MAX_DISTANCE;
         
-        for(let [key, chunk] of universe.chunks.entries()) {
-            if(chunk === 'pending') continue;
-            const cx = chunk.group.position.x;
-            const cy = chunk.group.position.y;
-            const cz = chunk.group.position.z;
-            
-            for(let sys of chunk.systems) {
-                let dx = sys.lx + cx - cameraPos.x;
-                let dy = sys.ly + cy - cameraPos.y;
-                let dz = sys.lz + cz - cameraPos.z;
-                let distSq = dx*dx + dy*dy + dz*dz;
-                let allowDistSq = maxDistSq;
-                if (sys.group === 'BlackHole') allowDistSq = maxDistSq * 100; // 10x distancia (al cuadrado = 100x distSq)
-                
-                if (distSq < allowDistSq) {
-                    nearby.push({ name: sys.name, type: sys.type, group: sys.group || 'Estrella', radius: sys.radius, x: sys.lx+cx, y: sys.ly+cy, z: sys.lz+cz, distSq: distSq });
-                }
-                
-                for(let p of sys.planets) {
-                    dx = p.lx + cx - cameraPos.x;
-                    dy = p.ly + cy - cameraPos.y;
-                    dz = p.lz + cz - cameraPos.z;
-                    distSq = dx*dx + dy*dy + dz*dz;
-                    if (distSq < maxDistSq) {
-                        nearby.push({ 
-                            name: p.name, type: p.type, group: 'Planeta', 
-                            radius: p.radius, x: p.lx+cx, y: p.ly+cy, z: p.lz+cz, 
-                            distSq: distSq,
-                            color: p.color, // <- PASAR EL COLOR
-                            atmosphereDensity: p.atmosphereDensity, // <- PASAR ATMOSFERA
-                            orbitSpeed: p.orbitSpeed,
-                            rotationSpeed: p.rotationSpeed,
-                            rotationY: p.rotationY
-                        });
-                    }
-                }
-            }
-        }
-        
-        nearby.sort((a, b) => a.distSq - b.distSq);
-        
-        this.lastNearby = nearby;
+        this.lastNearby = nearby; // Por si algo en la UI lo necesita localmente
         this.updateSensors(nearby);
 
         if (this.labelsContainer.classList.contains('hidden')) return;
@@ -186,10 +147,12 @@ export class UIManager {
                 el.style.top = '0px';
                 
                 let targetOpacity = 1.0;
-                if (dist > maxDist * 0.7) {
-                    targetOpacity = 1 - ((dist - maxDist * 0.7) / (maxDist * 0.3));
+                let specificMaxDist = body.group === 'BlackHole' ? maxDist * 10 : maxDist;
+                
+                if (dist > specificMaxDist * 0.7) {
+                    targetOpacity = 1 - ((dist - specificMaxDist * 0.7) / (specificMaxDist * 0.3));
                 }
-                el.style.opacity = targetOpacity.toString();
+                el.style.opacity = Math.max(0, targetOpacity).toString();
                 labelIndex++;
             }
         }

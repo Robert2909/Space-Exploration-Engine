@@ -16,75 +16,113 @@ export class SpaceState extends GameState {
 
     update(dt) {
         const engine = this.engine;
-        
+
         engine.controls.update(dt);
         const pos = engine.camera.position;
 
         engine.universe.update(pos.x, pos.y, pos.z, dt);
         engine.lighting.update(engine.camera.position, engine.universe);
 
-        // --- GRAVEDAD DE AGUJEROS NEGROS ---
-        let maxPanic = 0;
+        const maxDist = Config.UI_LABEL_MAX_DISTANCE; 
+        const maxDistSq = maxDist * maxDist;
+        const nearbyBodies = [];
         
-        // Iterar por todos los chunks cargados para detectar agujeros negros a gran escala
+        let maxPanic = 0;
+
         for (let [key, chunk] of engine.universe.chunks.entries()) {
             if (chunk === 'pending') continue;
             const cx = chunk.group.position.x;
             const cy = chunk.group.position.y;
             const cz = chunk.group.position.z;
-            
+
             for (let sys of chunk.systems) {
+                // Agregar sys a nearbyBodies
+                let dx = sys.lx + cx - pos.x;
+                let dy = sys.ly + cy - pos.y;
+                let dz = sys.lz + cz - pos.z;
+                let distSq = dx*dx + dy*dy + dz*dz;
+                
+                let allowDistSq = maxDistSq;
+                if (sys.group === 'BlackHole') allowDistSq = maxDistSq * 100;
+                
+                if (distSq < allowDistSq) {
+                    nearbyBodies.push({ name: sys.name, type: sys.type, group: sys.group || 'Estrella', radius: sys.radius, x: sys.lx+cx, y: sys.ly+cy, z: sys.lz+cz, distSq: distSq });
+                }
+                
+                // Agregar planetas a nearbyBodies
+                for(let p of sys.planets) {
+                    dx = p.lx + cx - pos.x;
+                    dy = p.ly + cy - pos.y;
+                    dz = p.lz + cz - pos.z;
+                    distSq = dx*dx + dy*dy + dz*dz;
+                    if (distSq < maxDistSq) {
+                        nearbyBodies.push({ 
+                            name: p.name, type: p.type, group: 'Planeta', 
+                            radius: p.radius, x: p.lx+cx, y: p.ly+cy, z: p.lz+cz, 
+                            distSq: distSq, color: p.color, atmosphereDensity: p.atmosphereDensity,
+                            orbitSpeed: p.orbitSpeed, rotationSpeed: p.rotationSpeed, rotationY: p.rotationY
+                        });
+                    }
+                }
+
                 if (sys.group === 'BlackHole') {
                     const bhPos = new THREE.Vector3(sys.lx + cx, sys.ly + cy, sys.lz + cz);
                     const dist = pos.distanceTo(bhPos);
-                    const pullRadius = sys.radius * 30; // 30 veces su tamaño de alcance gravitatorio
-                    
+
+                    const pullRadius = sys.radius * Config.BLACK_HOLE_PULL_RADIUS_MULT;
+                    const panicRadius = sys.radius * Config.BLACK_HOLE_PANIC_RANGE_MULT;
+
                     if (dist < pullRadius) {
                         const normalizedDist = Math.max(0.005, dist / pullRadius);
-                        
+
                         // Gravedad estilo 1/r^2
-                        let forceStr = (1 / (normalizedDist * normalizedDist)) * 50;
-                        
+                        let forceStr = (1 / (normalizedDist * normalizedDist)) * Config.BLACK_HOLE_GRAVITY_STRENGTH;
+
                         // Limitar la fuerza para evitar ser disparado a Narnia
                         forceStr = Math.min(forceStr, Config.PLAYER_SPEED_MAX * 0.8);
-                        
+
                         // El vector 'dir' está en espacio del mundo. La velocidad de la nave está en espacio local.
                         // Convertimos 'dir' a espacio local usando el cuaternión inverso de la cámara.
                         const worldDir = new THREE.Vector3().subVectors(bhPos, pos).normalize();
                         const localDir = worldDir.clone().applyQuaternion(engine.camera.quaternion.clone().invert());
-                        
+
                         engine.controls.velocity.add(localDir.multiplyScalar(forceStr * dt));
 
                         // Fricción aplastante si cruzas el horizonte de eventos
-                        if (dist < sys.radius * 2.0) {
+                        if (dist < sys.radius * Config.BLACK_HOLE_EVENT_HORIZON_MULT) {
                             engine.controls.velocity.multiplyScalar(0.95);
                         }
                     }
 
                     // Pánico visual (Glitches): Aumentamos el rango para que dé miedo antes
-                    const panicRadius = sys.radius * 18;
                     if (dist < panicRadius) {
                         const panicNorm = Math.max(0, 1 - (dist / panicRadius));
                         // Curva exponencial: Empieza suave, y cuando estás muy cerca (0.8) tiembla horriblemente
-                        const panic = Math.pow(panicNorm, 3) * 2.5; 
+                        const panic = Math.pow(panicNorm, 3) * Config.BLACK_HOLE_PANIC_STRENGTH;
                         if (panic > maxPanic) maxPanic = panic;
                     }
                 }
             }
         }
         
+        nearbyBodies.sort((a, b) => a.distSq - b.distSq);
+
         // Notificar nivel de pánico al UI
         EventManager.emit(EVENTS.BLACKHOLE_PANIC, { level: maxPanic });
+        
+        // Notificar la telemetría a la UI (Arquitectura Event-Driven, ciega)
+        EventManager.emit(EVENTS.PLAYER_TELEMETRY_UPDATED, {
+            speed: engine.controls.velocity.length(),
+            pos: pos,
+            nearby: nearbyBodies
+        });
         // -----------------------------------
-
-        engine.ui.updateHUD(engine.controls.velocity.length(), pos);
-        engine.ui.updateLabels(engine.universe);
 
         engine.landingTarget = null;
 
         if (engine.targetBody) {
             // Actualizar la referencia del objetivo en cada frame porque los planetas se mueven
-            const freshBody = engine.ui.lastNearby.find(b => b.name === engine.targetBody.name);
+            const freshBody = nearbyBodies.find(b => b.name === engine.targetBody.name);
             if (freshBody) {
                 engine.targetBody = freshBody;
                 if (engine.controls.autoPilotTarget) {
@@ -147,8 +185,8 @@ export class SpaceState extends GameState {
         let minLandingDist = Infinity;
         let isGasGiant = false;
 
-        if (engine.ui.lastNearby && engine.ui.lastNearby.length > 0) {
-            for (const body of engine.ui.lastNearby) {
+        if (nearbyBodies.length > 0) {
+            for (const body of nearbyBodies) {
                 // Filtrar estrellas (usando group) y agujeros negros, pero dejar gaseosos para advertir
                 if (body.group === 'Estrella' || (body.type && body.type.includes('Black Hole'))) continue;
 

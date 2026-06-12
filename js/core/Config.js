@@ -2,10 +2,10 @@ export const Config = {
     // ==========================================
     // UNIVERSO Y GENERACIÓN PROCEDURAL
     // ==========================================
-    UNIVERSE_CHUNK_SIZE: 600000,         // Tamaño de un sector del espacio (u)
+    UNIVERSE_CHUNK_SIZE: 6000000,         // Tamaño de un sector del espacio (u)
     STARS_PER_CHUNK: 300,              // Cantidad de estrellas decorativas (puntos) por sector
-    SYSTEM_SPAWN_CHANCE: 0.05,          // Probabilidad (0.0 a 1.0) de que aparezcan planetas en un sector vacío
-    MAX_SYSTEMS_PER_CHUNK: 2,          // Número máximo de sistemas solares por sector
+    SYSTEM_SPAWN_CHANCE: 0.5,          // Probabilidad (0.0 a 1.0) de que aparezcan planetas en un sector vacío
+    MAX_SYSTEMS_PER_CHUNK: 20,          // Número máximo de sistemas solares por sector
     BLACK_HOLE_SPAWN_CHANCE: 0.005,    // Probabilidad de que un chunk contenga un agujero negro (aislado)
 
     // ==========================================
@@ -30,6 +30,33 @@ export const Config = {
     SUN_GLOW_SCALE: 4.5,               // Tamaño del halo de luz visual de las estrellas (1.0 = igual al planeta)
 
     // ==========================================
+    // TIPOS DE PLANETA (Probabilidades relativas)
+    // ==========================================
+    PLANET_OCEAN_CHANCE: 0.15,
+    PLANET_LAVA_CHANCE: 0.15,
+    PLANET_ICE_CHANCE: 0.15,
+    PLANET_CRYSTAL_CHANCE: 0.10,
+
+    // ==========================================
+    // AGUJEROS NEGROS
+    // ==========================================
+    BLACK_HOLE_SIZE_MULT_NORMAL: 2.0,       // Variación de tamaño para agujeros negros normales (1.0 + X)
+    BLACK_HOLE_ULTRA_MASSIVE_CHANCE: 0.1,  // Probabilidad de generar un ultramasivo (0.0 a 1.0)
+    BLACK_HOLE_SIZE_MULT_ULTRA: 8.0,        // Tamaño extra para los ultramasivos
+    BLACK_HOLE_SUPERMASSIVE_THRESHOLD: 4.0, // Multiplicador a partir del cual se gana el prefijo "Super Massive"
+    BLACK_HOLE_BASE_RADIUS_VAR: 4.0,        // Variación del radio base antes de multiplicadores
+    BLACK_HOLE_DISK_SCALE: 1.0,             // Escala de los discos de acreción
+    BLACK_HOLE_JET_LENGTH: 120.0,           // Longitud del chorro relativista
+    BLACK_HOLE_JET_WIDTH: 6.0,              // Ancho del chorro relativista
+    BLACK_HOLE_PANIC_RANGE_MULT: 300.0,     // Rango de distorsión de cámara
+    BLACK_HOLE_DEATH_RANGE_MULT: 1.5,       // Distancia para el evento de muerte
+    BLACK_HOLE_MAX_GRAVITY_MULT: 0.15,      // Fuerza de atracción máxima
+    BLACK_HOLE_PULL_RADIUS_MULT: 30.0,      // Alcance gravitatorio (n veces su tamaño)
+    BLACK_HOLE_GRAVITY_STRENGTH: 50.0,      // Fuerza del empuje gravitacional (1/r^2)
+    BLACK_HOLE_EVENT_HORIZON_MULT: 2.0,     // Fricción aplastante al cruzar esto
+    BLACK_HOLE_PANIC_STRENGTH: 1,         // Multiplicador del efecto de pánico visual
+
+    // ==========================================
     // 🧬 CÓDIGO GENÉTICO DEL UNIVERSO
     // ==========================================
     UNIVERSE_SEED_OFFSET: 2909,           // Cambia este número mágico (ej: 1337, 999) para generar un multiverso totalmente diferente
@@ -37,7 +64,7 @@ export const Config = {
     // ==========================================
     // FÍSICAS DE LA NAVE (JUGADOR)
     // ==========================================
-    PLAYER_SPEED: 50000,                 // Velocidad base de vuelo (unidades por segundo)
+    PLAYER_SPEED: 100000,                 // Velocidad base de vuelo (unidades por segundo)
     PLAYER_SPEED_SCROLL_MULT: 1.3,     // Multiplicador de velocidad por tic de la rueda del ratón (Exponencial)
     PLAYER_SPEED_MIN_STEP: 500,          // Velocidad mínima para arrancar desde cero con la rueda
     PLAYER_SPEED_MAX: 10000000,          // Límite de velocidad base para evitar romper la simulación física
@@ -102,7 +129,7 @@ export const Config = {
     // ==========================================
     RENDER_FOV: 100,                   // Campo de visión de la cámara (Grados)
     RENDER_PIXEL_RATIO_MAX: 1.0,       // Límite de resolución para no quemar la gráfica (1.0 = rápido, 2.0 = nítido 4K)
-    RENDER_FOG_BASE: 2.5,              // Densidad de la niebla estelar profunda
+    RENDER_FOG_BASE: 2,              // Densidad de la niebla estelar profunda
     RENDER_STAR_POINT_SIZE: 100,         // Tamaño de los puntos de luz estelares
     RENDER_ANTIALIAS: false,           // Suavizado de bordes (Apagar para +70% FPS)
 

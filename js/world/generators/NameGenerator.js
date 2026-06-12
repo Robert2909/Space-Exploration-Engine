@@ -1,4 +1,5 @@
 import { seededRandom } from '../../utils/MathUtils.js';
+import { Config } from '../../core/Config.js';
 
 const GREEK_LETTERS = ['Alpha', 'Beta', 'Gamma', 'Delta', 'Epsilon', 'Zeta', 'Eta', 'Theta', 'Iota', 'Kappa', 'Lambda', 'Mu', 'Nu', 'Xi', 'Omicron', 'Pi', 'Rho', 'Sigma', 'Tau', 'Upsilon', 'Phi', 'Chi', 'Psi', 'Omega'];
 const CONSTELLATIONS = ['Andromeda', 'Aquila', 'Aries', 'Auriga', 'Bootes', 'Cancer', 'Canis', 'Carina', 'Cassiopeia', 'Centaurus', 'Cepheus', 'Cetus', 'Crux', 'Cygnus', 'Draco', 'Eridanus', 'Gemini', 'Hercules', 'Hydra', 'Leo', 'Libra', 'Lupus', 'Lyra', 'Monoceros', 'Ophiuchus', 'Orion', 'Pegasus', 'Perseus', 'Phoenix', 'Pisces', 'Sagittarius', 'Scorpius', 'Taurus', 'Ursa', 'Vela', 'Virgo'];
@@ -61,4 +62,35 @@ export function generatePlanetName(starName, planetIndex, seedBase, cx, cy, cz) 
         const suffix = SCI_FI_SUFFIXES[Math.floor(seededRandom(cx, cy, cz, seedBase + 201) * SCI_FI_SUFFIXES.length)];
         return `${starName} ${suffix}`;
     }
+}
+
+export function generateBlackHoleName(seedBase, cx, cy, cz, bhSizeMult) {
+    const bhPrefixes = [
+        'Leviathan', 'Abyss', 'Void', 'Jaws', 'Devourer', 'Singularity', 'Erebus',
+        'Vortex', 'Horizon', 'Tartarus', 'Collapse', 'Maelstrom', 'Cenotaph', 'Gehenna',
+        'Ruin', 'Oblivion', 'Dark Genesis', 'Enigma', 'Tyrant', 'Demolition',
+        'Supreme', 'Macro', 'Prime', 'Ultimate', 'Titan', 'Mega', 'Final', 'Morgoth', 'Sauron', 'Melkor',
+        'Surtur', 'Shiva', 'Zeus', 'Odin', 'Ragnarok', 'Doomsday', 'Apocalypse', 'Extinction', 'Oblivion',
+        'Inferno', 'Purgatory', 'Hellfire', 'Nether', 'Abaddon', 'Moloch', 'Belial', 'Asmodeus', 'Beelzebub',
+        'Lucifer', 'Samael', 'Mammon', 'Leviathan', 'Rahab', 'Tiamat', 'Set', 'Typhon', 'Fenrir', 'Jormungandr',
+        'Cerberus', 'Charon', 'Hades', 'Pluto', 'Orcus', 'Nyx', 'Erebus', 'Thanatos', 'Hypnos', 'Morpheus',
+        'Grief', 'Asmodeus', 'Baal', 'Mammon', 'As', 'Astaroth', 'Zagan', 'Agares', 'Valac', 'Marbas', 'Furfur',
+        'Barbatos', 'Bifrons', 'Bael', 'Vepar', 'Zepar', 'Zagan', 'Terminal', 'Nexus', 'Havoc', 'Fury',
+        'TON'
+    ];
+
+
+
+    const realSciFiPrefixes = ['NGC-', 'Cygnus X-', 'Sgr A*', 'Messier ', 'V404-', 'GRO J', 'Quasar ', 'Omega ', 'Epsilon Void '];
+    const allPrefixes = [...bhPrefixes, ...realSciFiPrefixes];
+
+    let bhName = allPrefixes[Math.floor(seededRandom(cx, cy, cz, seedBase + 5) * allPrefixes.length)] + ' ';
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    const suffix = chars[Math.floor(seededRandom(cx, cy, cz, seedBase + 6) * chars.length)];
+
+    let finalName = bhName + Math.floor(seededRandom(cx, cy, cz, seedBase + 4) * 10000) + suffix;
+    if (bhSizeMult >= Config.BLACK_HOLE_SUPERMASSIVE_THRESHOLD) {
+        finalName = 'Super Massive ' + finalName;
+    }
+    return finalName;
 }
