@@ -70,6 +70,72 @@ export class UIManager {
         EventManager.on(EVENTS.HUD_TERRAIN_UPDATED, (payload) => {
             this.updateTerrainHUD(payload);
         });
+
+        EventManager.on(EVENTS.HUD_TERRAIN_FUEL_UPDATED, (payload) => {
+            const fuelBar = document.getElementById('jetpack-fuel-bar');
+            if (fuelBar && payload.fuelPct !== undefined) {
+                fuelBar.style.width = payload.fuelPct + '%';
+                if (payload.fuelPct < 20) fuelBar.style.backgroundColor = '#ff5555';
+                else fuelBar.style.backgroundColor = 'var(--string-color)';
+            }
+            if (payload.statusText !== undefined) {
+                document.getElementById('jetpack-status').innerText = payload.statusText;
+            }
+        });
+
+        // Transiciones visuales
+        EventManager.on(EVENTS.TRANSITION_START, (payload) => {
+            const flash = document.getElementById('transition-flash');
+            if (flash) {
+                flash.style.backgroundColor = (payload && payload.color) ? payload.color : 'black';
+                flash.style.opacity = '1';
+            }
+        });
+
+        EventManager.on(EVENTS.TRANSITION_END, () => {
+            const flash = document.getElementById('transition-flash');
+            if (flash) {
+                flash.style.opacity = '0';
+            }
+        });
+
+        // Estado del Juego (Para mostrar/ocultar paneles)
+        EventManager.on(EVENTS.STATE_CHANGED, (state) => {
+            const jpPanel = document.getElementById('jetpack-panel');
+            if (jpPanel) {
+                // We use standard CSS classes/styles. For jpPanel it's display since it doesn't have transition,
+                // or we could use hidden class if it were added. Let's keep display for panel, but use classes for labels.
+                jpPanel.style.display = state === 'TERRAIN' ? 'block' : 'none';
+            }
+            if (state === 'TERRAIN') {
+                this.labelsContainer.classList.add('hidden');
+            } else {
+                this.labelsContainer.classList.remove('hidden');
+            }
+        });
+
+        // Selección de objetivo
+        EventManager.on(EVENTS.TARGET_CHANGED, (target) => {
+            if (target) {
+                document.getElementById('target-panel').style.display = 'block';
+            }
+        });
+
+        EventManager.on(EVENTS.TARGET_CLEARED, () => {
+            document.getElementById('target-panel').style.display = 'none';
+        });
+
+        // Configuración de Render (Slider)
+        const distSlider = document.getElementById('render-dist');
+        if (distSlider) {
+            distSlider.addEventListener('input', (e) => {
+                const val = parseInt(e.target.value);
+                document.getElementById('dist-val').innerText = val;
+                EventManager.emit(EVENTS.RENDER_DISTANCE_CHANGED, val);
+            });
+            // Emitir valor inicial
+            setTimeout(() => EventManager.emit(EVENTS.RENDER_DISTANCE_CHANGED, parseInt(distSlider.value)), 100);
+        }
     }
 
     setupToggles() {
@@ -330,8 +396,21 @@ export class UIManager {
         tempEl.style.color = payload.tempColor;
 
         const fuelBar = document.getElementById('jetpack-fuel-bar');
-        fuelBar.style.width = payload.fuelPct + '%';
-        if (payload.fuelPct < 20) fuelBar.style.backgroundColor = '#ff5555';
-        else fuelBar.style.backgroundColor = 'var(--string-color)';
+        if (fuelBar && payload.fuelPct !== undefined) {
+            fuelBar.style.width = payload.fuelPct + '%';
+            if (payload.fuelPct < 20) fuelBar.style.backgroundColor = '#ff5555';
+            else fuelBar.style.backgroundColor = 'var(--string-color)';
+        }
+
+        if (payload.speed !== undefined) document.getElementById('speed').innerText = Math.round(payload.speed) + ' u/s';
+        if (payload.pos) {
+            document.getElementById('pos-x').innerText = Math.round(payload.pos.x);
+            document.getElementById('pos-y').innerText = Math.round(payload.pos.y);
+            document.getElementById('pos-z').innerText = Math.round(payload.pos.z);
+            document.getElementById('terr-alt').innerText = Math.round(payload.pos.y) + 'm';
+        }
+
+        if (payload.latDeg !== undefined) document.getElementById('terr-lat').innerText = payload.latDeg.toFixed(2) + '°';
+        if (payload.lonDeg !== undefined) document.getElementById('terr-lon').innerText = payload.lonDeg.toFixed(2) + '°';
     }
 }

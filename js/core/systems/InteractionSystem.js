@@ -29,7 +29,6 @@ export class InteractionSystem {
             // Si el nuevo target es igual al actual, lo deseleccionamos
             if (this.engine.targetBody && this.engine.targetBody.name === closest.name) {
                 this.engine.targetBody = null;
-                document.getElementById('target-panel').style.display = 'none';
                 if (this.engine.controls) {
                     this.engine.controls.autoPilotTarget = null;
                     this.engine.controls.autoLookTarget = null;
@@ -45,7 +44,6 @@ export class InteractionSystem {
             if (this.engine.targetBody) {
                 // Click en el vacío = Deseleccionar
                 this.engine.targetBody = null;
-                document.getElementById('target-panel').style.display = 'none';
                 if (this.engine.controls) {
                     this.engine.controls.autoPilotTarget = null;
                     this.engine.controls.autoLookTarget = null;
@@ -105,7 +103,6 @@ export class InteractionSystem {
             // Auto-Target
             if (!this.engine.targetBody || this.engine.targetBody.name !== planet.name) {
                 this.engine.targetBody = planet;
-                document.getElementById('target-panel').style.display = 'block';
                 this.engine.updateTargetHUD(planet);
                 EventManager.emit(EVENTS.TARGET_CHANGED, planet);
             }

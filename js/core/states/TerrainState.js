@@ -11,6 +11,14 @@ export class TerrainState extends GameState {
 
     enter(payload) {
         this.engine.gameState = 'TERRAIN';
+        this.landingX = payload ? payload.startX : 0;
+        this.landingZ = payload ? payload.startZ : 0;
+        
+        // Prevención extrema: Asegurar que no haya naves huérfanas
+        if (this.shipEntity) {
+            this.engine.scene.remove(this.shipEntity.getMesh());
+            this.shipEntity = null;
+        }
     }
 
     update(dt) {
@@ -20,11 +28,14 @@ export class TerrainState extends GameState {
             // Inicialización diferida de entidades terrestres en el primer frame
             if (!this.shipEntity) {
                 this.shipEntity = new ShipEntity();
-                const startX = engine.camera.position.x;
-                const startZ = engine.camera.position.z;
+                
+                // Spawneamos la nave 25 metros al NORTE (o frente) del jugador para que sea visible
+                // y no aparezcamos dentro de ella, pero siga estando perfectamente posicionada
+                const shipX = this.landingX;
+                const shipZ = this.landingZ - 25; 
                 
                 // Alineamos y posicionamos la nave basada en la deformación del terreno
-                this.shipEntity.alignToTerrain(engine.terrainManager.generator, startX, startZ);
+                this.shipEntity.alignToTerrain(engine.terrainManager.generator, shipX, shipZ);
                 
                 engine.scene.add(this.shipEntity.getMesh());
             }
@@ -75,22 +86,12 @@ export class TerrainState extends GameState {
                 engine.updateTargetHUD(engine.lastLandedPlanet);
             }
 
-            // Actualizar OSD Espacial (legado)
-            document.getElementById('speed').innerText = Math.round(engine.terrainControls.velocity.length()) + ' u/s';
-            document.getElementById('pos-x').innerText = Math.round(engine.camera.position.x);
-            document.getElementById('pos-y').innerText = Math.round(engine.camera.position.y);
-            document.getElementById('pos-z').innerText = Math.round(engine.camera.position.z);
-
             // Actualizar OSD Terreno (Navegación)
             if (engine.lastLandedPlanet) {
                 const terrainRadius = engine.lastLandedPlanet.radius * 10;
                 
                 const latDeg = (engine.camera.position.z / terrainRadius) * (180 / Math.PI);
                 const lonDeg = (engine.camera.position.x / terrainRadius) * (180 / Math.PI);
-                
-                document.getElementById('terr-lat').innerText = latDeg.toFixed(2) + '°';
-                document.getElementById('terr-lon').innerText = lonDeg.toFixed(2) + '°';
-                document.getElementById('terr-alt').innerText = Math.round(engine.camera.position.y) + 'm';
                 
                 // Brújula
                 const dir = new THREE.Vector3(0, 0, -1).applyQuaternion(engine.camera.quaternion);
@@ -151,7 +152,11 @@ export class TerrainState extends GameState {
                     shipDistText,
                     finalTemp,
                     tempColor,
-                    fuelPct
+                    fuelPct,
+                    speed: engine.terrainControls.velocity.length(),
+                    pos: engine.camera.position,
+                    latDeg,
+                    lonDeg
                 });
             }
 

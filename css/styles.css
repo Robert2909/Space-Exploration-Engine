@@ -81,8 +81,13 @@ canvas {
     pointer-events: none;
 }
 
+#labels-container {
+    transition: opacity 0.3s ease;
+}
+
 .hidden {
-    display: none !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
 }
 
 .hud-panel {

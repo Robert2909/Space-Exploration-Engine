@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { Config } from '../../core/Config.js';
 import { OSDManager } from '../../ui/OSDManager.js';
+import { EventManager, EVENTS } from '../../core/EventManager.js';
 
 export class TerrainControls {
     constructor(camera, domElement, getGroundHeight) {
@@ -189,15 +190,10 @@ export class TerrainControls {
             this.isGrounded = false;
         }
 
-        // UI Update
-        const fuelBar = document.getElementById('jetpack-fuel-bar');
-        if (fuelBar) {
-            fuelBar.style.width = (this.currentFuel / this.maxFuel * 100) + '%';
-            if (this.currentFuel < 40) fuelBar.style.backgroundColor = 'var(--error-color)';
-            else fuelBar.style.backgroundColor = 'var(--keyword-color)';
-
-            document.getElementById('jetpack-status').innerText = this.currentFuel <= 0 ? "'Agotado'" : (this.jetpackActive) ? "'En uso...'" : "'Disponible'";
-        }
+        // UI Update (via events)
+        const fuelPct = (this.currentFuel / this.maxFuel) * 100;
+        const statusText = this.currentFuel <= 0 ? "'Agotado'" : (this.jetpackActive) ? "'En uso...'" : "'Disponible'";
+        EventManager.emit(EVENTS.HUD_TERRAIN_FUEL_UPDATED, { fuelPct, statusText });
     }
 
     dispose() {

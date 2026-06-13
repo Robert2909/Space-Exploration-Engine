@@ -49,22 +49,16 @@ export class Engine {
         this.isFlashlightOn = false;
         this.flashlightPower = 2; // Nivel de intensidad (scroll)
 
-        const distSlider = document.getElementById('render-dist');
-        if (distSlider) {
-            distSlider.addEventListener('input', (e) => {
-                const val = parseInt(e.target.value);
-                document.getElementById('dist-val').innerText = val;
-                this.universe.setRenderDistance(val);
-                const viewDistance = val * this.universe.chunkSize;
-                this.scene.fog.density = Config.RENDER_FOG_BASE / viewDistance;
-                if (this.gameState === 'SPACE') {
-                    this.camera.far = viewDistance * 1.5;
-                    this.camera.near = 100;
-                    this.camera.updateProjectionMatrix();
-                }
-            });
-            distSlider.dispatchEvent(new Event('input'));
-        }
+        EventManager.on(EVENTS.RENDER_DISTANCE_CHANGED, (val) => {
+            this.universe.setRenderDistance(val);
+            const viewDistance = val * this.universe.chunkSize;
+            this.scene.fog.density = Config.RENDER_FOG_BASE / viewDistance;
+            if (this.gameState === 'SPACE') {
+                this.camera.far = viewDistance * 1.5;
+                this.camera.near = 100;
+                this.camera.updateProjectionMatrix();
+            }
+        });
 
         this.targetBody = null;
         document.addEventListener('keydown', (e) => {
@@ -163,15 +157,14 @@ export class Engine {
         if (this.isTransitioning) return;
         this.isTransitioning = true;
 
-        const flash = document.getElementById('transition-flash');
-        flash.style.backgroundColor = 'black';
-        flash.style.opacity = '1';
+        EventManager.emit(EVENTS.TRANSITION_START, { color: 'black' });
 
         // Guardar estado de la nave ANTES de transicionar
         this.savedSpacePosition = this.camera.position.clone();
         this.savedSpaceQuaternion = this.camera.quaternion.clone();
         if (this.controls) {
             this.savedSpaceVelocity = this.controls.velocity.clone();
+            this.savedSpaceSpeed = this.controls.speed;
         }
 
         // 1. Calcular Lat/Lon de aterrizaje
@@ -199,17 +192,13 @@ export class Engine {
         setTimeout(() => {
             if (this.currentState) this.currentState.exit();
             this.gameState = 'TERRAIN';
+            EventManager.emit(EVENTS.STATE_CHANGED, this.gameState);
+
             this.currentState = this.states.TERRAIN;
             this.currentState.enter({ planet, startX, startZ });
 
             // Destruir Universo (Congelar el espacio)
             this.universe.dispose();
-
-            // Ocultar etiquetas espaciales para que no se queden flotando congeladas en pantalla
-            this.ui.labelsContainer.classList.add('hidden');
-
-            // Mostrar panel de Terreno
-            document.getElementById('jetpack-panel').style.display = 'block';
 
             // Guardar planeta aterrizado para enfocarlo al despegar
             this.lastLandedPlanet = {
@@ -268,7 +257,7 @@ export class Engine {
 
             // Quitar el flash
             setTimeout(() => {
-                flash.style.opacity = '0';
+                EventManager.emit(EVENTS.TRANSITION_END);
                 this.isTransitioning = false;
             }, 500);
         }, 1000); // 1 segundo fade in
@@ -278,14 +267,14 @@ export class Engine {
         if (this.isTransitioning) return;
         this.isTransitioning = true;
 
-        const flash = document.getElementById('transition-flash');
-        flash.style.backgroundColor = 'white';
-        flash.style.opacity = '1';
+        EventManager.emit(EVENTS.TRANSITION_START, { color: 'white' });
 
         setTimeout(() => {
             try {
                 if (this.currentState) this.currentState.exit();
                 this.gameState = 'SPACE';
+                EventManager.emit(EVENTS.STATE_CHANGED, this.gameState);
+
                 this.currentState = this.states.SPACE;
                 this.currentState.enter();
                 // Destruir Terreno
@@ -293,8 +282,6 @@ export class Engine {
                 if (this.terrainControls) this.terrainControls.dispose();
                 this.terrainManager = null;
                 this.terrainControls = null;
-
-                document.getElementById('jetpack-panel').style.display = 'none';
 
                 // Restaurar luces espaciales
                 this.lighting.systemLight.visible = true;
@@ -355,19 +342,22 @@ export class Engine {
                     this.controls.velocity.set(0, 0, 0);
                 }
 
+                if (this.savedSpaceSpeed !== undefined) {
+                    this.controls.speed = this.savedSpaceSpeed;
+                }
+
                 // Reconstruir Universo
                 this.universe.rebuild();
 
                 // Restaurar cámara a modo espacio
-                const val = parseInt(document.getElementById('render-dist').value || 3);
+                // Restaurar cámara a modo espacio
+                const val = this.universe.renderDistance || 3;
                 this.camera.far = val * Config.UNIVERSE_CHUNK_SIZE * 1.5;
                 this.camera.near = 100;
                 this.camera.updateProjectionMatrix();
 
                 const viewDistance = val * Config.UNIVERSE_CHUNK_SIZE;
                 this.scene.fog.density = Config.RENDER_FOG_BASE / viewDistance;
-
-                this.ui.labelsContainer.classList.remove('hidden');
 
                 // Activar el flujo natural de piloto automático fijado al planeta del que despegamos
                 if (this.lastLandedPlanet) {
@@ -377,12 +367,12 @@ export class Engine {
                 }
             } catch (e) {
                 console.error("Error during liftoff:", e);
-                alert("Error during liftoff: " + e.message);
+                EventManager.emit(EVENTS.OSD_MESSAGE, { message: "Error during liftoff: " + e.message, type: 'error', duration: 5000 });
             }
 
             // Quitar el flash
             setTimeout(() => {
-                flash.style.opacity = '0';
+                EventManager.emit(EVENTS.TRANSITION_END);
                 this.isTransitioning = false;
             }, 500);
         }, 1000); // 1 segundo fade in
