@@ -31,9 +31,27 @@ export class TerrainState extends GameState {
                 
                 // Spawneamos la nave 25 metros al NORTE (o frente) del jugador para que sea visible
                 // y no aparezcamos dentro de ella, pero siga estando perfectamente posicionada
-                const shipX = this.landingX;
-                const shipZ = this.landingZ - Config.TERRAIN_SHIP_SPAWN_DISTANCE; 
+                let shipX = this.landingX;
+                let shipZ = this.landingZ - Config.TERRAIN_SHIP_SPAWN_DISTANCE; 
                 
+                // Envolver la nave matemáticamente si cae sobre un polo o fuera del ecuador
+                if (engine.lastLandedPlanet) {
+                    const tardisScale = Config.TERRAIN_TARDIS_SCALE;
+                    const terrainRadius = engine.lastLandedPlanet.radius * tardisScale;
+                    const circumference = Math.PI * 2 * terrainRadius;
+                    const poleZ = (Math.PI / 2) * terrainRadius;
+                    
+                    if (shipZ > poleZ) {
+                        shipZ = poleZ - (shipZ - poleZ);
+                        shipX += circumference / 2;
+                    } else if (shipZ < -poleZ) {
+                        shipZ = -poleZ - (shipZ + poleZ);
+                        shipX += circumference / 2;
+                    }
+                    if (shipX > circumference / 2) shipX -= circumference;
+                    else if (shipX < -circumference / 2) shipX += circumference;
+                }
+
                 // Alineamos y posicionamos la nave basada en la deformación del terreno
                 this.shipEntity.alignToTerrain(engine.terrainManager.generator, shipX, shipZ);
                 

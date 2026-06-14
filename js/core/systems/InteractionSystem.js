@@ -73,7 +73,11 @@ export class InteractionSystem {
             
             // La longitud local = longitud mundial + rotación actual (despejando de worldLon = lon - rotY)
             const rotY = planet.rotationY || 0;
-            const lon = worldLon + rotY; 
+            let lon = worldLon + rotY; 
+            
+            // Normalizar lon a [-PI, PI] para evitar que el aterrizaje genere coordenadas fuera de límites matemáticos
+            while (lon > Math.PI) lon -= Math.PI * 2;
+            while (lon < -Math.PI) lon += Math.PI * 2;
             
             // Si ya hay un marcador y clickeamos cerca, aterrizamos
             if (this.engine.landingMarker && this.engine.landingMarker.planetName === planet.name) {

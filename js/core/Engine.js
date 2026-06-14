@@ -280,7 +280,7 @@ export class Engine {
         this.isTransitioning = true;
 
         const flashColor = isDeath ? '#550000' : 'white';
-        const transitionWait = isDeath ? 3500 : 0; // Esperar 3.5s si es muerte para leer la OSD
+        const transitionWait = isDeath ? 3000 : 0; // Esperar 3s si es muerte para leer la OSD
         const liftOffDelay = isDeath ? 1500 : 1000;
 
         setTimeout(() => {
@@ -288,117 +288,117 @@ export class Engine {
 
             setTimeout(() => {
                 try {
-                if (this.currentState) this.currentState.exit();
-                this.gameState = 'SPACE';
-                EventManager.emit(EVENTS.STATE_CHANGED, this.gameState);
+                    if (this.currentState) this.currentState.exit();
+                    this.gameState = 'SPACE';
+                    EventManager.emit(EVENTS.STATE_CHANGED, this.gameState);
 
-                this.currentState = this.states.SPACE;
-                this.currentState.enter();
-                // Destruir Terreno
-                if (this.terrainManager) this.terrainManager.dispose();
-                if (this.terrainControls) this.terrainControls.dispose();
-                this.terrainManager = null;
-                this.terrainControls = null;
+                    this.currentState = this.states.SPACE;
+                    this.currentState.enter();
+                    // Destruir Terreno
+                    if (this.terrainManager) this.terrainManager.dispose();
+                    if (this.terrainControls) this.terrainControls.dispose();
+                    this.terrainManager = null;
+                    this.terrainControls = null;
 
-                // Restaurar luces espaciales
-                this.lighting.systemLight.visible = true;
-                this.lighting.ambientLight.visible = true;
+                    // Restaurar luces espaciales
+                    this.lighting.systemLight.visible = true;
+                    this.lighting.ambientLight.visible = true;
 
-                // Apagar linterna
-                this.isFlashlightOn = false;
-                if (this.flashlight) this.flashlight.intensity = 0;
+                    // Apagar linterna
+                    this.isFlashlightOn = false;
+                    if (this.flashlight) this.flashlight.intensity = 0;
 
-                // Restaurar fondo y niebla espacial
-                this.scene.background = new THREE.Color(0x000000);
-                this.scene.fog.color.setHex(0x000000);
+                    // Restaurar fondo y niebla espacial
+                    this.scene.background = new THREE.Color(0x000000);
+                    this.scene.fog.color.setHex(0x000000);
 
-                // Restaurar controles del espacio
-                const savedSpeed = this.controls ? this.controls.speed : null;
-                this.controls = new SpaceControls(this.camera, document.body);
-                if (savedSpeed !== null) this.controls.speed = savedSpeed;
-                if (document.pointerLockElement === document.body) this.controls.isLocked = true;
+                    // Restaurar controles del espacio
+                    const savedSpeed = this.controls ? this.controls.speed : null;
+                    this.controls = new SpaceControls(this.camera, document.body);
+                    if (savedSpeed !== null) this.controls.speed = savedSpeed;
+                    if (document.pointerLockElement === document.body) this.controls.isLocked = true;
 
-                // Restaurar posición en el espacio (calculando la nueva órbita)
-                if (this.lastLandedPlanet) {
-                    const tardisScale = Config.TERRAIN_TARDIS_SCALE;
-                    const terrainRadius = this.lastLandedPlanet.radius * tardisScale;
+                    // Restaurar posición en el espacio (calculando la nueva órbita)
+                    if (this.lastLandedPlanet) {
+                        const tardisScale = Config.TERRAIN_TARDIS_SCALE;
+                        const terrainRadius = this.lastLandedPlanet.radius * tardisScale;
 
-                    const currentX = this.camera.position.x;
-                    const currentZ = this.camera.position.z;
+                        const currentX = this.camera.position.x;
+                        const currentZ = this.camera.position.z;
 
-                    // Extraer los nuevos ángulos de las coordenadas caminadas
-                    const staticLon = currentX / terrainRadius;
-                    const newLat = currentZ / terrainRadius;
+                        // Extraer los nuevos ángulos de las coordenadas caminadas
+                        const staticLon = currentX / terrainRadius;
+                        const newLat = currentZ / terrainRadius;
 
-                    const planetPos = new THREE.Vector3(this.lastLandedPlanet.x, this.lastLandedPlanet.y, this.lastLandedPlanet.z);
+                        const planetPos = new THREE.Vector3(this.lastLandedPlanet.x, this.lastLandedPlanet.y, this.lastLandedPlanet.z);
 
-                    // Convertimos la longitud estática a longitud mundial
-                    const currentWorldLon = staticLon - (this.lastLandedPlanet.rotationY || 0);
+                        // Convertimos la longitud estática a longitud mundial
+                        const currentWorldLon = staticLon - (this.lastLandedPlanet.rotationY || 0);
 
-                    // Vector de dirección desde el centro del planeta hacia el espacio
-                    const dir = new THREE.Vector3(
-                        Math.cos(newLat) * Math.cos(currentWorldLon),
-                        Math.sin(newLat),
-                        Math.cos(newLat) * Math.sin(currentWorldLon)
-                    );
+                        // Vector de dirección desde el centro del planeta hacia el espacio
+                        const dir = new THREE.Vector3(
+                            Math.cos(newLat) * Math.cos(currentWorldLon),
+                            Math.sin(newLat),
+                            Math.cos(newLat) * Math.sin(currentWorldLon)
+                        );
 
-                    // Altura orbital original (escala masiva)
-                    const orbitDist = this.lastLandedPlanet.radius + (this.savedOrbitHeight || 5000);
+                        // Altura orbital original (escala masiva)
+                        const orbitDist = this.lastLandedPlanet.radius + (this.savedOrbitHeight || 5000);
 
-                    this.savedSpacePosition = planetPos.clone().add(dir.multiplyScalar(orbitDist));
+                        this.savedSpacePosition = planetPos.clone().add(dir.multiplyScalar(orbitDist));
 
-                    // Hacer que la cámara aparezca mirando hacia el planeta
-                    this.camera.position.copy(this.savedSpacePosition);
-                    this.camera.lookAt(planetPos);
-                    this.savedSpaceQuaternion = this.camera.quaternion.clone();
-                } else if (this.savedSpacePosition) {
-                    this.camera.position.copy(this.savedSpacePosition);
-                    this.camera.quaternion.copy(this.savedSpaceQuaternion);
+                        // Hacer que la cámara aparezca mirando hacia el planeta
+                        this.camera.position.copy(this.savedSpacePosition);
+                        this.camera.lookAt(planetPos);
+                        this.savedSpaceQuaternion = this.camera.quaternion.clone();
+                    } else if (this.savedSpacePosition) {
+                        this.camera.position.copy(this.savedSpacePosition);
+                        this.camera.quaternion.copy(this.savedSpaceQuaternion);
+                    }
+
+                    // Si aterrizamos manualmente, heredamos la inercia, 
+                    // de lo contrario, 0 para poder disfrutar de la órbita en paz
+                    if (!this.lastLandedPlanet && this.savedSpaceVelocity) {
+                        this.controls.velocity.copy(this.savedSpaceVelocity);
+                    } else {
+                        this.controls.velocity.set(0, 0, 0);
+                    }
+
+                    if (this.savedSpaceSpeed !== undefined) {
+                        this.controls.speed = this.savedSpaceSpeed;
+                    }
+
+                    // Reconstruir Universo
+                    this.universe.rebuild();
+
+                    // Restaurar cámara a modo espacio
+                    // Restaurar cámara a modo espacio
+                    const val = this.universe.renderDistance || 3;
+                    this.camera.far = val * Config.UNIVERSE_CHUNK_SIZE * 1.5;
+                    this.camera.near = 100;
+                    this.camera.updateProjectionMatrix();
+
+                    const viewDistance = val * Config.UNIVERSE_CHUNK_SIZE;
+                    this.scene.fog.density = Config.RENDER_FOG_BASE / viewDistance;
+
+                    // Activar el flujo natural de piloto automático fijado al planeta del que despegamos
+                    if (this.lastLandedPlanet) {
+                        this.targetBody = this.lastLandedPlanet;
+                        this.controls.autoPilotTarget = this.targetBody;
+                        // Esto hará que el motor se encripte hacia el objetivo como si el usuario lo hubiera fijado
+                    }
+                } catch (e) {
+                    console.error("Error during liftoff:", e);
+                    EventManager.emit(EVENTS.OSD_MESSAGE, { message: "Error during liftoff: " + e.message, type: 'error', duration: 5000 });
                 }
 
-                // Si aterrizamos manualmente, heredamos la inercia, 
-                // de lo contrario, 0 para poder disfrutar de la órbita en paz
-                if (!this.lastLandedPlanet && this.savedSpaceVelocity) {
-                    this.controls.velocity.copy(this.savedSpaceVelocity);
-                } else {
-                    this.controls.velocity.set(0, 0, 0);
-                }
-
-                if (this.savedSpaceSpeed !== undefined) {
-                    this.controls.speed = this.savedSpaceSpeed;
-                }
-
-                // Reconstruir Universo
-                this.universe.rebuild();
-
-                // Restaurar cámara a modo espacio
-                // Restaurar cámara a modo espacio
-                const val = this.universe.renderDistance || 3;
-                this.camera.far = val * Config.UNIVERSE_CHUNK_SIZE * 1.5;
-                this.camera.near = 100;
-                this.camera.updateProjectionMatrix();
-
-                const viewDistance = val * Config.UNIVERSE_CHUNK_SIZE;
-                this.scene.fog.density = Config.RENDER_FOG_BASE / viewDistance;
-
-                // Activar el flujo natural de piloto automático fijado al planeta del que despegamos
-                if (this.lastLandedPlanet) {
-                    this.targetBody = this.lastLandedPlanet;
-                    this.controls.autoPilotTarget = this.targetBody;
-                    // Esto hará que el motor se encripte hacia el objetivo como si el usuario lo hubiera fijado
-                }
-            } catch (e) {
-                console.error("Error during liftoff:", e);
-                EventManager.emit(EVENTS.OSD_MESSAGE, { message: "Error during liftoff: " + e.message, type: 'error', duration: 5000 });
-            }
-
-            // Quitar el flash
-            setTimeout(() => {
-                EventManager.emit(EVENTS.TRANSITION_END);
-                this.isTransitioning = false;
-                this.cameraBlurLevel = 0; // Limpiar el blur al reaparecer
-            }, 500);
-        }, liftOffDelay);
+                // Quitar el flash
+                setTimeout(() => {
+                    EventManager.emit(EVENTS.TRANSITION_END);
+                    this.isTransitioning = false;
+                    this.cameraBlurLevel = 0; // Limpiar el blur al reaparecer
+                }, 500);
+            }, liftOffDelay);
         }, transitionWait);
     }
 
