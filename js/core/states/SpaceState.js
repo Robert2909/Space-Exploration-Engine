@@ -129,7 +129,7 @@ export class SpaceState extends GameState {
             if (freshBody) {
                 engine.targetBody = freshBody;
                 if (engine.controls.autoPilotTarget) {
-                    engine.controls.autoPilotTarget = freshBody;
+                    engine.controls.setAutoPilotTarget(freshBody, true);
                 }
                 if (engine.controls.autoLookTarget) {
                     engine.controls.autoLookTarget = freshBody;
@@ -177,7 +177,7 @@ export class SpaceState extends GameState {
             const dist = engine.camera.position.distanceTo(new THREE.Vector3(engine.targetBody.x, engine.targetBody.y, engine.targetBody.z));
             if (engine.controls.autoPilotTarget && (dist < arrivalThreshold || overshot)) {
                 engine.controls.autoLookTarget = engine.controls.autoPilotTarget;
-                engine.controls.autoPilotTarget = null;
+                engine.controls.setAutoPilotTarget(null);
                 engine.controls.velocity.set(0, 0, 0); // Freno perfecto absoluto
                 EventManager.emit(EVENTS.OSD_MESSAGE, { message: `Destination reached: ${engine.targetBody.name}. Orbital insertion complete`, type: 'success', duration: 5000 });
             }

@@ -103,8 +103,15 @@ export const Config = {
     CINEMATIC_CAMERA_SENSITIVITY: 0.0001, // Sensibilidad reducida para el modo cinemático
     ROLL_SPEED: 2.0,                      // Velocidad máxima de alabeo (rotar en el eje Z con Q y E)
 
+    // Autopilot Cinemático
+    AUTOPILOT_MIN_SPEED: 1000000,         // Velocidad mínima de viaje (unidades por segundo)
+    AUTOPILOT_MAX_SPEED: 50000000,        // Velocidad máxima permitida (50M uds/s)
+    AUTOPILOT_DESIRED_SECONDS: 5.0,       // Segundos teóricos en los que queremos que llegue al objetivo para escalar velocidad
+    AUTOPILOT_BRAKE_ZONE_MULT: 10.0,      // Multiplicador de radio para empezar a frenar violentamente
+    AUTOPILOT_BRAKE_MULTIPLIER: 0.70,     // Fricción de frenado agresivo (10% por frame)
+    AUTOPILOT_ARRIVAL_MULT: 3,            // Multiplicador de radio para considerar llegada e inserción orbital
+
     // ==========================================
-    // FÍSICAS DEL MODO TERRESTRE (JUGADOR)
     // ==========================================
     TERRAIN_PLAYER_SPEED: 15,             // Velocidad base al caminar (m/s)
     TERRAIN_PLAYER_SPRINT_MULT: 2.5,      // Multiplicador al correr con Shift
@@ -190,7 +197,7 @@ export const Config = {
     TERRAIN_FLASHLIGHT_POWER_MAX: 15,
     TERRAIN_FOG_DIVISOR: 4500,
     TERRAIN_LIFTOFF_ATMOSPHERE_HEIGHT: 100000,
-    
+
     // TEMPERATURAS BASE POR TIPO DE PLANETA
     PLANET_BASE_TEMPS: {
         'Ice Planet': -60,

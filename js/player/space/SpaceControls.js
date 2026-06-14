@@ -25,6 +25,17 @@ export class SpaceControls {
         this.initEvents();
     }
 
+    setAutoPilotTarget(target, retainState = false) {
+        this.autoPilotTarget = target;
+        if (target) {
+            if (!retainState) this.autoPilotState = 'ALIGNING';
+            this.autoLookTarget = null;
+            this.lastAutoLookPos = null;
+        } else {
+            this.autoPilotState = 'NONE';
+        }
+    }
+
     initEvents() {
         this._onPointerLockChange = () => {
             this.isLocked = document.pointerLockElement === this.domElement;
@@ -123,32 +134,53 @@ export class SpaceControls {
 
             const matrix = new THREE.Matrix4().lookAt(this.camera.position, targetPos, this.camera.up);
             const targetQuat = new THREE.Quaternion().setFromRotationMatrix(matrix);
+            
+            const angleToTarget = this.camera.quaternion.angleTo(targetQuat);
             this.camera.quaternion.slerp(targetQuat, dt * 3.0);
 
             if (this.autoPilotTarget) {
                 const dir = new THREE.Vector3().subVectors(targetPos, this.camera.position).normalize();
-
-                let targetSpeed = this.speed * this.boostMultiplier * 3.0;
                 const dist = this.camera.position.distanceTo(targetPos);
+                // Velocidad dinámica basada en la distancia para un recorrido de X segundos
+                let targetSpeed = Math.max(
+                    Config.AUTOPILOT_MIN_SPEED, 
+                    Math.min(Config.AUTOPILOT_MAX_SPEED, dist / Config.AUTOPILOT_DESIRED_SECONDS)
+                );
 
-                // Freno de salto cuántico: calculamos exactamente la distancia de frenado
-                const brakeZone = Math.max(this.autoPilotTarget.radius * Config.AUTOPILOT_BRAKE_ZONE_MULT, 4000);
-
-                if (dist < brakeZone) {
-                    // Frenado violento y agresivo
-                    targetSpeed = this.speed;
-                    if (this.velocity.length() > targetSpeed) {
-                        this.velocity.multiplyScalar(Config.AUTOPILOT_BRAKE_MULTIPLIER); // Desaceleración brutal estilo hiperespacio
+                if (this.autoPilotState === 'ALIGNING') {
+                    // Stop sideways movement and rotate first
+                    this.velocity.multiplyScalar(0.95);
+                    
+                    if (angleToTarget < 0.05) {
+                        this.autoPilotState = 'TRAVELING';
+                        OSDManager.show('Autopilot: Alineación completa. Ejecutando salto cuántico.', 'success', 2000);
                     }
-                }
+                } else if (this.autoPilotState === 'TRAVELING') {
+                    // Freno de salto cuántico: calculamos exactamente la distancia de frenado
+                    const brakeZone = Math.max(this.autoPilotTarget.radius * Config.AUTOPILOT_BRAKE_ZONE_MULT, 4000);
 
-                this.velocity.lerp(dir.multiplyScalar(targetSpeed), dt * 5.0);
+                    if (dist < brakeZone) {
+                        // Frenado violento y agresivo
+                        targetSpeed = this.speed;
+                        if (Math.abs(this.velocity.z) > targetSpeed) {
+                            this.velocity.multiplyScalar(Config.AUTOPILOT_BRAKE_MULTIPLIER); // Desaceleración brutal estilo hiperespacio
+                        }
+                    }
+
+                    // Para viajar en línea recta matemáticamente perfecta (sin importar si la rotación visual va un poco atrasada)
+                    // transformamos el vector direccional global a espacio local de la cámara.
+                    const localDir = dir.clone().applyQuaternion(this.camera.quaternion.clone().invert());
+                    
+                    const currentVelMag = this.velocity.length();
+                    const newVelMag = THREE.MathUtils.lerp(currentVelMag, targetSpeed, dt * 5.0);
+                    this.velocity.copy(localDir).multiplyScalar(newVelMag);
+                }
 
                 // Cancelar con freno de emergencia
                 if (this.keys.space) {
-                    this.autoPilotTarget = null;
-                    this.lastAutoLookPos = null;
+                    this.setAutoPilotTarget(null);
                     this.velocity.multiplyScalar(Config.PLAYER_BRAKE_FRICTION);
+                    OSDManager.show('Autopilot: Cancelado manualmente.', 'warning', 2000);
                 }
             } else {
                 // Solo autoLook: acoplar nuestra posición a la órbita del planeta y girar lentamente
@@ -166,7 +198,7 @@ export class SpaceControls {
                     const offset = new THREE.Vector3().subVectors(this.camera.position, targetPos);
                     
                     // 3. Ajustar suavemente a la distancia orbital óptima (multiplicador * radio)
-                    const optimalDistance = tgt.radius * 3.0; // Distancia fija óptima
+                    const optimalDistance = tgt.radius * Config.AUTOPILOT_ARRIVAL_MULT; // Distancia fija óptima (ajustada por radio)
                     const currentDistance = offset.length();
                     if (Math.abs(optimalDistance - currentDistance) > 1.0) {
                         const adjustSpeed = Math.max(10, currentDistance * 0.5); // Velocidad de ajuste

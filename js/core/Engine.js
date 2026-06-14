@@ -81,11 +81,11 @@ export class Engine {
             }
             if (Config.KEYS.AUTOPILOT.includes(e.code) && this.targetBody) {
                 if (!this.controls.autoPilotTarget) {
-                    this.controls.autoPilotTarget = this.targetBody;
-                    EventManager.emit(EVENTS.OSD_MESSAGE, { message: `Autopilot engaged: Intercepting ${this.targetBody.name}`, type: 'warning', duration: 4000 });
+                    this.controls.setAutoPilotTarget(this.targetBody);
+                    EventManager.emit(EVENTS.OSD_MESSAGE, { message: `Piloto Automático activado hacia ${this.targetBody.name}`, type: 'success', duration: 3000 });
                 } else {
-                    this.controls.autoPilotTarget = null;
-                    EventManager.emit(EVENTS.OSD_MESSAGE, { message: `Autopilot aborted manually`, type: 'error' });
+                    this.controls.setAutoPilotTarget(null);
+                    EventManager.emit(EVENTS.OSD_MESSAGE, { message: `Piloto Automático desactivado`, type: 'warning', duration: 3000 });
                 }
             }
             if (Config.KEYS.TOGGLE_LANDING.includes(e.code)) {
@@ -384,7 +384,7 @@ export class Engine {
                     // Activar el flujo natural de piloto automático fijado al planeta del que despegamos
                     if (this.lastLandedPlanet) {
                         this.targetBody = this.lastLandedPlanet;
-                        this.controls.autoPilotTarget = this.targetBody;
+                        this.controls.setAutoPilotTarget(this.targetBody);
                         // Esto hará que el motor se encripte hacia el objetivo como si el usuario lo hubiera fijado
                     }
                 } catch (e) {
