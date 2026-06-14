@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { Config } from './Config.js';
-import { SpaceControls } from '../player/SpaceControls.js';
+import { SpaceControls } from '../player/space/SpaceControls.js';
 import { Universe } from '../world/universe/Universe.js';
 import { LightingManager } from '../graphics/LightingManager.js';
 import { UIManager } from '../ui/UIManager.js';
@@ -39,7 +39,7 @@ export class Engine {
         this.clock = new THREE.Clock();
 
         // Linterna del modo Terrestre
-        this.flashlight = new THREE.SpotLight(0xffeedd, 0, 10000, Math.PI / 4, 0.5, 0.75);
+        this.flashlight = new THREE.SpotLight(0xffeedd, 0, Config.TERRAIN_FLASHLIGHT_DISTANCE, Config.TERRAIN_FLASHLIGHT_ANGLE, Config.TERRAIN_FLASHLIGHT_PENUMBRA, Config.TERRAIN_FLASHLIGHT_DECAY);
         this.flashlight.position.set(0, 0, 0);
         this.flashlight.target.position.set(0, 0, -1);
         this.camera.add(this.flashlight);
@@ -47,7 +47,7 @@ export class Engine {
         this.scene.add(this.camera); // Necesario para que las luces adjuntas a la cámara funcionen
 
         this.isFlashlightOn = false;
-        this.flashlightPower = 2; // Nivel de intensidad (scroll)
+        this.flashlightPower = Config.TERRAIN_FLASHLIGHT_POWER_DEFAULT; // Nivel de intensidad (scroll)
 
         EventManager.on(EVENTS.RENDER_DISTANCE_CHANGED, (val) => {
             this.universe.setRenderDistance(val);
@@ -58,6 +58,18 @@ export class Engine {
                 this.camera.near = 100;
                 this.camera.updateProjectionMatrix();
             }
+        });
+
+        EventManager.on(EVENTS.PLAYER_DEATH, () => {
+            if (this.gameState === 'TERRAIN') {
+                if (this.terrainControls) this.terrainControls.isDead = true;
+                this.triggerLiftoff(true);
+            }
+        });
+
+        this.cameraBlurLevel = 0;
+        EventManager.on(EVENTS.PLAYER_IMPACT, (payload) => {
+            this.cameraBlurLevel += payload.level || 0;
         });
 
         this.targetBody = null;
@@ -96,13 +108,13 @@ export class Engine {
             if (this.gameState === 'TERRAIN' && this.isFlashlightOn) {
                 // Ajustar intensidad con la rueda del ratón
                 if (e.deltaY < 0) {
-                    this.flashlightPower = Math.min(this.flashlightPower + 0.5, 15);
+                    this.flashlightPower = Math.min(this.flashlightPower + Config.TERRAIN_FLASHLIGHT_POWER_STEP, Config.TERRAIN_FLASHLIGHT_POWER_MAX);
                 } else {
-                    this.flashlightPower = Math.max(this.flashlightPower - 0.5, 0.5);
+                    this.flashlightPower = Math.max(this.flashlightPower - Config.TERRAIN_FLASHLIGHT_POWER_STEP, Config.TERRAIN_FLASHLIGHT_POWER_STEP);
                 }
                 this.flashlight.intensity = this.flashlightPower;
                 // Incrementar también el alcance y el ángulo ligeramente según el poder
-                this.flashlight.distance = 10000 + (this.flashlightPower * 2000);
+                this.flashlight.distance = Config.TERRAIN_FLASHLIGHT_DISTANCE_BASE + (this.flashlightPower * Config.TERRAIN_FLASHLIGHT_DISTANCE_STEP);
             }
         });
 
@@ -247,7 +259,7 @@ export class Engine {
             this.camera.near = 0.1;
             this.camera.far = 40000;
             this.camera.updateProjectionMatrix();
-            this.scene.fog.density = 2.5 / 4500; // Ocultar el pop-in de los chunks a los lados
+            this.scene.fog.density = 2.5 / Config.TERRAIN_FOG_DIVISOR; // Ocultar el pop-in de los chunks a los lados
 
             // Posicionar jugador en el punto exacto del terreno, garantizando que esté sobre el suelo
             const spawnY = this.terrainManager.generator.getVisualHeightAt(startX, startZ) + 10;
@@ -263,14 +275,19 @@ export class Engine {
         }, 1000); // 1 segundo fade in
     }
 
-    triggerLiftoff() {
+    triggerLiftoff(isDeath = false) {
         if (this.isTransitioning) return;
         this.isTransitioning = true;
 
-        EventManager.emit(EVENTS.TRANSITION_START, { color: 'white' });
+        const flashColor = isDeath ? '#550000' : 'white';
+        const transitionWait = isDeath ? 3500 : 0; // Esperar 3.5s si es muerte para leer la OSD
+        const liftOffDelay = isDeath ? 1500 : 1000;
 
         setTimeout(() => {
-            try {
+            EventManager.emit(EVENTS.TRANSITION_START, { color: flashColor });
+
+            setTimeout(() => {
+                try {
                 if (this.currentState) this.currentState.exit();
                 this.gameState = 'SPACE';
                 EventManager.emit(EVENTS.STATE_CHANGED, this.gameState);
@@ -296,7 +313,9 @@ export class Engine {
                 this.scene.fog.color.setHex(0x000000);
 
                 // Restaurar controles del espacio
+                const savedSpeed = this.controls ? this.controls.speed : null;
                 this.controls = new SpaceControls(this.camera, document.body);
+                if (savedSpeed !== null) this.controls.speed = savedSpeed;
                 if (document.pointerLockElement === document.body) this.controls.isLocked = true;
 
                 // Restaurar posición en el espacio (calculando la nueva órbita)
@@ -308,16 +327,19 @@ export class Engine {
                     const currentZ = this.camera.position.z;
 
                     // Extraer los nuevos ángulos de las coordenadas caminadas
-                    const newLon = currentX / terrainRadius;
+                    const staticLon = currentX / terrainRadius;
                     const newLat = currentZ / terrainRadius;
 
                     const planetPos = new THREE.Vector3(this.lastLandedPlanet.x, this.lastLandedPlanet.y, this.lastLandedPlanet.z);
 
+                    // Convertimos la longitud estática a longitud mundial
+                    const currentWorldLon = staticLon - (this.lastLandedPlanet.rotationY || 0);
+
                     // Vector de dirección desde el centro del planeta hacia el espacio
                     const dir = new THREE.Vector3(
-                        Math.cos(newLat) * Math.cos(newLon),
+                        Math.cos(newLat) * Math.cos(currentWorldLon),
                         Math.sin(newLat),
-                        Math.cos(newLat) * Math.sin(newLon)
+                        Math.cos(newLat) * Math.sin(currentWorldLon)
                     );
 
                     // Altura orbital original (escala masiva)
@@ -374,8 +396,10 @@ export class Engine {
             setTimeout(() => {
                 EventManager.emit(EVENTS.TRANSITION_END);
                 this.isTransitioning = false;
+                this.cameraBlurLevel = 0; // Limpiar el blur al reaparecer
             }, 500);
-        }, 1000); // 1 segundo fade in
+        }, liftOffDelay);
+        }, transitionWait);
     }
 
     animate() {
@@ -384,6 +408,16 @@ export class Engine {
 
         if (this.currentState) {
             this.currentState.update(dt);
+        }
+
+        if (this.cameraBlurLevel > 0) {
+            this.cameraBlurLevel -= dt * 0.3; // Lento desvanecimiento de conmoción
+            if (this.cameraBlurLevel < 0.01) this.cameraBlurLevel = 0;
+            const blurAmount = this.cameraBlurLevel * 15; // Hasta 15px de blur
+            const sepiaAmount = Math.min(this.cameraBlurLevel * 80, 100);
+            this.renderSystem.renderer.domElement.style.filter = `blur(${blurAmount}px) sepia(${sepiaAmount}%) saturate(${100 - sepiaAmount}%)`;
+        } else {
+            this.renderSystem.renderer.domElement.style.filter = 'none';
         }
 
         this.renderSystem.render();

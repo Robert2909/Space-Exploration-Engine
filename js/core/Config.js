@@ -172,6 +172,35 @@ export const Config = {
     AUTOPILOT_BRAKE_MULTIPLIER: 0.70,     // Desaceleración violenta por frame al llegar (Salto cuántico)
     AUTOPILOT_BRAKE_ZONE_MULT: 5,         // Multiplicador de radio para iniciar la frenada cuántica
     AUTOPILOT_ARRIVAL_MULT: 3.5,          // Multiplicador de radio para detenerse y orbitar (Cinemático FOV)
-    CINEMATIC_ORBIT_SPEED: 0.15           // Velocidad (rad/s) de la órbita de cámara alrededor del objetivo
+    CINEMATIC_ORBIT_SPEED: 0.15,          // Velocidad (rad/s) de la órbita de cámara alrededor del objetivo
 
+    // ==========================================
+    // ==========================================
+    // PARÁMETROS ESPECÍFICOS DE TERRENO Y CLIMA
+    // ==========================================
+    TERRAIN_SHIP_SPAWN_DISTANCE: 25,
+    TERRAIN_FLASHLIGHT_ANGLE: Math.PI / 4,
+    TERRAIN_FLASHLIGHT_PENUMBRA: 0.5,
+    TERRAIN_FLASHLIGHT_DECAY: 0.75,
+    TERRAIN_FLASHLIGHT_DISTANCE: 10000,
+    TERRAIN_FLASHLIGHT_DISTANCE_BASE: 10000,
+    TERRAIN_FLASHLIGHT_DISTANCE_STEP: 2000,
+    TERRAIN_FLASHLIGHT_POWER_DEFAULT: 2,
+    TERRAIN_FLASHLIGHT_POWER_STEP: 0.5,
+    TERRAIN_FLASHLIGHT_POWER_MAX: 15,
+    TERRAIN_FOG_DIVISOR: 4500,
+    TERRAIN_LIFTOFF_ATMOSPHERE_HEIGHT: 100000,
+    
+    // TEMPERATURAS BASE POR TIPO DE PLANETA
+    PLANET_BASE_TEMPS: {
+        'Ice Planet': -60,
+        'Lava Planet': 400,
+        'Desert Planet': 45,
+        'Toxic Planet': 70,
+        'Ocean Planet': 10,
+        'Jungle Planet': 30,
+        'Barren Planet': -10,
+        'Gas Giant': -150,
+        'Rocky Planet': 15
+    }
 };

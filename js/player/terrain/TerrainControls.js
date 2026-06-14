@@ -97,20 +97,27 @@ export class TerrainControls {
     update(dt) {
         if (!this.isLocked) return;
 
-        this.direction.z = Number(this.keys.forward) - Number(this.keys.backward);
-        this.direction.x = Number(this.keys.right) - Number(this.keys.left);
-        this.direction.normalize();
+        this.jetpackActive = false;
 
-        const moveVector = new THREE.Vector3(this.direction.x, 0, -this.direction.z);
-        moveVector.applyQuaternion(new THREE.Quaternion().setFromEuler(new THREE.Euler(0, this.euler.y, 0)));
+        if (!this.isDead) {
+            this.direction.z = Number(this.keys.forward) - Number(this.keys.backward);
+            this.direction.x = Number(this.keys.right) - Number(this.keys.left);
+            this.direction.normalize();
 
-        const currentSpeed = this.keys.sprint ? this.speed * Config.TERRAIN_PLAYER_SPRINT_MULT : this.speed;
+            const moveVector = new THREE.Vector3(this.direction.x, 0, -this.direction.z);
+            moveVector.applyQuaternion(new THREE.Quaternion().setFromEuler(new THREE.Euler(0, this.euler.y, 0)));
 
-        this.velocity.x = moveVector.x * currentSpeed;
-        this.velocity.z = moveVector.z * currentSpeed;
+            const currentSpeed = this.keys.sprint ? this.speed * Config.TERRAIN_PLAYER_SPRINT_MULT : this.speed;
+
+            this.velocity.x = moveVector.x * currentSpeed;
+            this.velocity.z = moveVector.z * currentSpeed;
+        } else {
+            // Fricción rápida si está muerto para detener el deslizamiento
+            this.velocity.x -= this.velocity.x * 10.0 * dt;
+            this.velocity.z -= this.velocity.z * 10.0 * dt;
+        }
 
         const actualGravity = this.gravity * this.planetScale;
-        this.jetpackActive = false;
 
         if (!this.jumpTimer) this.jumpTimer = 0;
 
@@ -171,14 +178,27 @@ export class TerrainControls {
             if (!this.isGrounded) {
                 const impactVelocity = Math.abs(this.velocity.y);
 
-                if (impactVelocity > 60) {
-                    OSDManager.show("FALLO CRÍTICO: Impacto letal detectado. Reiniciando soporte vital...", 'error', 4000);
-                } else if (impactVelocity > 45) {
-                    OSDManager.show("PELIGRO: Traumatismo severo. Integridad física altamente comprometida.", 'error', 3500);
-                } else if (impactVelocity > 35) {
-                    OSDManager.show("Advertencia: Impacto fuerte. Contusiones y posibles fracturas menores.", 'warning', 3000);
-                } else if (impactVelocity > 26) {
-                    OSDManager.show("Alerta: Impacto leve detectado. Integridad del traje estable.", 'info', 2500);
+                if (impactVelocity > 40) {
+                    const shakeLevel = Math.min((impactVelocity - 30) / 170, 1.0);
+                    this.shakeIntensity = shakeLevel * 0.4;
+                    EventManager.emit(EVENTS.PLAYER_IMPACT, { level: shakeLevel });
+                }
+
+                if (impactVelocity > 170) {
+                    OSDManager.show("IMPACTO FATAL: Peligro de muerte. Retirada de emergencia.", 'error', 6000);
+                    EventManager.emit(EVENTS.PLAYER_DEATH);
+                } else if (impactVelocity > 150) {
+                    OSDManager.show("DAÑO SEVERO: Impacto a velocidad extrema. Múltiples fracturas.", 'error', 5000);
+                } else if (impactVelocity > 130) {
+                    OSDManager.show("PELIGRO: Desaceleración violenta. Rupturas internas.", 'error', 4500);
+                } else if (impactVelocity > 95) {
+                    OSDManager.show("ALERTA: Integridad ósea comprometida. Hemorragia detectada.", 'error', 4000);
+                } else if (impactVelocity > 80) {
+                    OSDManager.show("ADVERTENCIA: Sobrecarga cinética. Amortiguadores rebasados.", 'warning', 3500);
+                } else if (impactVelocity > 65) {
+                    OSDManager.show("PRECAUCIÓN: Aterrizaje agresivo. Picos de estrés térmico y mecánico.", 'warning', 3000);
+                } else if (impactVelocity > 50) {
+                    OSDManager.show("AVISO: Fuerte impacto. Compensadores estabilizados. Constantes vitales normales.", 'info', 2500);
                 }
             }
 

@@ -32,7 +32,7 @@ export class TerrainState extends GameState {
                 // Spawneamos la nave 25 metros al NORTE (o frente) del jugador para que sea visible
                 // y no aparezcamos dentro de ella, pero siga estando perfectamente posicionada
                 const shipX = this.landingX;
-                const shipZ = this.landingZ - 25; 
+                const shipZ = this.landingZ - Config.TERRAIN_SHIP_SPAWN_DISTANCE; 
                 
                 // Alineamos y posicionamos la nave basada en la deformación del terreno
                 this.shipEntity.alignToTerrain(engine.terrainManager.generator, shipX, shipZ);
@@ -126,14 +126,7 @@ export class TerrainState extends GameState {
                 const distToSunMultiplier = 5000 / (engine.lastLandedPlanet.orbitRadius || 5000); 
                 
                 const pType = engine.lastLandedPlanet.type;
-                let baseTemp = 15; 
-                if (pType === 'Ice Planet') baseTemp = -60;
-                else if (pType === 'Lava Planet') baseTemp = 400;
-                else if (pType === 'Desert Planet') baseTemp = 45;
-                else if (pType === 'Toxic Planet') baseTemp = 70;
-                else if (pType === 'Ocean Planet') baseTemp = 10;
-                else if (pType === 'Jungle Planet') baseTemp = 30;
-                else if (pType === 'Barren Planet') baseTemp = -10;
+                let baseTemp = Config.PLANET_BASE_TEMPS[pType] !== undefined ? Config.PLANET_BASE_TEMPS[pType] : 15;
                 
                 const latMultiplier = Math.cos(latDeg * (Math.PI / 180));
                 let timeTempOffset = (currentSunHeight * 20);
@@ -160,7 +153,7 @@ export class TerrainState extends GameState {
                 });
             }
 
-            if (engine.camera.position.y > 100000) {
+            if (engine.camera.position.y > Config.TERRAIN_LIFTOFF_ATMOSPHERE_HEIGHT) {
                 if (!this.showingLiftoffPrompt) {
                     EventManager.emit(EVENTS.OSD_MESSAGE, { message: "Atmósfera Alta [ENTER] Despegar", type: 'warning', duration: 5000 });
                     this.showingLiftoffPrompt = true;

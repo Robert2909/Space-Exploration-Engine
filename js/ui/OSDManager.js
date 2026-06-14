@@ -28,6 +28,7 @@ export class OSDManager {
 
         if (!this.isListening) {
             EventManager.on(EVENTS.OSD_MESSAGE, (payload) => this.show(payload.message, payload.type, payload.duration));
+            EventManager.on(EVENTS.OSD_HIDE, () => this.hide());
             EventManager.on(EVENTS.TARGET_CHANGED, (target) => this.show('Locked onto: ' + target.name, 'success'));
             EventManager.on(EVENTS.TARGET_CLEARED, () => this.show('Targeting system disengaged', 'info'));
             this.isListening = true;

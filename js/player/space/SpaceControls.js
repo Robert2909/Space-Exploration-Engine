@@ -1,6 +1,7 @@
 import * as THREE from 'three';
-import { Config } from '../core/Config.js';
-import { OSDManager } from '../ui/OSDManager.js';
+import { Config } from '../../core/Config.js';
+import { OSDManager } from '../../ui/OSDManager.js';
+import { EventManager, EVENTS } from '../../core/EventManager.js';
 
 export class SpaceControls {
     constructor(camera, domElement) {

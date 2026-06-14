@@ -9,6 +9,7 @@ export class UIManager {
         this.labelsPool = [];
         this.hud = document.getElementById('hud');
         this.labelsContainer = document.getElementById('labels-container');
+        this.labelsHiddenManually = false;
 
         OSDManager.init();
 
@@ -83,7 +84,19 @@ export class UIManager {
             }
         });
 
-        // Transiciones visuales
+        // Efectos Visuales
+        EventManager.on(EVENTS.PLAYER_IMPACT, (payload) => {
+            if (this.hud && !this.hud.classList.contains('hidden')) {
+                // Apply visual shake, duration is 0.5s from css
+                this.hud.classList.add('shake-animation');
+                
+                // Remove the class after animation completes so it can be triggered again
+                setTimeout(() => {
+                    if (this.hud) this.hud.classList.remove('shake-animation');
+                }, 500);
+            }
+        });
+
         EventManager.on(EVENTS.TRANSITION_START, (payload) => {
             const flash = document.getElementById('transition-flash');
             if (flash) {
@@ -99,18 +112,21 @@ export class UIManager {
             }
         });
 
-        // Estado del Juego (Para mostrar/ocultar paneles)
         EventManager.on(EVENTS.STATE_CHANGED, (state) => {
             const jpPanel = document.getElementById('jetpack-panel');
             if (jpPanel) {
-                // We use standard CSS classes/styles. For jpPanel it's display since it doesn't have transition,
-                // or we could use hidden class if it were added. Let's keep display for panel, but use classes for labels.
                 jpPanel.style.display = state === 'TERRAIN' ? 'block' : 'none';
             }
             if (state === 'TERRAIN') {
                 this.labelsContainer.classList.add('hidden');
+                for (let i = 0; i < this.labelsPool.length; i++) {
+                    this.labelsPool[i].style.opacity = '0';
+                    this.labelsPool[i]._lastName = '';
+                }
             } else {
-                this.labelsContainer.classList.remove('hidden');
+                if (!this.labelsHiddenManually) {
+                    this.labelsContainer.classList.remove('hidden');
+                }
             }
         });
 
@@ -144,6 +160,7 @@ export class UIManager {
         };
 
         const toggleLabels = () => {
+            this.labelsHiddenManually = !this.labelsContainer.classList.contains('hidden');
             this.labelsContainer.classList.toggle('hidden');
             if (this.labelsContainer.classList.contains('hidden')) {
                 for (let i = 0; i < this.labelsPool.length; i++) {

@@ -12,7 +12,7 @@ export class InteractionSystem {
         let closest = null;
         let closestDist = Infinity;
         
-        for (let body of this.engine.ui.lastNearby || []) {
+        for (let body of this.engine.nearbyBodies || []) {
             const vec = new THREE.Vector3(body.x, body.y, body.z);
             const toBody = vec.clone().sub(this.engine.camera.position);
             if (toBody.dot(this.raycaster.ray.direction) > 0) {

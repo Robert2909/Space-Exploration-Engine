@@ -2,7 +2,6 @@ import * as THREE from 'three';
 import { GameState } from '../GameState.js';
 import { EventManager, EVENTS } from '../EventManager.js';
 import { Config } from '../Config.js';
-import { OSDManager } from '../../ui/OSDManager.js'; // Solo importamos para OSDManager genérico si es necesario, o EventManager
 
 export class SpaceState extends GameState {
     constructor(engine) {
@@ -111,7 +110,9 @@ export class SpaceState extends GameState {
 
         // Notificar nivel de pánico al UI
         EventManager.emit(EVENTS.BLACKHOLE_PANIC, { level: maxPanic });
-        
+        // Almacenar en el engine para los sistemas (ej. InteractionSystem)
+        engine.nearbyBodies = nearbyBodies;
+
         // Notificar la telemetría a la UI (Arquitectura Event-Driven, ciega)
         EventManager.emit(EVENTS.PLAYER_TELEMETRY_UPDATED, {
             speed: engine.controls.velocity.length(),
@@ -237,9 +238,7 @@ export class SpaceState extends GameState {
             if (!isGasGiant) engine.landingTarget = closestLandingBody;
         } else {
             if (engine.currentOrbitBody) {
-                // Removemos hide directo por un emit vacio temporal si necesitamos, o asumimos que OSD se limpia
-                // Para 100% Cero Regresión llamamos OSDManager.hide() solo aquí como excepcion si es estrictamente necesario
-                OSDManager.hide();
+                EventManager.emit(EVENTS.OSD_HIDE);
             }
             engine.currentOrbitBody = null;
             engine.landingTarget = null;
