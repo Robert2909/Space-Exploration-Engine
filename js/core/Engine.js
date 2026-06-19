@@ -131,7 +131,7 @@ export class Engine {
                     if (this.landingTarget) {
                         this.interactionSystem.attemptLandingZone(this.landingTarget);
                     } else if (this.targetBody) {
-                        EventManager.emit(EVENTS.OSD_MESSAGE, { message: 'Demasiado lejos de ' + this.targetBody.name + ' para iniciar descenso', type: 'error' });
+                        EventManager.emit(EVENTS.OSD_MESSAGE, { message: 'Imposible iniciar descenso en ' + this.targetBody.name, type: 'error' });
                     } else {
                         EventManager.emit(EVENTS.OSD_MESSAGE, { message: 'Órbita estable requerida para aterrizaje', type: 'error' });
                     }
