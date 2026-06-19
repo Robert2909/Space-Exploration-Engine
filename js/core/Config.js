@@ -40,9 +40,9 @@ export const Config = {
     // ==========================================
     // AGUJEROS NEGROS
     // ==========================================
-    BLACK_HOLE_SIZE_MULT_NORMAL: 2.0,       // Variación de tamaño para agujeros negros normales (1.0 + X)
+    BLACK_HOLE_SIZE_MULT_NORMAL: 10.0,       // Variación de tamaño para agujeros negros normales (1.0 + X)
     BLACK_HOLE_ULTRA_MASSIVE_CHANCE: 0.1,  // Probabilidad de generar un ultramasivo (0.0 a 1.0)
-    BLACK_HOLE_SIZE_MULT_ULTRA: 8.0,        // Tamaño extra para los ultramasivos
+    BLACK_HOLE_SIZE_MULT_ULTRA: 15.0,        // Tamaño extra para los ultramasivos
     BLACK_HOLE_SUPERMASSIVE_THRESHOLD: 4.0, // Multiplicador a partir del cual se gana el prefijo "Super Massive"
     BLACK_HOLE_BASE_RADIUS_VAR: 4.0,        // Variación del radio base antes de multiplicadores
     BLACK_HOLE_DISK_SCALE: 1.0,             // Escala de los discos de acreción
@@ -50,21 +50,21 @@ export const Config = {
     BLACK_HOLE_JET_WIDTH: 6.0,              // Ancho del chorro relativista
     BLACK_HOLE_PANIC_RANGE_MULT: 300.0,     // Rango de distorsión de cámara
     BLACK_HOLE_DEATH_RANGE_MULT: 1.5,       // Distancia para el evento de muerte
-    BLACK_HOLE_MAX_GRAVITY_MULT: 0.15,      // Fuerza de atracción máxima
-    BLACK_HOLE_PULL_RADIUS_MULT: 30.0,      // Alcance gravitatorio (n veces su tamaño)
-    BLACK_HOLE_GRAVITY_STRENGTH: 50.0,      // Fuerza del empuje gravitacional (1/r^2)
-    BLACK_HOLE_EVENT_HORIZON_MULT: 2.0,     // Fricción aplastante al cruzar esto
+    BLACK_HOLE_MAX_GRAVITY_MULT: 1.0,      // Fuerza de atracción máxima
+    BLACK_HOLE_PULL_RADIUS_MULT: 100.0,      // Alcance gravitatorio (n veces su tamaño)
+    BLACK_HOLE_GRAVITY_STRENGTH: 1000.0,      // Fuerza del empuje gravitacional (1/r^2)
+    BLACK_HOLE_EVENT_HORIZON_MULT: 5.0,     // Fricción aplastante al cruzar esto
     BLACK_HOLE_PANIC_STRENGTH: 1,         // Multiplicador del efecto de pánico visual
 
     // ==========================================
     // RENDERIZADO Y MEMORIA DEL TERRENO
     // ==========================================
-    TERRAIN_CHUNK_SIZE: 3000,             // Tamaño de cada bloque de terreno generado (En u métricas)
+    TERRAIN_CHUNK_SIZE: 5000,             // Tamaño de cada bloque de terreno generado (En u métricas)
     TERRAIN_CHUNK_RESOLUTION: 64,         // Densidad de polígonos por chunk (Mayor = Terreno más suave pero más lag. 32=Bajo, 64=Normal, 128=Ultra)
-    TERRAIN_RENDER_DISTANCE: 2,           // Distancia de render (1 = 3x3 chunks, 2 = 5x5 chunks)
+    TERRAIN_RENDER_DISTANCE: 1,           // Distancia de render (1 = 3x3 chunks, 2 = 5x5 chunks)
     TERRAIN_TARDIS_SCALE: 10,             // Factor multiplicador del tamaño del planeta en tierra (Ilusión TARDIS)
-    TERRAIN_FOG_FALLBACK: 0.00002,        // Niebla base en planetas sin atmósfera (Oculta el fin del mundo)
-    TERRAIN_FOG_MULTIPLIER: 0.002,          // Escala el grosor de la atmósfera (0.2 = Más visibilidad a lo lejos)
+    TERRAIN_FOG_FALLBACK: 0.0002,        // Niebla base en planetas sin atmósfera (Oculta el fin del mundo)
+    TERRAIN_FOG_MULTIPLIER: 0.02,          // Escala el grosor de la atmósfera (0.2 = Más visibilidad a lo lejos)
 
     // ==========================================
     // FORMA Y RELIEVE DEL TERRENO (RUIDO FRACTAL PERLIN)
@@ -111,7 +111,7 @@ export const Config = {
     AUTOPILOT_DESIRED_SECONDS: 5.0,       // Segundos teóricos en los que queremos que llegue al objetivo para escalar velocidad
     AUTOPILOT_BRAKE_ZONE_MULT: 10.0,      // Multiplicador de radio para empezar a frenar violentamente
     AUTOPILOT_BRAKE_MULTIPLIER: 0.99,     // Fricción de frenado agresivo (10% por frame)
-    AUTOPILOT_ARRIVAL_MULT: 3,            // Multiplicador de radio para considerar llegada e inserción orbital
+    AUTOPILOT_ARRIVAL_MULT: 4,            // Multiplicador de radio para considerar llegada e inserción orbital
 
     // ==========================================
     // ==========================================
@@ -148,12 +148,12 @@ export const Config = {
     // ==========================================
     // MOTOR GRÁFICO (RENDER & RENDIMIENTO)
     // ==========================================
-    RENDER_FOV: 100,                   // Campo de visión de la cámara (Grados)
+    RENDER_FOV: 90,                   // Campo de visión de la cámara (Grados)
     RENDER_FAR_PLANE: 100000000,      // Límite visual de la cámara (1 billón de u para ver quásares)
     RENDER_LOGARITHMIC_DEPTH: false,    // Mantiene matemáticas estables a trillones de km sin romper la textura (Z-Fighting)
     RENDER_PIXEL_RATIO_MAX: 1.0,       // Límite de resolución para no quemar la gráfica (1.0 = rápido, 2.0 = nítido 4K)
     RENDER_FOG_BASE: 3,              // Densidad de la niebla estelar profunda
-    RENDER_STAR_POINT_SIZE: 100,         // Tamaño de los puntos de luz estelares
+    RENDER_STAR_POINT_SIZE: 1,         // Tamaño de los puntos de luz estelares
     RENDER_ANTIALIAS: false,           // Suavizado de bordes (Apagar para +70% FPS)
 
     // ==========================================

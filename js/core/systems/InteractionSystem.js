@@ -5,18 +5,29 @@ export class InteractionSystem {
     constructor(engine) {
         this.engine = engine;
         this.raycaster = new THREE.Raycaster();
+
+        // Object Pooling
+        this._centerVec = new THREE.Vector2(0, 0);
+        this._bodyPos = new THREE.Vector3();
+        this._toBody = new THREE.Vector3();
+        this._hitPoint = new THREE.Vector3();
+        this._worldDir = new THREE.Vector3();
+        this._localPoint = new THREE.Vector3();
+        this._normal = new THREE.Vector3();
+        this._zAxis = new THREE.Vector3(0, 0, 1);
+        this._sphere = new THREE.Sphere();
     }
 
     attemptTargeting() {
-        this.raycaster.setFromCamera(new THREE.Vector2(0, 0), this.engine.camera);
+        this.raycaster.setFromCamera(this._centerVec, this.engine.camera);
         let closest = null;
         let closestDist = Infinity;
 
         for (let body of this.engine.nearbyBodies || []) {
-            const vec = new THREE.Vector3(body.x, body.y, body.z);
-            const toBody = vec.clone().sub(this.engine.camera.position);
-            if (toBody.dot(this.raycaster.ray.direction) > 0) {
-                const distToRay = this.raycaster.ray.distanceSqToPoint(vec);
+            this._bodyPos.set(body.x, body.y, body.z);
+            this._toBody.subVectors(this._bodyPos, this.engine.camera.position);
+            if (this._toBody.dot(this.raycaster.ray.direction) > 0) {
+                const distToRay = this.raycaster.ray.distanceSqToPoint(this._bodyPos);
                 const hitThreshold = Math.max(body.radius * 3, 200) ** 2;
                 if (distToRay < hitThreshold && body.distSq < closestDist) {
                     closestDist = body.distSq;
@@ -60,19 +71,20 @@ export class InteractionSystem {
     }
 
     attemptLandingZone(planet) {
-        this.raycaster.setFromCamera(new THREE.Vector2(0, 0), this.engine.camera);
+        this.raycaster.setFromCamera(this._centerVec, this.engine.camera);
 
         // El planeta no tiene un "mesh" único (es un InstancedMesh), así que usamos una esfera matemática
-        const sphere = new THREE.Sphere(new THREE.Vector3(planet.x, planet.y, planet.z), planet.radius);
-        const hitPoint = new THREE.Vector3();
-        const intersects = this.raycaster.ray.intersectSphere(sphere, hitPoint);
+        this._bodyPos.set(planet.x, planet.y, planet.z);
+        this._sphere.set(this._bodyPos, planet.radius);
+
+        const intersects = this.raycaster.ray.intersectSphere(this._sphere, this._hitPoint);
 
         if (intersects) {
-            const worldDir = hitPoint.clone().sub(new THREE.Vector3(planet.x, planet.y, planet.z));
+            this._worldDir.subVectors(this._hitPoint, this._bodyPos);
 
             // Calculamos latitud y longitud en espacio mundo
-            const lat = Math.asin(Math.max(-1, Math.min(1, worldDir.y / planet.radius)));
-            const worldLon = Math.atan2(worldDir.z, worldDir.x);
+            const lat = Math.asin(Math.max(-1, Math.min(1, this._worldDir.y / planet.radius)));
+            const worldLon = Math.atan2(this._worldDir.z, this._worldDir.x);
 
             // La longitud local = longitud mundial + rotación actual (despejando de worldLon = lon - rotY)
             const rotY = planet.rotationY || 0;
@@ -105,7 +117,7 @@ export class InteractionSystem {
             }
 
             // Si no aterrizamos, fijamos la zona
-            this.setLandingMarker(planet, worldDir, lat, lon);
+            this.setLandingMarker(planet, this._worldDir, lat, lon);
 
             // Auto-Target
             if (!this.engine.targetBody || this.engine.targetBody.name !== planet.name) {
@@ -138,14 +150,15 @@ export class InteractionSystem {
         const localX = Math.cos(lat) * Math.cos(currentWorldLon) * planet.radius;
         const localY = Math.sin(lat) * planet.radius;
         const localZ = Math.cos(lat) * Math.sin(currentWorldLon) * planet.radius;
-        const localPoint = new THREE.Vector3(localX, localY, localZ);
+        this._localPoint.set(localX, localY, localZ);
 
         // Orientar el marcador hacia la normal de la superficie
-        const normal = localPoint.clone().normalize();
+        this._normal.copy(this._localPoint).normalize();
 
         // Convertir la posición local a posición mundial sumando el centro del planeta
-        this.landingMarkerMesh.position.copy(localPoint.add(new THREE.Vector3(planet.x, planet.y, planet.z)));
-        this.landingMarkerMesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), normal);
+        this._bodyPos.set(planet.x, planet.y, planet.z);
+        this.landingMarkerMesh.position.copy(this._localPoint).add(this._bodyPos);
+        this.landingMarkerMesh.quaternion.setFromUnitVectors(this._zAxis, this._normal);
 
         this.engine.landingMarker = {
             planetName: planet.name,
@@ -153,8 +166,13 @@ export class InteractionSystem {
             lon: lon
         };
 
-        EventManager.emit(EVENTS.OSD_MESSAGE, { message: 'Zona fijada. Presiona [ENTER] en la zona para confirmar descenso', type: 'info', duration: 4000 });
-        EventManager.emit(EVENTS.HUD_TARGET_UPDATED, { landingMarker: this.engine.landingMarker, target: planet });
+        EventManager.emit(EVENTS.OSD_MESSAGE, { message: 'Zona fijada. Esperando confirmación para aterrizar', type: 'info', duration: 4000 });
+        EventManager.emit(EVENTS.HUD_TARGET_UPDATED, {
+            landingMarker: this.engine.landingMarker,
+            target: planet,
+            cameraPos: this.engine.camera.position,
+            gameState: this.engine.currentState.constructor.name === 'TerrainState' ? 'TERRAIN' : 'SPACE'
+        });
     }
 
     clearLandingMarker() {

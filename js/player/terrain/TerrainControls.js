@@ -13,6 +13,11 @@ export class TerrainControls {
         this.direction = new THREE.Vector3();
         this.euler = new THREE.Euler(0, 0, 0, 'YXZ');
 
+        // Object Pooling
+        this._moveVector = new THREE.Vector3();
+        this._yEuler = new THREE.Euler(0, 0, 0, 'YXZ');
+        this._yQuat = new THREE.Quaternion();
+
         this.isLocked = false;
 
         this.keys = {
@@ -104,13 +109,15 @@ export class TerrainControls {
             this.direction.x = Number(this.keys.right) - Number(this.keys.left);
             this.direction.normalize();
 
-            const moveVector = new THREE.Vector3(this.direction.x, 0, -this.direction.z);
-            moveVector.applyQuaternion(new THREE.Quaternion().setFromEuler(new THREE.Euler(0, this.euler.y, 0)));
+            this._moveVector.set(this.direction.x, 0, -this.direction.z);
+            this._yEuler.set(0, this.euler.y, 0, 'YXZ');
+            this._yQuat.setFromEuler(this._yEuler);
+            this._moveVector.applyQuaternion(this._yQuat);
 
             const currentSpeed = this.keys.sprint ? this.speed * Config.TERRAIN_PLAYER_SPRINT_MULT : this.speed;
 
-            this.velocity.x = moveVector.x * currentSpeed;
-            this.velocity.z = moveVector.z * currentSpeed;
+            this.velocity.x = this._moveVector.x * currentSpeed;
+            this.velocity.z = this._moveVector.z * currentSpeed;
         } else {
             // Fricción rápida si está muerto para detener el deslizamiento
             this.velocity.x -= this.velocity.x * 10.0 * dt;

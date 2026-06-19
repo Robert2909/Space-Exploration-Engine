@@ -11,6 +11,11 @@ export class UIManager {
         this.labelsContainer = document.getElementById('labels-container');
         this.labelsHiddenManually = false;
 
+        // Object Pooling
+        this._tempV = new THREE.Vector3();
+        this._planetPos = new THREE.Vector3();
+        this._relativePos = new THREE.Vector3();
+
         OSDManager.init();
 
         for (let i = 0; i < Config.UI_MAX_LABELS; i++) {
@@ -193,7 +198,6 @@ export class UIManager {
 
     updateLabels(nearby) {
         if (!nearby) return;
-        const tempV = new THREE.Vector3();
         const maxDist = Config.UI_LABEL_MAX_DISTANCE;
 
         this.lastNearby = nearby; // Por si algo en la UI lo necesita localmente
@@ -208,13 +212,14 @@ export class UIManager {
 
             const body = nearby[i];
             const dist = Math.sqrt(body.distSq);
+            if (dist > maxDist) continue;
 
-            tempV.set(body.x, body.y, body.z);
-            tempV.project(this.camera);
+            this._tempV.set(body.x, body.y, body.z);
+            this._tempV.project(this.camera);
 
-            if (tempV.z < 1 && tempV.x > -1.1 && tempV.x < 1.1 && tempV.y > -1.1 && tempV.y < 1.1) {
-                const x = (tempV.x * 0.5 + 0.5) * window.innerWidth;
-                const y = (tempV.y * -0.5 + 0.5) * window.innerHeight;
+            if (this._tempV.z < 1 && this._tempV.x > -1.1 && this._tempV.x < 1.1 && this._tempV.y > -1.1 && this._tempV.y < 1.1) {
+                const x = (this._tempV.x * 0.5 + 0.5) * window.innerWidth;
+                const y = (this._tempV.y * -0.5 + 0.5) * window.innerHeight;
                 const el = this.labelsPool[labelIndex];
 
                 const distText = Math.round(Math.max(0, dist - body.radius)) + 'u';
@@ -389,9 +394,9 @@ export class UIManager {
                 if (targetLat) targetLat.innerText = "'N/A'";
                 if (targetLon) targetLon.innerText = "'N/A'";
             } else {
-                const planetPos = new THREE.Vector3(target.x, target.y, target.z);
-                const relativePos = new THREE.Vector3().subVectors(payload.cameraPos, planetPos);
-                const dist = relativePos.length();
+                this._planetPos.set(target.x, target.y, target.z);
+                this._relativePos.subVectors(payload.cameraPos, this._planetPos);
+                const dist = this._relativePos.length();
                 targetDist.innerText = Math.round(dist) + 'u';
 
                 if (targetLat && targetLon) {
@@ -399,8 +404,8 @@ export class UIManager {
                         targetLat.innerText = (payload.landingMarker.lat * (180 / Math.PI)).toFixed(2) + '° (Fijado)';
                         targetLon.innerText = (payload.landingMarker.lon * (180 / Math.PI)).toFixed(2) + '° (Fijado)';
                     } else {
-                        const lat = Math.asin(Math.max(-1, Math.min(1, relativePos.y / dist)));
-                        const lon = Math.atan2(relativePos.z, relativePos.x);
+                        const lat = Math.asin(Math.max(-1, Math.min(1, this._relativePos.y / dist)));
+                        const lon = Math.atan2(this._relativePos.z, this._relativePos.x);
                         // Convertir a lon estática (despejando de worldLon = surfaceLon - rotY -> surfaceLon = worldLon + rotY)
                         const surfaceLon = lon + (target.rotationY || 0);
                         targetLat.innerText = (lat * (180 / Math.PI)).toFixed(2) + '°';

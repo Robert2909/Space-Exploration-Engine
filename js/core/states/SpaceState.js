@@ -6,6 +6,21 @@ import { Config } from '../Config.js';
 export class SpaceState extends GameState {
     constructor(engine) {
         super(engine);
+
+        // Object Pooling
+        this._bhPos = new THREE.Vector3();
+        this._worldDir = new THREE.Vector3();
+        this._localDir = new THREE.Vector3();
+        this._sysPos = new THREE.Vector3();
+        this._C = new THREE.Vector3();
+        this._AB = new THREE.Vector3();
+        this._AC = new THREE.Vector3();
+        this._closestPoint = new THREE.Vector3();
+        this._bodyPos = new THREE.Vector3();
+        this._localPoint = new THREE.Vector3();
+        this._normal = new THREE.Vector3();
+        this._zAxis = new THREE.Vector3(0, 0, 1);
+        this._camInverseQuat = new THREE.Quaternion();
     }
 
     enter(payload) {
@@ -22,10 +37,10 @@ export class SpaceState extends GameState {
         engine.universe.update(pos.x, pos.y, pos.z, dt);
         engine.lighting.update(engine.camera.position, engine.universe);
 
-        const maxDist = Config.UI_LABEL_MAX_DISTANCE; 
+        const maxDist = Config.UI_LABEL_MAX_DISTANCE;
         const maxDistSq = maxDist * maxDist;
         const nearbyBodies = [];
-        
+
         let maxPanic = 0;
 
         for (let [key, chunk] of engine.universe.chunks.entries()) {
@@ -39,29 +54,29 @@ export class SpaceState extends GameState {
                 let dx = sys.lx + cx - pos.x;
                 let dy = sys.ly + cy - pos.y;
                 let dz = sys.lz + cz - pos.z;
-                let distSq = dx*dx + dy*dy + dz*dz;
-                
+                let distSq = dx * dx + dy * dy + dz * dz;
+
                 let allowDistSq = maxDistSq;
                 if (sys.group === 'BlackHole') allowDistSq = maxDistSq * 100;
-                
+
                 if (distSq < allowDistSq) {
-                    nearbyBodies.push({ name: sys.name, type: sys.type, group: sys.group || 'Estrella', radius: sys.radius, x: sys.lx+cx, y: sys.ly+cy, z: sys.lz+cz, distSq: distSq });
+                    nearbyBodies.push({ name: sys.name, type: sys.type, group: sys.group || 'Estrella', radius: sys.radius, x: sys.lx + cx, y: sys.ly + cy, z: sys.lz + cz, distSq: distSq });
                 }
-                
+
                 // Agregar planetas a nearbyBodies
-                for(let p of sys.planets) {
+                for (let p of sys.planets) {
                     dx = p.lx + cx - pos.x;
                     dy = p.ly + cy - pos.y;
                     dz = p.lz + cz - pos.z;
-                    distSq = dx*dx + dy*dy + dz*dz;
+                    distSq = dx * dx + dy * dy + dz * dz;
                     if (distSq < maxDistSq) {
-                        nearbyBodies.push({ 
-                            name: p.name, type: p.type, group: 'Planeta', 
-                            radius: p.radius, x: p.lx+cx, y: p.ly+cy, z: p.lz+cz, 
+                        nearbyBodies.push({
+                            name: p.name, type: p.type, group: 'Planeta',
+                            radius: p.radius, x: p.lx + cx, y: p.ly + cy, z: p.lz + cz,
                             distSq: distSq, color: p.color, atmosphereDensity: p.atmosphereDensity,
                             orbitRadius: p.orbitRadius, orbitSpeed: p.orbitSpeed, rotationSpeed: p.rotationSpeed, rotationY: p.rotationY,
                             mesh: p.mesh, terrainVariance: p.terrainVariance,
-                            starX: sys.lx+cx, starY: sys.ly+cy, starZ: sys.lz+cz,
+                            starX: sys.lx + cx, starY: sys.ly + cy, starZ: sys.lz + cz,
                             parentSystem: {
                                 sunColor: sys.sunColor,
                                 companion: sys.companion ? { sunColor: sys.companion.sunColor } : null
@@ -71,8 +86,8 @@ export class SpaceState extends GameState {
                 }
 
                 if (sys.group === 'BlackHole') {
-                    const bhPos = new THREE.Vector3(sys.lx + cx, sys.ly + cy, sys.lz + cz);
-                    const dist = pos.distanceTo(bhPos);
+                    this._bhPos.set(sys.lx + cx, sys.ly + cy, sys.lz + cz);
+                    const dist = pos.distanceTo(this._bhPos);
 
                     const pullRadius = sys.radius * Config.BLACK_HOLE_PULL_RADIUS_MULT;
                     const panicRadius = sys.radius * Config.BLACK_HOLE_PANIC_RANGE_MULT;
@@ -88,10 +103,11 @@ export class SpaceState extends GameState {
 
                         // El vector 'dir' está en espacio del mundo. La velocidad de la nave está en espacio local.
                         // Convertimos 'dir' a espacio local usando el cuaternión inverso de la cámara.
-                        const worldDir = new THREE.Vector3().subVectors(bhPos, pos).normalize();
-                        const localDir = worldDir.clone().applyQuaternion(engine.camera.quaternion.clone().invert());
+                        this._worldDir.subVectors(this._bhPos, pos).normalize();
+                        this._camInverseQuat.copy(engine.camera.quaternion).invert();
+                        this._localDir.copy(this._worldDir).applyQuaternion(this._camInverseQuat);
 
-                        engine.controls.velocity.add(localDir.multiplyScalar(forceStr * dt));
+                        engine.controls.velocity.add(this._localDir.multiplyScalar(forceStr * dt));
 
                         // Fricción aplastante si cruzas el horizonte de eventos
                         if (dist < sys.radius * Config.BLACK_HOLE_EVENT_HORIZON_MULT) {
@@ -110,21 +126,21 @@ export class SpaceState extends GameState {
 
                 // Efecto de escombros/polvo al atravesar cinturones de asteroides
                 if (sys.asteroidBelt) {
-                    const sysPos = new THREE.Vector3(sys.lx + cx, sys.ly + cy, sys.lz + cz);
-                    const distToSys = pos.distanceTo(sysPos);
+                    this._sysPos.set(sys.lx + cx, sys.ly + cy, sys.lz + cz);
+                    const distToSys = pos.distanceTo(this._sysPos);
                     const inBelt = distToSys > sys.asteroidBelt.innerRadius && distToSys < (sys.asteroidBelt.innerRadius + sys.asteroidBelt.width);
-                    
+
                     if (inBelt) {
                         // Calcular qué tan profundo estamos en el cinturón (0 en los bordes, 1 en el centro)
                         const beltCenter = sys.asteroidBelt.innerRadius + (sys.asteroidBelt.width / 2);
                         const depth = 1.0 - (Math.abs(distToSys - beltCenter) / (sys.asteroidBelt.width / 2));
-                        
+
                         // Si vamos rápido, la nave tiembla por los micro-impactos
                         const speed = engine.controls.velocity.length();
                         if (speed > Config.PLAYER_SPEED_MAX * 0.1) {
                             const shakeLevel = depth * (speed / Config.PLAYER_SPEED_MAX) * 0.05;
                             engine.cameraBlurLevel += shakeLevel;
-                            
+
                             // Avisar al jugador si va muy rápido
                             if (speed > Config.PLAYER_SPEED_MAX * 0.5 && Math.random() < 0.02) {
                                 EventManager.emit(EVENTS.OSD_MESSAGE, { message: 'Alerta: Múltiples micro-impactos detectados en el casco', type: 'warning', duration: 2000 });
@@ -134,7 +150,7 @@ export class SpaceState extends GameState {
                 }
             }
         }
-        
+
         nearbyBodies.sort((a, b) => a.distSq - b.distSq);
 
         // Notificar nivel de pánico al UI
@@ -176,18 +192,18 @@ export class SpaceState extends GameState {
                 // Matemáticamente perfecto: ¿El segmento de línea del último frame al actual cruza el umbral de llegada?
                 const A = engine.controls.lastCameraPos;
                 const B = engine.camera.position;
-                const C = new THREE.Vector3(engine.targetBody.x, engine.targetBody.y, engine.targetBody.z);
+                this._C.set(engine.targetBody.x, engine.targetBody.y, engine.targetBody.z);
 
-                const AB = new THREE.Vector3().subVectors(B, A);
-                const AC = new THREE.Vector3().subVectors(C, A);
+                this._AB.subVectors(B, A);
+                this._AC.subVectors(this._C, A);
 
-                const ab2 = AB.lengthSq();
+                const ab2 = this._AB.lengthSq();
                 if (ab2 > 0.001) {
-                    let t = AC.dot(AB) / ab2;
+                    let t = this._AC.dot(this._AB) / ab2;
                     t = Math.max(0, Math.min(1, t)); // Limitar al segmento entre el frame anterior y el actual
 
-                    const closestPoint = new THREE.Vector3().copy(A).add(AB.multiplyScalar(t));
-                    const distToSegment = closestPoint.distanceTo(C);
+                    this._closestPoint.copy(A).add(this._AB.multiplyScalar(t));
+                    const distToSegment = this._closestPoint.distanceTo(this._C);
 
                     // Si el punto más cercano de nuestro movimiento de este frame estuvo dentro del umbral de llegada...
                     if (distToSegment < arrivalThreshold) {
@@ -203,7 +219,8 @@ export class SpaceState extends GameState {
             if (!engine.controls.lastCameraPos) engine.controls.lastCameraPos = new THREE.Vector3();
             engine.controls.lastCameraPos.copy(engine.camera.position);
 
-            const dist = engine.camera.position.distanceTo(new THREE.Vector3(engine.targetBody.x, engine.targetBody.y, engine.targetBody.z));
+            this._bodyPos.set(engine.targetBody.x, engine.targetBody.y, engine.targetBody.z);
+            const dist = engine.camera.position.distanceTo(this._bodyPos);
             if (engine.controls.autoPilotTarget && (dist < arrivalThreshold || overshot)) {
                 engine.controls.autoLookTarget = engine.controls.autoPilotTarget;
                 engine.controls.setAutoPilotTarget(null);
@@ -222,7 +239,8 @@ export class SpaceState extends GameState {
                 // Filtrar estrellas (usando group) y agujeros negros, pero dejar gaseosos para advertir
                 if (body.group === 'Estrella' || (body.type && body.type.includes('Black Hole'))) continue;
 
-                const dist = engine.camera.position.distanceTo(new THREE.Vector3(body.x, body.y, body.z));
+                this._bodyPos.set(body.x, body.y, body.z);
+                const dist = engine.camera.position.distanceTo(this._bodyPos);
                 const threshold = Math.max(body.radius * 5.0, body.radius + 3000);
 
                 if (dist < threshold && dist < minLandingDist) {
@@ -242,15 +260,16 @@ export class SpaceState extends GameState {
                 const rotY = planet.rotationY || 0;
                 // La longitud estática original rotada en el espacio = marker.lon - rotY (porque el modelo rota y el punto gira)
                 const currentLon = marker.lon - rotY;
-                
+
                 const localX = Math.cos(marker.lat) * Math.cos(currentLon) * planet.radius;
                 const localY = Math.sin(marker.lat) * planet.radius;
                 const localZ = Math.cos(marker.lat) * Math.sin(currentLon) * planet.radius;
-                const localPoint = new THREE.Vector3(localX, localY, localZ);
-                
-                const normal = localPoint.clone().normalize();
-                engine.interactionSystem.landingMarkerMesh.position.copy(localPoint.add(new THREE.Vector3(planet.x, planet.y, planet.z)));
-                engine.interactionSystem.landingMarkerMesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), normal);
+                this._localPoint.set(localX, localY, localZ);
+
+                this._normal.copy(this._localPoint).normalize();
+                this._bodyPos.set(planet.x, planet.y, planet.z);
+                engine.interactionSystem.landingMarkerMesh.position.copy(this._localPoint).add(this._bodyPos);
+                engine.interactionSystem.landingMarkerMesh.quaternion.setFromUnitVectors(this._zAxis, this._normal);
             }
         }
 
@@ -259,9 +278,9 @@ export class SpaceState extends GameState {
             if (!engine.currentOrbitBody || engine.currentOrbitBody.name !== closestLandingBody.name) {
                 engine.currentOrbitBody = closestLandingBody;
                 if (isGasGiant) {
-                    EventManager.emit(EVENTS.OSD_MESSAGE, { message: `Órbita en ${closestLandingBody.name}: Superficie no sólida (Inhóspito)`, type: 'error', duration: 0 });
+                    EventManager.emit(EVENTS.OSD_MESSAGE, { message: `Órbita inestable en ${closestLandingBody.name}: Superficie no sólida`, type: 'error', duration: 0 });
                 } else {
-                    EventManager.emit(EVENTS.OSD_MESSAGE, { message: `Órbita estable en ${closestLandingBody.name} [ENTER] Aterrizar`, type: 'info', duration: 0 });
+                    EventManager.emit(EVENTS.OSD_MESSAGE, { message: `Órbita estable en ${closestLandingBody.name}`, type: 'info', duration: 0 });
                 }
             }
             if (!isGasGiant) engine.landingTarget = closestLandingBody;

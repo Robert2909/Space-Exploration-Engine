@@ -14,6 +14,17 @@ export class SpaceControls {
         this.currentRollSpeed = 0; // Inercia del alabeo
         this.cinematicMode = false;
 
+        // Object Pooling para evitar Garbage Collection
+        this._targetPos = new THREE.Vector3();
+        this._matrix = new THREE.Matrix4();
+        this._targetQuat = new THREE.Quaternion();
+        this._dir = new THREE.Vector3();
+        this._localDir = new THREE.Vector3();
+        this._offset = new THREE.Vector3();
+        this._yAxis = new THREE.Vector3(0, 1, 0);
+        this._direction = new THREE.Vector3();
+        this._camInverseQuat = new THREE.Quaternion();
+
         this.camera.rotation.set(0, 0, 0);
 
         this.speed = Config.PLAYER_SPEED;
@@ -130,17 +141,17 @@ export class SpaceControls {
             this.velocity.multiplyScalar(0.95);
         } else if (this.autoPilotTarget || this.autoLookTarget) {
             const tgt = this.autoPilotTarget || this.autoLookTarget;
-            const targetPos = new THREE.Vector3(tgt.x, tgt.y, tgt.z);
+            this._targetPos.set(tgt.x, tgt.y, tgt.z);
 
-            const matrix = new THREE.Matrix4().lookAt(this.camera.position, targetPos, this.camera.up);
-            const targetQuat = new THREE.Quaternion().setFromRotationMatrix(matrix);
+            this._matrix.lookAt(this.camera.position, this._targetPos, this.camera.up);
+            this._targetQuat.setFromRotationMatrix(this._matrix);
 
-            const angleToTarget = this.camera.quaternion.angleTo(targetQuat);
-            this.camera.quaternion.slerp(targetQuat, dt * 3.0);
+            const angleToTarget = this.camera.quaternion.angleTo(this._targetQuat);
+            this.camera.quaternion.slerp(this._targetQuat, dt * 3.0);
 
             if (this.autoPilotTarget) {
-                const dir = new THREE.Vector3().subVectors(targetPos, this.camera.position).normalize();
-                const dist = this.camera.position.distanceTo(targetPos);
+                this._dir.subVectors(this._targetPos, this.camera.position).normalize();
+                const dist = this.camera.position.distanceTo(this._targetPos);
                 // Velocidad dinámica basada en la distancia para un recorrido de X segundos
                 let targetSpeed = Math.max(
                     Config.AUTOPILOT_MIN_SPEED,
@@ -169,11 +180,12 @@ export class SpaceControls {
 
                     // Para viajar en línea recta matemáticamente perfecta (sin importar si la rotación visual va un poco atrasada)
                     // transformamos el vector direccional global a espacio local de la cámara.
-                    const localDir = dir.clone().applyQuaternion(this.camera.quaternion.clone().invert());
+                    this._camInverseQuat.copy(this.camera.quaternion).invert();
+                    this._localDir.copy(this._dir).applyQuaternion(this._camInverseQuat);
 
                     const currentVelMag = this.velocity.length();
                     const newVelMag = THREE.MathUtils.lerp(currentVelMag, targetSpeed, dt * 5.0);
-                    this.velocity.copy(localDir).multiplyScalar(newVelMag);
+                    this.velocity.copy(this._localDir).multiplyScalar(newVelMag);
                 }
 
                 // Cancelar con freno de emergencia
@@ -186,38 +198,39 @@ export class SpaceControls {
                 // Solo autoLook: acoplar nuestra posición a la órbita del planeta y girar lentamente
                 if (this.lastAutoLookPos) {
                     // 1. Compensar el desplazamiento orbital del planeta
-                    const dx = targetPos.x - this.lastAutoLookPos.x;
-                    const dy = targetPos.y - this.lastAutoLookPos.y;
-                    const dz = targetPos.z - this.lastAutoLookPos.z;
+                    const dx = this._targetPos.x - this.lastAutoLookPos.x;
+                    const dy = this._targetPos.y - this.lastAutoLookPos.y;
+                    const dz = this._targetPos.z - this.lastAutoLookPos.z;
 
                     this.camera.position.x += dx;
                     this.camera.position.y += dy;
                     this.camera.position.z += dz;
 
                     // 2. Girar alrededor del planeta independientemente de las interacciones
-                    const offset = new THREE.Vector3().subVectors(this.camera.position, targetPos);
+                    this._offset.subVectors(this.camera.position, this._targetPos);
 
                     // 3. Ajustar suavemente a la distancia orbital óptima (multiplicador * radio)
                     const optimalDistance = tgt.radius * Config.AUTOPILOT_ARRIVAL_MULT; // Distancia fija óptima (ajustada por radio)
-                    const currentDistance = offset.length();
+                    const currentDistance = this._offset.length();
                     if (Math.abs(optimalDistance - currentDistance) > 1.0) {
                         const adjustSpeed = Math.max(10, currentDistance * 0.5); // Velocidad de ajuste
                         const step = (optimalDistance - currentDistance > 0 ? 1 : -1) * adjustSpeed * dt;
 
                         // Evitar pasarnos del objetivo
                         if (Math.abs(step) > Math.abs(optimalDistance - currentDistance)) {
-                            offset.setLength(optimalDistance);
+                            this._offset.setLength(optimalDistance);
                         } else {
-                            offset.setLength(currentDistance + step);
+                            this._offset.setLength(currentDistance + step);
                         }
                     }
 
                     const orbitSpeed = Config.CINEMATIC_ORBIT_SPEED * dt;
-                    offset.applyAxisAngle(new THREE.Vector3(0, 1, 0), orbitSpeed);
+                    this._offset.applyAxisAngle(this._yAxis, orbitSpeed);
 
-                    this.camera.position.copy(targetPos).add(offset);
+                    this.camera.position.copy(this._targetPos).add(this._offset);
                 }
-                this.lastAutoLookPos = targetPos.clone();
+                if (!this.lastAutoLookPos) this.lastAutoLookPos = new THREE.Vector3();
+                this.lastAutoLookPos.copy(this._targetPos);
 
                 // mantener frenado normal si pulsamos espacio o desaceleramos
                 if (this.keys.space) {
@@ -229,13 +242,13 @@ export class SpaceControls {
         } else {
             const currentSpeed = this.speed * (this.keys.shift ? this.boostMultiplier : 1);
 
-            const direction = new THREE.Vector3();
-            direction.z = Number(this.keys.w) - Number(this.keys.s);
-            direction.x = Number(this.keys.d) - Number(this.keys.a);
-            direction.normalize();
+            this._direction.set(0, 0, 0);
+            this._direction.z = Number(this.keys.w) - Number(this.keys.s);
+            this._direction.x = Number(this.keys.d) - Number(this.keys.a);
+            this._direction.normalize();
 
-            if (this.keys.w || this.keys.s) this.velocity.z -= direction.z * currentSpeed * dt;
-            if (this.keys.a || this.keys.d) this.velocity.x += direction.x * currentSpeed * dt;
+            if (this.keys.w || this.keys.s) this.velocity.z -= this._direction.z * currentSpeed * dt;
+            if (this.keys.a || this.keys.d) this.velocity.x += this._direction.x * currentSpeed * dt;
 
             const targetRoll = (Number(this.keys.q) - Number(this.keys.e)) * Config.ROLL_SPEED;
             this.currentRollSpeed += (targetRoll - this.currentRollSpeed) * dt * 5.0; // Lerp suave

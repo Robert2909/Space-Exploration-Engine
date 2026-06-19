@@ -7,6 +7,15 @@ import { ShipEntity } from '../../world/entities/ShipEntity.js';
 export class TerrainState extends GameState {
     constructor(engine) {
         super(engine);
+        this.shipEntity = null; // Instancia de la nave física estacionada
+
+        // Object Pooling
+        this._euler = new THREE.Euler(0, 0, 0, 'YXZ');
+        this._dir = new THREE.Vector3();
+        this._zAxis = new THREE.Vector3(0, 0, -1);
+        this._toShip = new THREE.Vector3();
+        this._dirFlat = new THREE.Vector3();
+        this._toShipFlat = new THREE.Vector3();
     }
 
     enter(payload) {
@@ -88,10 +97,9 @@ export class TerrainState extends GameState {
 
                 if (crossedPole) {
                     // Girar cámara 180° horizontalmente al cruzar el polo
-                    const euler = new THREE.Euler(0, 0, 0, 'YXZ');
-                    euler.setFromQuaternion(engine.camera.quaternion);
-                    euler.y += Math.PI;
-                    engine.camera.quaternion.setFromEuler(euler);
+                    this._euler.setFromQuaternion(engine.camera.quaternion);
+                    this._euler.y += Math.PI;
+                    engine.camera.quaternion.setFromEuler(this._euler);
                 }
 
                 engine.camera.position.x = px;
@@ -112,9 +120,9 @@ export class TerrainState extends GameState {
                 const lonDeg = (engine.camera.position.x / terrainRadius) * (180 / Math.PI);
                 
                 // Brújula
-                const dir = new THREE.Vector3(0, 0, -1).applyQuaternion(engine.camera.quaternion);
+                this._dir.copy(this._zAxis).applyQuaternion(engine.camera.quaternion);
                 // dir.z es positivo hacia el Norte (+Z) en nuestro sistema
-                let heading = Math.atan2(dir.x, -dir.z) * (180 / Math.PI);
+                let heading = Math.atan2(this._dir.x, -this._dir.z) * (180 / Math.PI);
                 if (heading < 0) heading += 360;
                 
                 let cardinal = "N";
@@ -129,11 +137,13 @@ export class TerrainState extends GameState {
                 // Distancia y marcador a la Nave
                 let shipDistText = '';
                 if (this.shipEntity) {
-                    const toShip = new THREE.Vector3().subVectors(this.shipEntity.getMesh().position, engine.camera.position);
-                    const distToShip = toShip.length();
+                    this._toShip.subVectors(this.shipEntity.getMesh().position, engine.camera.position);
+                    const distToShip = this._toShip.length();
                     shipDistText = ` (Nave: ${Math.round(distToShip)}m)`;
                     
-                    const dot = dir.clone().setY(0).normalize().dot(toShip.clone().setY(0).normalize());
+                    this._dirFlat.copy(this._dir).setY(0).normalize();
+                    this._toShipFlat.copy(this._toShip).setY(0).normalize();
+                    const dot = this._dirFlat.dot(this._toShipFlat);
                     if (dot > 0.98) { // Mirando directamente a la nave
                         cardinal = "NAVE";
                     }

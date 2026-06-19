@@ -21,8 +21,31 @@ export class TerrainManager {
         this.generator = new TerrainGenerator(this.chunkSize * 3, seed, planetData ? planetData.type : 'Rocky Planet', planetData ? planetData.radius * 10 : 50000, planetData ? planetData.terrainVariance : null);
         this.chunks = new Map(); // Ahora usamos un Map para buscar chunks por "x,z"
 
+        // Web Worker para generación de terreno asíncrona
+        this.worker = new Worker(new URL('../workers/TerrainWorker.js', import.meta.url), { type: 'module' });
+        this.worker.onmessage = this.onWorkerMessage.bind(this);
+        this.worker.onerror = (err) => console.error('TerrainWorker Error:', err);
+
+        // FASE 3: Object Pool de SharedArrayBuffers para cero-clonación y cero-GC
+        this.bufferPool = [];
+        this.activeBuffers = new Map();
+        
+        const res = Config.TERRAIN_CHUNK_RESOLUTION;
+        const numVertices = res * res * 2 * 3;
+        const bufferSize = numVertices * 3 * 4; // 3 floats por vértice * 4 bytes
+        
+        // 3x3 chunks visibles = 9 + un pequeño margen
+        const poolSize = (this.renderDistance * 2 + 1) ** 2 + 10;
+        for (let i = 0; i < poolSize; i++) {
+            this.bufferPool.push({
+                positions: new SharedArrayBuffer(bufferSize),
+                colors: new SharedArrayBuffer(bufferSize)
+            });
+        }
+
         this.planetData = planetData;
         this.initialLat = initialLat;
+        this.seed = seed;
         this.terrainRadius = planetData ? planetData.radius * 10 : 50000;
 
         // Color base derivado del color del planeta en el espacio
@@ -344,23 +367,39 @@ export class TerrainManager {
                 activeKeys.add(key);
 
                 if (!this.chunks.has(key)) {
-                    // Cargar / Crear Chunk nuevo con la resolución del Config
+                    // Marcar como pendiente
+                    this.chunks.set(key, 'pending');
+
                     const offsetX = x * this.chunkSize;
                     const offsetZ = z * this.chunkSize;
 
-                    const geometry = this.generator.createChunkGeometry(offsetX, offsetZ, this.chunkSize, Config.TERRAIN_CHUNK_RESOLUTION, this.groundColor);
-                    const mesh = new THREE.Mesh(geometry, this.material);
+                    // FASE 3: Obtener SharedArrayBuffer del Pool
+                    if (this.bufferPool.length === 0) {
+                        const res = Config.TERRAIN_CHUNK_RESOLUTION;
+                        const bufferSize = res * res * 2 * 3 * 3 * 4;
+                        this.bufferPool.push({
+                            positions: new SharedArrayBuffer(bufferSize),
+                            colors: new SharedArrayBuffer(bufferSize)
+                        });
+                    }
+                    const bufferPair = this.bufferPool.pop();
+                    this.activeBuffers.set(key, bufferPair);
 
-                    // IMPORTANTE: Ponemos el mesh en su coordenada global real.
-                    // Ya le enviamos el offsetX al generador para calcular la altura, 
-                    // así que la geometría está local (-1500 a 1500) pero el mesh se mueve al mundo.
-                    mesh.position.set(offsetX, 0, offsetZ);
-
-                    this.group.add(mesh);
-                    this.chunks.set(key, mesh);
-
-                    // Generar POIs para este chunk
-                    this.generatePOIsForChunk(x, z, offsetX, offsetZ);
+                    // Enviar al worker con SharedArrayBuffers
+                    this.worker.postMessage({
+                        id: key,
+                        offsetX: offsetX,
+                        offsetZ: offsetZ,
+                        chunkSize: this.chunkSize,
+                        resolution: Config.TERRAIN_CHUNK_RESOLUTION,
+                        baseColor: this.groundColor.getHex(),
+                        planetType: this.planetData ? this.planetData.type : 'Rocky Planet',
+                        seed: this.seed,
+                        terrainRadius: this.terrainRadius,
+                        terrainVariance: this.planetData ? this.planetData.terrainVariance : null,
+                        positionsBuffer: bufferPair.positions,
+                        colorsBuffer: bufferPair.colors
+                    });
                 }
             }
         }
@@ -368,9 +407,18 @@ export class TerrainManager {
         // Destruir Chunks lejanos (Gestión de RAM)
         for (let [key, mesh] of this.chunks.entries()) {
             if (!activeKeys.has(key)) {
-                this.group.remove(mesh);
-                mesh.geometry.dispose();
+                if (mesh !== 'pending') {
+                    this.group.remove(mesh);
+                    mesh.geometry.dispose();
+                }
                 this.chunks.delete(key);
+                
+                // Retornar al pool (FASE 3)
+                const bufferPair = this.activeBuffers.get(key);
+                if (bufferPair) {
+                    this.bufferPool.push(bufferPair);
+                    this.activeBuffers.delete(key);
+                }
                 
                 // Destruir POIs asociados
                 if (this.pois && this.pois.has(key)) {
@@ -384,10 +432,52 @@ export class TerrainManager {
         }
     }
 
+    onWorkerMessage(e) {
+        const { id } = e.data;
+        const bufferPair = this.activeBuffers.get(id);
+        
+        // Si el jugador se movió rápido y el chunk ya no se necesita, descartarlo
+        if (!this.chunks.has(id) || this.chunks.get(id) !== 'pending') {
+            if (bufferPair) {
+                this.bufferPool.push(bufferPair);
+                this.activeBuffers.delete(id);
+            }
+            return;
+        }
+
+        // Leer datos del SharedArrayBuffer devuelto por el Worker
+        const positions = new Float32Array(bufferPair.positions);
+        const colors = new Float32Array(bufferPair.colors);
+
+        const geometry = new THREE.BufferGeometry();
+        geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+        geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+        geometry.computeVertexNormals();
+
+        const mesh = new THREE.Mesh(geometry, this.material);
+
+        const [xStr, zStr] = id.split(',');
+        const x = parseInt(xStr);
+        const z = parseInt(zStr);
+        
+        const offsetX = x * this.chunkSize;
+        const offsetZ = z * this.chunkSize;
+
+        mesh.position.set(offsetX, 0, offsetZ);
+
+        this.group.add(mesh);
+        this.chunks.set(id, mesh);
+
+        this.generatePOIsForChunk(x, z, offsetX, offsetZ);
+    }
+
     dispose() {
+        if (this.worker) {
+            this.worker.terminate();
+        }
         this.scene.remove(this.group);
         for (let mesh of this.chunks.values()) {
-            mesh.geometry.dispose();
+            if (mesh !== 'pending') mesh.geometry.dispose();
         }
         this.chunks.clear();
         this.material.dispose();
