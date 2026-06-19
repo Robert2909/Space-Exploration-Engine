@@ -19,31 +19,24 @@ export class Universe {
         this.renderDistance = dist;
     }
     
-    getClosestStar(cameraPos, targetObj) {
+    getClosestStar(cameraPos) {
         let closestStar = null;
-        let chunkOffset = null;
         let minDistSq = Infinity;
         for(let [key, chunk] of this.chunks.entries()) {
             if(chunk !== 'pending') {
                 for(let sys of chunk.systems) {
-                    const dx = sys.lx + chunk.group.position.x - cameraPos.x;
-                    const dy = sys.ly + chunk.group.position.y - cameraPos.y;
-                    const dz = sys.lz + chunk.group.position.z - cameraPos.z;
+                    const dx = sys.x - cameraPos.x;
+                    const dy = sys.y - cameraPos.y;
+                    const dz = sys.z - cameraPos.z;
                     const distSq = dx*dx + dy*dy + dz*dz;
                     if (distSq < minDistSq) {
                         minDistSq = distSq;
                         closestStar = sys;
-                        chunkOffset = chunk.group.position;
                     }
                 }
             }
         }
-        if (closestStar) {
-            targetObj.position.set(closestStar.lx + chunkOffset.x, closestStar.ly + chunkOffset.y, closestStar.lz + chunkOffset.z);
-            targetObj.colorHex = closestStar.sunColor;
-            return true;
-        }
-        return false;
+        return closestStar;
     }
     
     update(playerX, playerY, playerZ, dt) {

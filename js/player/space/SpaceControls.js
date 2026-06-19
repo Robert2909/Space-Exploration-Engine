@@ -72,7 +72,7 @@ export class SpaceControls {
         this._onKeyUp = (e) => this.onKey(e, false);
         this._onWheel = (e) => {
             if (!this.isLocked) return;
-            
+
             if (e.deltaY < 0) {
                 this.speed = this.speed === 0 ? Config.PLAYER_SPEED_MIN_STEP : this.speed * Config.PLAYER_SPEED_SCROLL_MULT;
                 this.speed = Math.min(this.speed, Config.PLAYER_SPEED_MAX);
@@ -80,8 +80,8 @@ export class SpaceControls {
                 this.speed = this.speed / Config.PLAYER_SPEED_SCROLL_MULT;
                 if (this.speed < Config.PLAYER_SPEED_MIN_STEP) this.speed = 0;
             }
-            
-            OSDManager.show(`Throttle Base Speed: ${Math.round(this.speed)} u/s`, 'info', 1000);
+
+            EventManager.emit(EVENTS.OSD_MESSAGE, { message: `Velocidad base: ${Math.round(this.speed)} u/s`, type: 'info', duration: 1000 });
         };
 
         document.addEventListener('pointerlockchange', this._onPointerLockChange);
@@ -108,13 +108,13 @@ export class SpaceControls {
         if (Config.KEYS.ROLL_RIGHT.includes(event.code)) this.keys.e = isDown;
         if (Config.KEYS.BOOST.includes(event.code)) this.keys.shift = isDown;
         if (Config.KEYS.BRAKE.includes(event.code)) this.keys.space = isDown;
-        
+
         if (isDown && Config.KEYS.TOGGLE_CINEMATIC.includes(event.code)) {
             this.cinematicMode = !this.cinematicMode;
             if (this.cinematicMode) {
-                OSDManager.show('Cinematic Camera: ENABLED', 'success', 2000);
+                EventManager.emit(EVENTS.OSD_MESSAGE, { message: 'Cámara fluida activada', type: 'success', duration: 2000 });
             } else {
-                OSDManager.show('Cinematic Camera: DISABLED', 'warning', 2000);
+                EventManager.emit(EVENTS.OSD_MESSAGE, { message: 'Cámara fluida desactivada', type: 'warning', duration: 2000 });
             }
         }
     }
@@ -134,7 +134,7 @@ export class SpaceControls {
 
             const matrix = new THREE.Matrix4().lookAt(this.camera.position, targetPos, this.camera.up);
             const targetQuat = new THREE.Quaternion().setFromRotationMatrix(matrix);
-            
+
             const angleToTarget = this.camera.quaternion.angleTo(targetQuat);
             this.camera.quaternion.slerp(targetQuat, dt * 3.0);
 
@@ -143,17 +143,17 @@ export class SpaceControls {
                 const dist = this.camera.position.distanceTo(targetPos);
                 // Velocidad dinámica basada en la distancia para un recorrido de X segundos
                 let targetSpeed = Math.max(
-                    Config.AUTOPILOT_MIN_SPEED, 
+                    Config.AUTOPILOT_MIN_SPEED,
                     Math.min(Config.AUTOPILOT_MAX_SPEED, dist / Config.AUTOPILOT_DESIRED_SECONDS)
                 );
 
                 if (this.autoPilotState === 'ALIGNING') {
                     // Stop sideways movement and rotate first
                     this.velocity.multiplyScalar(0.95);
-                    
+
                     if (angleToTarget < 0.05) {
                         this.autoPilotState = 'TRAVELING';
-                        OSDManager.show('Autopilot: Alineación completa. Ejecutando salto cuántico.', 'success', 2000);
+                        EventManager.emit(EVENTS.OSD_MESSAGE, { message: 'Alineación completa. Iniciando viaje.', type: 'success', duration: 2000 });
                     }
                 } else if (this.autoPilotState === 'TRAVELING') {
                     // Freno de salto cuántico: calculamos exactamente la distancia de frenado
@@ -170,7 +170,7 @@ export class SpaceControls {
                     // Para viajar en línea recta matemáticamente perfecta (sin importar si la rotación visual va un poco atrasada)
                     // transformamos el vector direccional global a espacio local de la cámara.
                     const localDir = dir.clone().applyQuaternion(this.camera.quaternion.clone().invert());
-                    
+
                     const currentVelMag = this.velocity.length();
                     const newVelMag = THREE.MathUtils.lerp(currentVelMag, targetSpeed, dt * 5.0);
                     this.velocity.copy(localDir).multiplyScalar(newVelMag);
@@ -180,7 +180,7 @@ export class SpaceControls {
                 if (this.keys.space) {
                     this.setAutoPilotTarget(null);
                     this.velocity.multiplyScalar(Config.PLAYER_BRAKE_FRICTION);
-                    OSDManager.show('Autopilot: Cancelado manualmente.', 'warning', 2000);
+                    EventManager.emit(EVENTS.OSD_MESSAGE, { message: 'Piloto automático cancelado', type: 'warning', duration: 2000 });
                 }
             } else {
                 // Solo autoLook: acoplar nuestra posición a la órbita del planeta y girar lentamente
@@ -196,14 +196,14 @@ export class SpaceControls {
 
                     // 2. Girar alrededor del planeta independientemente de las interacciones
                     const offset = new THREE.Vector3().subVectors(this.camera.position, targetPos);
-                    
+
                     // 3. Ajustar suavemente a la distancia orbital óptima (multiplicador * radio)
                     const optimalDistance = tgt.radius * Config.AUTOPILOT_ARRIVAL_MULT; // Distancia fija óptima (ajustada por radio)
                     const currentDistance = offset.length();
                     if (Math.abs(optimalDistance - currentDistance) > 1.0) {
                         const adjustSpeed = Math.max(10, currentDistance * 0.5); // Velocidad de ajuste
                         const step = (optimalDistance - currentDistance > 0 ? 1 : -1) * adjustSpeed * dt;
-                        
+
                         // Evitar pasarnos del objetivo
                         if (Math.abs(step) > Math.abs(optimalDistance - currentDistance)) {
                             offset.setLength(optimalDistance);
@@ -239,7 +239,7 @@ export class SpaceControls {
 
             const targetRoll = (Number(this.keys.q) - Number(this.keys.e)) * Config.ROLL_SPEED;
             this.currentRollSpeed += (targetRoll - this.currentRollSpeed) * dt * 5.0; // Lerp suave
-            
+
             if (Math.abs(this.currentRollSpeed) > 0.001) {
                 this.camera.rotateZ(this.currentRollSpeed * dt);
             }

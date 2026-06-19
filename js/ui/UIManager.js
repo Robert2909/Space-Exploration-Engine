@@ -89,7 +89,7 @@ export class UIManager {
             if (this.hud && !this.hud.classList.contains('hidden')) {
                 // Apply visual shake, duration is 0.5s from css
                 this.hud.classList.add('shake-animation');
-                
+
                 // Remove the class after animation completes so it can be triggered again
                 setTimeout(() => {
                     if (this.hud) this.hud.classList.remove('shake-animation');
@@ -170,9 +170,15 @@ export class UIManager {
             }
         };
 
-        document.addEventListener('keydown', (e) => {
-            if (Config.KEYS.TOGGLE_HUD.includes(e.code)) toggleHUD();
-            if (Config.KEYS.TOGGLE_LABELS.includes(e.code)) toggleLabels();
+        window.addEventListener('keydown', (e) => {
+            if (Config.KEYS.TOGGLE_HUD.includes(e.code)) {
+                toggleHUD();
+                EventManager.emit(EVENTS.OSD_MESSAGE, { message: 'Interfaz alternada', type: 'info', duration: 1000 });
+            }
+            if (Config.KEYS.TOGGLE_LABELS.includes(e.code)) {
+                toggleLabels();
+                EventManager.emit(EVENTS.OSD_MESSAGE, { message: 'Etiquetas alternadas', type: 'info', duration: 1000 });
+            }
         });
     }
 
@@ -360,7 +366,7 @@ export class UIManager {
                 const starAngle = Math.atan2(target.starZ - target.z, target.starX - target.x);
                 // Longitud actual rotada en el espacio = marker.lon - rotY
                 const currentWorldLon = payload.landingMarker.lon - rotY;
-                
+
                 let timeOfDay = (starAngle - currentWorldLon) + Math.PI / 2;
                 if (target.rotationSpeed < 0) {
                     timeOfDay = Math.PI - timeOfDay;

@@ -11,6 +11,7 @@ import { SpaceState } from './states/SpaceState.js';
 import { TerrainState } from './states/TerrainState.js';
 import { RenderSystem } from './systems/RenderSystem.js';
 import { InteractionSystem } from './systems/InteractionSystem.js';
+import { AudioManager } from '../audio/AudioManager.js';
 
 export class Engine {
     constructor() {
@@ -20,6 +21,7 @@ export class Engine {
         this.renderer = this.renderSystem.renderer;
 
         this.interactionSystem = new InteractionSystem(this);
+        this.audioManager = new AudioManager(this);
 
         this.lighting = new LightingManager(this.scene);
         this.controls = new SpaceControls(this.camera, document.body);
@@ -82,7 +84,7 @@ export class Engine {
             if (Config.KEYS.AUTOPILOT.includes(e.code) && this.targetBody) {
                 if (!this.controls.autoPilotTarget) {
                     this.controls.setAutoPilotTarget(this.targetBody);
-                    EventManager.emit(EVENTS.OSD_MESSAGE, { message: `Piloto Automático activado hacia ${this.targetBody.name}`, type: 'success', duration: 3000 });
+                    EventManager.emit(EVENTS.OSD_MESSAGE, { message: `Piloto Automático activado hacia ${this.targetBody.name}`, type: 'info', duration: 3000 });
                 } else {
                     this.controls.setAutoPilotTarget(null);
                     EventManager.emit(EVENTS.OSD_MESSAGE, { message: `Piloto Automático desactivado`, type: 'warning', duration: 3000 });
@@ -389,7 +391,7 @@ export class Engine {
                     }
                 } catch (e) {
                     console.error("Error during liftoff:", e);
-                    EventManager.emit(EVENTS.OSD_MESSAGE, { message: "Error during liftoff: " + e.message, type: 'error', duration: 5000 });
+                    EventManager.emit(EVENTS.OSD_MESSAGE, { message: "Error al despegar: " + e.message, type: 'error', duration: 5000 });
                 }
 
                 // Quitar el flash
@@ -408,6 +410,10 @@ export class Engine {
 
         if (this.currentState) {
             this.currentState.update(dt);
+        }
+
+        if (this.audioManager) {
+            this.audioManager.update(dt);
         }
 
         if (this.cameraBlurLevel > 0) {

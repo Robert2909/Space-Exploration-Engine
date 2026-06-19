@@ -7,40 +7,42 @@ import { Planet } from '../entities/Planet.js';
 import { BlackHole } from '../entities/BlackHole.js';
 
 const SHARED_SPHERE_GEO = new THREE.SphereGeometry(1, 16, 16);
+const SHARED_ASTEROID_GEO = new THREE.IcosahedronGeometry(1, 0); // Low-poly para asteroides
 const SHARED_STAR_MAT = new THREE.PointsMaterial({
     size: Config.RENDER_STAR_POINT_SIZE, vertexColors: true, transparent: true, opacity: 0.9, sizeAttenuation: true
 });
+const SHARED_ASTEROID_MAT = new THREE.MeshBasicMaterial({ color: 0x888888 });
 
 function createPlanetTexture() {
     const canvas = document.createElement('canvas');
     canvas.width = 512; canvas.height = 256;
     const ctx = canvas.getContext('2d');
-    
+
     // Base blanca
     ctx.fillStyle = '#ffffff';
-    ctx.fillRect(0,0,512,256);
-    
+    ctx.fillRect(0, 0, 512, 256);
+
     // Dibujar continentes y manchas difusas
-    for(let i=0; i<150; i++) {
+    for (let i = 0; i < 150; i++) {
         let x = Math.random() * 512;
         let y = Math.random() * 256;
         let r = Math.random() * 40 + 10;
         let alpha = Math.random() * 0.4 + 0.1;
-        
+
         ctx.beginPath();
-        ctx.arc(x, y, r, 0, Math.PI*2);
+        ctx.arc(x, y, r, 0, Math.PI * 2);
         ctx.fillStyle = `rgba(180, 180, 180, ${alpha})`;
         ctx.fill();
-        
+
         // Wrap horizontal (izquierda y derecha) para que la textura sea continua (seamless)
-        ctx.beginPath(); ctx.arc(x-512, y, r, 0, Math.PI*2); ctx.fill();
-        ctx.beginPath(); ctx.arc(x+512, y, r, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.arc(x - 512, y, r, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(x + 512, y, r, 0, Math.PI * 2); ctx.fill();
     }
-    
+
     // Dibujar algunas bandas/nubes horizontales para dar sensación planetaria
-    for(let y=0; y<256; y+=12) {
-        ctx.fillStyle = `rgba(140, 140, 140, ${Math.random()*0.15})`;
-        ctx.fillRect(0, y, 512, Math.random()*20 + 5);
+    for (let y = 0; y < 256; y += 12) {
+        ctx.fillStyle = `rgba(140, 140, 140, ${Math.random() * 0.15})`;
+        ctx.fillRect(0, y, 512, Math.random() * 20 + 5);
     }
 
     const tex = new THREE.CanvasTexture(canvas);
@@ -145,6 +147,7 @@ export class Chunk {
             const numSystems = Math.floor(seededRandom(this.cx, this.cy, this.cz, 101) * Config.MAX_SYSTEMS_PER_CHUNK) + 1;
             const systemsData = [];
             let totalPlanets = 0;
+            let totalAsteroids = 0;
 
             for (let i = 0; i < numSystems; i++) {
                 const seedBase = 200 + i * 10;
@@ -183,7 +186,7 @@ export class Chunk {
                         const typeRand = seededRandom(this.cx, this.cy, this.cz, pSeed + 20);
                         let cumulative = 1.0;
                         pType = 'Rocky Planet'; // Fallback
-                        
+
                         for (const [biomeName, biomeData] of Object.entries(Config.PLANET_BIOMES)) {
                             if (biomeName !== 'Rocky Planet') {
                                 cumulative -= biomeData.chance;
@@ -204,13 +207,13 @@ export class Chunk {
                     } else {
                         // Leer datos del registro (Data-Driven Pattern)
                         const biome = Config.PLANET_BIOMES[pType] || Config.PLANET_BIOMES['Rocky Planet'];
-                        
+
                         // Color base procedural
                         let pSat = biome.sat !== undefined ? biome.sat : (biome.satRandomBase + seededRandom(this.cx, this.cy, this.cz, pSeed + 1) * biome.satRandomMult);
                         let pLit = biome.lit !== undefined ? biome.lit : (biome.litRandomBase + seededRandom(this.cx, this.cy, this.cz, pSeed + 2) * biome.litRandomMult);
                         let pHue = biome.useSystemHue ? hue : (biome.hueBase + seededRandom(this.cx, this.cy, this.cz, pSeed) * biome.hueVar);
                         pColor.setHSL(pHue, pSat, pLit);
-                        
+
                         // Densidad atmosférica
                         if (biome.atmoChance) {
                             if (seededRandom(this.cx, this.cy, this.cz, pSeed + 13) <= biome.atmoChance) {
@@ -251,6 +254,76 @@ export class Chunk {
                 });
                 systemsData.push(starInstance);
                 totalPlanets += numPlanets;
+                let companionRef = null;
+
+                // --- BINARY STAR CHECK ---
+                const isBinary = seededRandom(this.cx, this.cy, this.cz, seedBase + 50) > (1 - Config.BINARY_STAR_CHANCE);
+                if (isBinary) {
+                    const compRadius = sunRadius * (0.3 + seededRandom(this.cx, this.cy, this.cz, seedBase + 51) * 0.6); // 30% to 90% size of main star
+                    const compIsBlue = seededRandom(this.cx, this.cy, this.cz, seedBase + 52) > 0.5;
+                    const compIsRed = seededRandom(this.cx, this.cy, this.cz, seedBase + 53) > 0.5;
+                    let compColorObj = new THREE.Color();
+                    if (compIsBlue) {
+                        compColorObj.setHSL(0.55 + seededRandom(this.cx, this.cy, this.cz, seedBase + 54) * 0.1, 0.8, 0.7);
+                    } else if (compIsRed) {
+                        compColorObj.setHSL(0.0 + seededRandom(this.cx, this.cy, this.cz, seedBase + 54) * 0.1, 0.8, 0.5);
+                    } else {
+                        compColorObj.setHSL(0.1 + seededRandom(this.cx, this.cy, this.cz, seedBase + 54) * 0.08, 0.6, 0.6);
+                    }
+                    const compColor = compColorObj.getHex();
+
+                    const compDistance = sunRadius * 2 + seededRandom(this.cx, this.cy, this.cz, seedBase + 55) * sunRadius * 3;
+                    const compAngle = seededRandom(this.cx, this.cy, this.cz, seedBase + 56) * Math.PI * 2;
+                    const compSpeed = Config.PLANET_ORBIT_SPEED_MAX * (0.5 + seededRandom(this.cx, this.cy, this.cz, seedBase + 57)) * (seededRandom(this.cx, this.cy, this.cz, seedBase + 58) > 0.5 ? 1 : -1);
+
+                    const companionInstance = new Star({
+                        name: starName + " B", type: "Binary Companion Star", sunColor: compColor, radius: compRadius,
+                        isCompanion: true, parentLx: lx, parentLy: ly, parentLz: lz,
+                        orbitRadius: compDistance, orbitSpeed: compSpeed, orbitAngle: compAngle,
+                        lx: lx + Math.cos(compAngle) * compDistance,
+                        lz: lz + Math.sin(compAngle) * compDistance,
+                        ly: ly + Math.sin(compAngle) * (compDistance * 0.1),
+                        planets: [] // Planets orbit the primary, companion is just another star in the system
+                    });
+                    systemsData.push(companionInstance);
+                    companionRef = companionInstance;
+                }
+                if (companionRef) {
+                    companionRef.primary = starInstance;
+                }
+                starInstance.companion = companionRef;
+                for (let p of planets) {
+                    p.parentSystem = starInstance;
+                }
+
+                // --- ASTEROID BELT CHECK ---
+                const hasAsteroids = seededRandom(this.cx, this.cy, this.cz, seedBase + 60) > (1 - Config.ASTEROID_BELT_CHANCE);
+                if (hasAsteroids) {
+                    starInstance.asteroidBelt = {
+                        count: 100 + Math.floor(seededRandom(this.cx, this.cy, this.cz, seedBase + 61) * 300),
+                        innerRadius: sunRadius * 4 + seededRandom(this.cx, this.cy, this.cz, seedBase + 62) * sunRadius * 5,
+                        width: sunRadius * 2,
+                        speed: (seededRandom(this.cx, this.cy, this.cz, seedBase + 63) * 0.05 + 0.01) * (seededRandom(this.cx, this.cy, this.cz, seedBase + 64) > 0.5 ? 1 : -1),
+                        angle: 0,
+                        asteroids: [] // { radius, dist, angleOffset, rotSpeed, rotAxis, tilt }
+                    };
+                    for (let i = 0; i < starInstance.asteroidBelt.count; i++) {
+                        starInstance.asteroidBelt.asteroids.push({
+                            radius: (seededRandom(this.cx, this.cy, this.cz, seedBase + 65 + i) * 0.8 + 0.2) * 500, // Rocas de 100 a 500 unidades
+                            dist: starInstance.asteroidBelt.innerRadius + seededRandom(this.cx, this.cy, this.cz, seedBase + 66 + i) * starInstance.asteroidBelt.width,
+                            angleOffset: seededRandom(this.cx, this.cy, this.cz, seedBase + 67 + i) * Math.PI * 2,
+                            tilt: (seededRandom(this.cx, this.cy, this.cz, seedBase + 68 + i) - 0.5) * 0.4, // Ligera variación en Y
+                            rotSpeed: (seededRandom(this.cx, this.cy, this.cz, seedBase + 69 + i) - 0.5) * 2,
+                            rotAxis: new THREE.Vector3(
+                                seededRandom(this.cx, this.cy, this.cz, seedBase + 70 + i),
+                                seededRandom(this.cx, this.cy, this.cz, seedBase + 71 + i),
+                                seededRandom(this.cx, this.cy, this.cz, seedBase + 72 + i)
+                            ).normalize(),
+                            currentRot: 0
+                        });
+                    }
+                    totalAsteroids += starInstance.asteroidBelt.count;
+                }
             }
 
             if (totalPlanets > 0) {
@@ -259,8 +332,15 @@ export class Chunk {
                 this.planetMesh.frustumCulled = false;
                 this.group.add(this.planetMesh);
             }
+            if (totalAsteroids > 0) {
+                this.asteroidMesh = new THREE.InstancedMesh(SHARED_ASTEROID_GEO, SHARED_ASTEROID_MAT, totalAsteroids);
+                this.asteroidMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+                this.asteroidMesh.frustumCulled = false;
+                this.group.add(this.asteroidMesh);
+            }
 
             let pIndex = 0;
+            let aIndex = 0;
             for (let sys of systemsData) {
                 const spriteMaterial = new THREE.SpriteMaterial({
                     map: SHARED_SUN_TEXTURE, color: sys.sunColor, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false
@@ -269,12 +349,17 @@ export class Chunk {
                 sunSprite.scale.set(sys.radius * Config.SUN_GLOW_SCALE, sys.radius * Config.SUN_GLOW_SCALE, 1);
                 sunSprite.position.set(sys.lx, sys.ly, sys.lz);
                 sunSprite.frustumCulled = true; // No dibujar soles a tus espaldas
+                sys.sprite = sunSprite;
                 this.group.add(sunSprite);
 
                 for (let p of sys.planets) {
                     p.instanceId = pIndex;
                     if (this.planetMesh) this.planetMesh.setColorAt(pIndex, p.color);
                     pIndex++;
+                }
+                if (sys.asteroidBelt) {
+                    sys.asteroidBelt.startIndex = aIndex;
+                    aIndex += sys.asteroidBelt.count;
                 }
                 this.systems.push(sys);
             }
@@ -283,11 +368,15 @@ export class Chunk {
 
     update(dt) {
         let matricesUpdated = false;
+        let asteroidsUpdated = false;
         for (let sys of this.systems) {
             sys.update(dt);
+            sys.updateAbsolutePosition(this.group.position.x, this.group.position.y, this.group.position.z);
+            if (sys.sprite && sys.isCompanion) {
+                sys.sprite.position.set(sys.lx, sys.ly, sys.lz);
+            }
+
             for (let p of sys.planets) {
-                // Update absolute positions for UI calculations
-                sys.updateAbsolutePosition(this.group.position.x, this.group.position.y, this.group.position.z);
                 p.updateAbsolutePosition(this.group.position.x, this.group.position.y, this.group.position.z);
 
                 if (this.planetMesh) {
@@ -299,20 +388,43 @@ export class Chunk {
                     matricesUpdated = true;
                 }
             }
+
+            if (sys.asteroidBelt) {
+                sys.asteroidBelt.angle += sys.asteroidBelt.speed * dt;
+                let aIdx = sys.asteroidBelt.startIndex;
+                for (let a of sys.asteroidBelt.asteroids) {
+                    a.currentRot += a.rotSpeed * dt;
+                    const totalAngle = sys.asteroidBelt.angle + a.angleOffset;
+
+                    const ax = sys.lx + Math.cos(totalAngle) * a.dist;
+                    const az = sys.lz + Math.sin(totalAngle) * a.dist;
+                    const ay = sys.ly + Math.sin(totalAngle + a.tilt) * (a.dist * a.tilt);
+
+                    dummy.position.set(ax, ay, az);
+                    dummy.quaternion.setFromAxisAngle(a.rotAxis, a.currentRot);
+                    dummy.scale.set(a.radius, a.radius, a.radius);
+                    dummy.updateMatrix();
+                    this.asteroidMesh.setMatrixAt(aIdx, dummy.matrix);
+                    aIdx++;
+                    asteroidsUpdated = true;
+                }
+            }
         }
         if (matricesUpdated && this.planetMesh) this.planetMesh.instanceMatrix.needsUpdate = true;
+        if (asteroidsUpdated && this.asteroidMesh) this.asteroidMesh.instanceMatrix.needsUpdate = true;
     }
 
     dispose() {
         this.group.traverse((child) => {
-            if (child.geometry && child.geometry !== SHARED_SPHERE_GEO) child.geometry.dispose();
-            if (child.material && child.material !== SHARED_STAR_MAT && child.material !== SHARED_PLANET_MAT && !child.isSprite) {
+            if (child.geometry && child.geometry !== SHARED_SPHERE_GEO && child.geometry !== SHARED_ASTEROID_GEO) child.geometry.dispose();
+            if (child.material && child.material !== SHARED_STAR_MAT && child.material !== SHARED_PLANET_MAT && child.material !== SHARED_ASTEROID_MAT && !child.isSprite) {
                 if (Array.isArray(child.material)) child.material.forEach(m => m.dispose());
                 else child.material.dispose();
             }
             if (child.isSprite && child.material) child.material.dispose();
         });
         if (this.planetMesh) this.planetMesh.dispose();
+        if (this.asteroidMesh) this.asteroidMesh.dispose();
         this.scene.remove(this.group);
     }
 }

@@ -6,10 +6,26 @@ export class Star extends CelestialBody {
         this.group = 'Estrella';
         this.sunColor = config.sunColor; // Hex color
         this.planets = config.planets || []; // Array of Planet instances
+        
+        // Propiedades para Sistemas Binarios
+        this.isCompanion = config.isCompanion || false;
+        this.orbitRadius = config.orbitRadius || 0;
+        this.orbitSpeed = config.orbitSpeed || 0;
+        this.orbitAngle = config.orbitAngle || 0;
+        this.parentLx = config.parentLx || 0;
+        this.parentLy = config.parentLy || 0;
+        this.parentLz = config.parentLz || 0;
     }
 
     update(dt) {
-        // Star doesn't move relative to its chunk, but its planets do
+        if (this.isCompanion) {
+            this.orbitAngle += this.orbitSpeed * dt;
+            this.lx = this.parentLx + Math.cos(this.orbitAngle) * this.orbitRadius;
+            this.lz = this.parentLz + Math.sin(this.orbitAngle) * this.orbitRadius;
+            this.ly = this.parentLy + Math.sin(this.orbitAngle) * (this.orbitRadius * 0.1); // Leve inclinación
+        }
+        
+        // Actualizar planetas (si los hay)
         for (let planet of this.planets) {
             planet.update(dt, this.lx, this.ly, this.lz);
         }

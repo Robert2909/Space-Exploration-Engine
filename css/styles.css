@@ -256,3 +256,54 @@ input[type=range]::-webkit-slider-thumb {
     animation: shake-ui 0.5s;
     animation-iteration-count: 1;
 }
+
+/* Error Manager Styles */
+#fatal-error-box {
+    position: fixed;
+    top: 10%;
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: rgba(15, 5, 10, 0.95);
+    border: 1px solid #ff3366;
+    box-shadow: 0 0 20px rgba(255, 50, 100, 0.5);
+    color: #ff99aa;
+    padding: 20px;
+    font-family: 'Fira Code', monospace;
+    z-index: 999999;
+    max-width: 80vw;
+    word-wrap: break-word;
+    border-radius: 8px;
+}
+
+#fatal-error-box h3 {
+    margin: 0 0 15px 0;
+    color: #ff3366;
+}
+
+#fatal-error-msg {
+    max-height: 400px;
+    overflow-y: auto;
+    margin-bottom: 15px;
+    white-space: pre-wrap;
+}
+
+.error-btn {
+    padding: 8px 16px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-family: inherit;
+    font-weight: 600;
+}
+
+.error-btn-primary {
+    background: #ff3366;
+    color: white;
+    border: none;
+    margin-right: 10px;
+}
+
+.error-btn-secondary {
+    background: transparent;
+    color: #ff3366;
+    border: 1px solid #ff3366;
+}

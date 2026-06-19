@@ -71,6 +71,9 @@ export class TerrainManager {
             this.scene.fog = new THREE.FogExp2(0x000000, Config.TERRAIN_FOG_FALLBACK);
         }
 
+        const planetOrbitRadius = this.planetData ? this.planetData.orbitRadius : 5000;
+        this.sunDistanceMultiplier = THREE.MathUtils.clamp(1.0 / (planetOrbitRadius / 5000), 0.2, 1.5);
+
         // Generar Estrellas en el cielo
         this.createStars();
 
@@ -78,62 +81,56 @@ export class TerrainManager {
         this.ambientLight = new THREE.AmbientLight(this.hasAtmosphere ? this.skyColorBase : 0xffffff, this.hasAtmosphere ? 0.3 : 0.05);
         this.group.add(this.ambientLight);
 
-        this.dirLight = new THREE.DirectionalLight(0xfff4e5, 1.2);
-        this.dirLight.position.set(1000, 2000, 500);
-        this.group.add(this.dirLight);
-        this.group.add(this.dirLight.target); // Añadir el target a la escena para que actualice la posición correctamente
+        const createSunObj = (isCompanion, starData) => {
+            const dirLight = new THREE.DirectionalLight(starData ? starData.sunColor : 0xfff4e5, isCompanion ? 0.8 : 1.2);
+            dirLight.position.set(1000, 2000, 500);
+            this.group.add(dirLight);
+            this.group.add(dirLight.target);
 
-        // Calcular multiplicador de distancia estelar (Afecta tamaño visual y temperatura)
-        this.sunDistanceMultiplier = 1.0;
-        if (this.planetData && this.planetData.orbitRadius) {
-            // Asumimos 15000 como distancia base media
-            this.sunDistanceMultiplier = 15000 / Math.max(1000, this.planetData.orbitRadius);
+            const sunRadius = (this.hasAtmosphere ? 250 : 80) * this.sunDistanceMultiplier * (isCompanion ? 0.6 : 1.0);
+            const sunGeo = new THREE.SphereGeometry(sunRadius, 16, 16);
+            const sunMat = new THREE.MeshBasicMaterial({ color: starData ? starData.sunColor : 0xffffff, fog: false });
+            const sunMesh = new THREE.Mesh(sunGeo, sunMat);
+            this.group.add(sunMesh);
+
+            const canvas = document.createElement('canvas');
+            canvas.width = 256; canvas.height = 256;
+            const ctx = canvas.getContext('2d');
+            const gradient = ctx.createRadialGradient(128, 128, 0, 128, 128, 128);
+            
+            if (this.hasAtmosphere) {
+                gradient.addColorStop(0, 'rgba(255, 255, 255, 1)');
+                gradient.addColorStop(0.2, 'rgba(255, 240, 200, 0.8)');
+                gradient.addColorStop(1, 'rgba(255, 240, 200, 0)');
+            } else {
+                gradient.addColorStop(0, 'rgba(255, 255, 255, 1)');
+                gradient.addColorStop(0.05, 'rgba(255, 255, 255, 0.8)');
+                gradient.addColorStop(0.15, 'rgba(255, 250, 230, 0.2)');
+                gradient.addColorStop(1, 'rgba(255, 250, 230, 0)');
+            }
+            
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, 256, 256);
+            const glowMaterial = new THREE.SpriteMaterial({
+                map: new THREE.CanvasTexture(canvas),
+                color: starData ? starData.sunColor : 0xffffff,
+                transparent: true, blending: THREE.AdditiveBlending, fog: false
+            });
+            const sunGlow = new THREE.Sprite(glowMaterial);
+            const glowScale = (this.hasAtmosphere ? 2000 : 3500) * this.sunDistanceMultiplier * (isCompanion ? 0.6 : 1.0);
+            sunGlow.scale.set(glowScale, glowScale, 1);
+            sunMesh.add(sunGlow);
+
+            return { dirLight, sunMesh };
+        };
+
+        const parentSys = this.planetData ? this.planetData.parentSystem : null;
+        this.suns = [];
+        this.suns.push(createSunObj(false, parentSys));
+
+        if (parentSys && parentSys.companion) {
+            this.suns.push(createSunObj(true, parentSys.companion));
         }
-
-        // Malla física del sol para que sea visible (escala con la cercanía a la estrella madre)
-        const sunRadius = (this.hasAtmosphere ? 250 : 80) * this.sunDistanceMultiplier;
-        const sunGeo = new THREE.SphereGeometry(sunRadius, 16, 16);
-        const sunMat = new THREE.MeshBasicMaterial({ color: 0xffffff, fog: false });
-        this.sunMesh = new THREE.Mesh(sunGeo, sunMat);
-        this.group.add(this.sunMesh);
-
-        // Crear un sprite de resplandor para el sol usando un Canvas
-        const canvas = document.createElement('canvas');
-        canvas.width = 256;
-        canvas.height = 256;
-        const ctx = canvas.getContext('2d');
-        const gradient = ctx.createRadialGradient(128, 128, 0, 128, 128, 128);
-        
-        if (this.hasAtmosphere) {
-            // Atmósfera: Brillo disperso
-            gradient.addColorStop(0, 'rgba(255, 255, 255, 1)');
-            gradient.addColorStop(0.2, 'rgba(255, 240, 200, 0.8)');
-            gradient.addColorStop(1, 'rgba(255, 240, 200, 0)');
-        } else {
-            // Vacío: Centro deslumbrante, halo amplio pero translúcido
-            gradient.addColorStop(0, 'rgba(255, 255, 255, 1)');
-            gradient.addColorStop(0.05, 'rgba(255, 255, 255, 0.8)');
-            gradient.addColorStop(0.15, 'rgba(255, 250, 230, 0.2)');
-            gradient.addColorStop(1, 'rgba(255, 250, 230, 0)');
-        }
-        
-        ctx.fillStyle = gradient;
-        ctx.fillRect(0, 0, 256, 256);
-        const texture = new THREE.CanvasTexture(canvas);
-
-        const glowMaterial = new THREE.SpriteMaterial({
-            map: texture,
-            color: 0xffffff,
-            transparent: true,
-            blending: THREE.AdditiveBlending,
-            fog: false
-        });
-        this.sunGlow = new THREE.Sprite(glowMaterial);
-        
-        // El tamaño del glare también cambia con la distancia
-        const glowScale = (this.hasAtmosphere ? 2000 : 3500) * this.sunDistanceMultiplier;
-        this.sunGlow.scale.set(glowScale, glowScale, 1);
-        this.sunMesh.add(this.sunGlow);
 
         this.timeOfDay = initialTimeOfDay; // Para el ciclo día y noche
 
@@ -252,31 +249,42 @@ export class TerrainManager {
         const cosLat = Math.cos(currentLat);
         const sinLat = Math.sin(currentLat);
 
-        const sunX = eqX;
-        const sunY = eqY * cosLat - eqZ * sinLat;
-        const sunZ = eqY * sinLat + eqZ * cosLat;
+        let maxSunNormalized = -1;
 
-        // Posicionar el sol relativo al jugador para que nunca escape del horizonte visible
-        if (playerPos) {
-            this.dirLight.position.set(playerPos.x + sunX, playerPos.y + sunY, playerPos.z + sunZ);
-            this.dirLight.target.position.set(playerPos.x, playerPos.y, playerPos.z);
-            this.sunMesh.position.copy(this.dirLight.position);
-            this.stars.position.set(playerPos.x, playerPos.y, playerPos.z);
-        } else {
-            this.dirLight.position.set(sunX, sunY, sunZ);
-            this.dirLight.target.position.set(0, 0, 0);
-            this.sunMesh.position.set(sunX, sunY, sunZ);
+        for (let i = 0; i < this.suns.length; i++) {
+            const sunObj = this.suns[i];
+            
+            // Para la compañera, agregamos un offset al timeOfDay
+            const timeOffset = i === 1 ? Math.PI * 0.3 : 0; 
+            
+            const eqX = Math.cos(this.timeOfDay + timeOffset) * sunOrbitRadius;
+            const eqY = Math.sin(this.timeOfDay + timeOffset) * sunOrbitRadius;
+            const eqZ = 0;
+
+            const sunX = eqX;
+            const sunY = eqY * cosLat - eqZ * sinLat;
+            const sunZ = eqY * sinLat + eqZ * cosLat;
+
+            if (playerPos) {
+                sunObj.dirLight.position.set(playerPos.x + sunX, playerPos.y + sunY, playerPos.z + sunZ);
+                sunObj.dirLight.target.position.set(playerPos.x, playerPos.y, playerPos.z);
+                sunObj.sunMesh.position.copy(sunObj.dirLight.position);
+                if (i === 0) this.stars.position.set(playerPos.x, playerPos.y, playerPos.z);
+            } else {
+                sunObj.dirLight.position.set(sunX, sunY, sunZ);
+                sunObj.dirLight.target.position.set(0, 0, 0);
+                sunObj.sunMesh.position.set(sunX, sunY, sunZ);
+            }
+
+            const sunNormalized = sunY / sunOrbitRadius;
+            if (sunNormalized > maxSunNormalized) maxSunNormalized = sunNormalized;
+            const sunIntensity = Math.max(0, sunNormalized);
+            sunObj.dirLight.intensity = sunIntensity * (i === 1 ? 1.0 : 1.5) * Math.min(2.0, this.sunDistanceMultiplier);
         }
-
-        // Intensidad estelar
-        const sunNormalized = sunY / sunOrbitRadius; // de -1 a 1
-        const sunIntensity = Math.max(0, sunNormalized);
-        this.dirLight.intensity = sunIntensity * 1.5 * Math.min(2.0, this.sunDistanceMultiplier);
 
         // La luz ambiente se ajusta más abajo dependiento de la atmósfera
         if (this.hasAtmosphere) {
-            // Un valor de 0 a 1 donde 0 es noche cerrada y 1 es día
-            let skyBlend = THREE.MathUtils.clamp((sunNormalized + 0.2) / 0.4, 0, 1);
+            let skyBlend = THREE.MathUtils.clamp((maxSunNormalized + 0.2) / 0.4, 0, 1);
 
             // oscurecer el cieloBase
             let currentSkyColor = new THREE.Color(0x000000).lerp(new THREE.Color(this.skyColorBase), skyBlend);
@@ -307,28 +315,22 @@ export class TerrainManager {
         }
 
         if (this.hasAtmosphere) {
-            // Densidad de niebla baja un poco de noche para dejar ver "siluetas", multiplicada por Config
-            this.scene.fog.density = this.baseAtmosphereDensity * Config.TERRAIN_FOG_MULTIPLIER * (0.5 + sunIntensity * 0.5);
-
-            // Estrellas (Si la atmósfera es MUY densa, apenas se ven de noche)
-            // baseAtmosphereDensity va de 0 a 0.0005. 
-            // Si es 0.0005, el atmoRatio es 1.0, por lo tanto factor es 0.1 (casi ocultas)
+            const overallSunIntensity = Math.max(0, maxSunNormalized);
+            if (this.scene.fog) {
+                this.scene.fog.density = this.baseAtmosphereDensity * Config.TERRAIN_FOG_MULTIPLIER * (0.5 + overallSunIntensity * 0.5);
+            }
             const atmoRatio = Math.min(1.0, this.baseAtmosphereDensity / 0.0005);
-            const nightStarOpacity = 1.0 - (atmoRatio * 0.85); // De noche máxima
-
-            this.stars.material.opacity = Math.max(0, nightStarOpacity - (sunIntensity * 2));
+            const nightStarOpacity = 1.0 - (atmoRatio * 0.85);
+            this.stars.material.opacity = Math.max(0, nightStarOpacity - (overallSunIntensity * 2));
             this.stars.material.transparent = true;
         } else {
-            // Sin atmósfera
             this.scene.background = new THREE.Color(0x000000);
             this.stars.material.opacity = 1.0;
         }
 
-        // ¿En qué chunk está el jugador ahora mismo?
         if (!playerPos) return;
-        
+
         if (this.waterMesh) {
-            // El agua sigue al jugador en X y Z para parecer infinita
             this.waterMesh.position.set(playerPos.x, 0, playerPos.z);
         }
 
@@ -336,7 +338,6 @@ export class TerrainManager {
         const cz = Math.floor(playerPos.z / this.chunkSize);
 
         const activeKeys = new Set();
-
         for (let x = cx - this.renderDistance; x <= cx + this.renderDistance; x++) {
             for (let z = cz - this.renderDistance; z <= cz + this.renderDistance; z++) {
                 const key = this.getChunkKey(x, z);
@@ -390,7 +391,16 @@ export class TerrainManager {
         }
         this.chunks.clear();
         this.material.dispose();
+        if(this.waterMesh) {
+            this.waterMesh.geometry.dispose();
+            this.waterMesh.material.dispose();
+            this.scene.remove(this.waterMesh);
+        }
         this.ambientLight.dispose();
-        this.dirLight.dispose();
+        for (let sun of this.suns) {
+            sun.dirLight.dispose();
+            sun.sunMesh.geometry.dispose();
+            sun.sunMesh.material.dispose();
+        }
     }
 }

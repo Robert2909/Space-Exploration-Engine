@@ -14,14 +14,7 @@
             }
         }
     </script>
-    <script>
-        window.onerror = function (message, source, lineno, colno, error) {
-            alert("Error: " + message + " at " + source + ":" + lineno + ":" + colno);
-        };
-        window.addEventListener('unhandledrejection', function (event) {
-            alert("Promise Error: " + event.reason);
-        });
-    </script>
+    <script type="module" src="js/main.js"></script>
 </head>
 
 <body>

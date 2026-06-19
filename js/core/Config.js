@@ -2,16 +2,18 @@ export const Config = {
     // ==========================================
     // CÓDIGO GENÉTICO DEL UNIVERSO
     // ==========================================
-    UNIVERSE_SEED_OFFSET: 2105,           // Cambia este número mágico (ej: 1337, 999) para generar un multiverso totalmente diferente
+    UNIVERSE_SEED_OFFSET: 1,           // Cambia este número mágico (ej: 1337, 999) para generar un multiverso totalmente diferente
 
     // ==========================================
     // UNIVERSO Y GENERACIÓN PROCEDURAL
     // ==========================================
     UNIVERSE_CHUNK_SIZE: 10000000,         // Tamaño de un sector del espacio (u)
     STARS_PER_CHUNK: 300,              // Cantidad de estrellas decorativas (puntos) por sector
-    SYSTEM_SPAWN_CHANCE: 0.5,          // Probabilidad (0.0 a 1.0) de que aparezcan planetas en un sector vacío
-    MAX_SYSTEMS_PER_CHUNK: 20,          // Número máximo de sistemas solares por sector
-    BLACK_HOLE_SPAWN_CHANCE: 0.005,    // Probabilidad de que un chunk contenga un agujero negro (aislado)
+    SYSTEM_SPAWN_CHANCE: 0.5,            // Probabilidad (0.0 a 1.0) de que aparezcan planetas en un sector vacío
+    MAX_SYSTEMS_PER_CHUNK: 2,             // Número máximo de sistemas solares por sector
+    BINARY_STAR_CHANCE: 0.01,             // Probabilidad de que un sistema sea binario
+    ASTEROID_BELT_CHANCE: 0.30,           // Probabilidad de que un sistema tenga cinturón de asteroides
+    BLACK_HOLE_SPAWN_CHANCE: 0.001,       // Probabilidad de que un chunk contenga un agujero negro (aislado)
 
     // ==========================================
     // ASTROS Y SISTEMAS SOLARES
@@ -105,10 +107,10 @@ export const Config = {
 
     // Autopilot Cinemático
     AUTOPILOT_MIN_SPEED: 1000000,         // Velocidad mínima de viaje (unidades por segundo)
-    AUTOPILOT_MAX_SPEED: 50000000,        // Velocidad máxima permitida (50M uds/s)
+    AUTOPILOT_MAX_SPEED: 25000000,        // Velocidad máxima permitida (50M uds/s)
     AUTOPILOT_DESIRED_SECONDS: 5.0,       // Segundos teóricos en los que queremos que llegue al objetivo para escalar velocidad
     AUTOPILOT_BRAKE_ZONE_MULT: 10.0,      // Multiplicador de radio para empezar a frenar violentamente
-    AUTOPILOT_BRAKE_MULTIPLIER: 0.70,     // Fricción de frenado agresivo (10% por frame)
+    AUTOPILOT_BRAKE_MULTIPLIER: 0.99,     // Fricción de frenado agresivo (10% por frame)
     AUTOPILOT_ARRIVAL_MULT: 3,            // Multiplicador de radio para considerar llegada e inserción orbital
 
     // ==========================================
@@ -118,8 +120,8 @@ export const Config = {
     TERRAIN_JUMP_FORCE: 12,               // Fuerza del salto inicial
     TERRAIN_BASE_GRAVITY: 25,             // Gravedad base (1G modificado por jugabilidad)
     TERRAIN_JETPACK_MAX_FUEL: 250,        // Capacidad máxima del jetpack
-    TERRAIN_JETPACK_CONSUME: 35,          // Gasto de combustible por segundo
-    TERRAIN_JETPACK_REFILL: 25,           // Recarga de combustible por segundo
+    TERRAIN_JETPACK_CONSUME: 25,          // Gasto de combustible por segundo
+    TERRAIN_JETPACK_REFILL: 50,           // Recarga de combustible por segundo
     TERRAIN_MOUSE_SENSITIVITY: 0.0015,    // Sensibilidad de la vista en tierra
 
     // ==========================================
@@ -148,7 +150,7 @@ export const Config = {
     // ==========================================
     RENDER_FOV: 100,                   // Campo de visión de la cámara (Grados)
     RENDER_FAR_PLANE: 100000000,      // Límite visual de la cámara (1 billón de u para ver quásares)
-    RENDER_LOGARITHMIC_DEPTH: true,    // Mantiene matemáticas estables a trillones de km sin romper la textura (Z-Fighting)
+    RENDER_LOGARITHMIC_DEPTH: false,    // Mantiene matemáticas estables a trillones de km sin romper la textura (Z-Fighting)
     RENDER_PIXEL_RATIO_MAX: 1.0,       // Límite de resolución para no quemar la gráfica (1.0 = rápido, 2.0 = nítido 4K)
     RENDER_FOG_BASE: 3,              // Densidad de la niebla estelar profunda
     RENDER_STAR_POINT_SIZE: 100,         // Tamaño de los puntos de luz estelares
@@ -209,5 +211,20 @@ export const Config = {
         'Barren Planet': -10,
         'Gas Giant': -150,
         'Rocky Planet': 15
-    }
+    },
+
+    // ==========================================
+    // AUDIO Y SINTESIS PROCEDURAL
+    // ==========================================
+    AUDIO_THRUSTER_BASE_FREQ: 60,
+    AUDIO_THRUSTER_MOD_FREQ: 60,
+    AUDIO_JETPACK_VOL_MAX: 0.1,
+    AUDIO_JETPACK_FREQ: 150,
+    AUDIO_WIND_FREQ_BASE: 400,
+    AUDIO_WIND_LFO_AMP: 200,
+    AUDIO_FOOTSTEP_SPEED_MIN: 5,
+    AUDIO_SHIP_FREQ: 45,
+    AUDIO_SHIP_VOL: 0.1,
+    AUDIO_SHIP_REF_DIST: 10,
+    AUDIO_SHIP_MAX_DIST: 1000
 };

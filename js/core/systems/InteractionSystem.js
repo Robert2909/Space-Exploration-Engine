@@ -11,7 +11,7 @@ export class InteractionSystem {
         this.raycaster.setFromCamera(new THREE.Vector2(0, 0), this.engine.camera);
         let closest = null;
         let closestDist = Infinity;
-        
+
         for (let body of this.engine.nearbyBodies || []) {
             const vec = new THREE.Vector3(body.x, body.y, body.z);
             const toBody = vec.clone().sub(this.engine.camera.position);
@@ -35,10 +35,12 @@ export class InteractionSystem {
                     this.engine.controls.lastAutoLookPos = null;
                 }
                 EventManager.emit(EVENTS.TARGET_CLEARED);
+                EventManager.emit(EVENTS.OSD_MESSAGE, { message: 'Sistema de fijación desactivado', type: 'info' });
             } else {
                 this.engine.targetBody = closest;
                 this.engine.updateTargetHUD(closest);
                 EventManager.emit(EVENTS.TARGET_CHANGED, closest);
+                EventManager.emit(EVENTS.OSD_MESSAGE, { message: 'Objetivo fijado en: ' + closest.name, type: 'success' });
             }
         } else {
             if (this.engine.targetBody) {
@@ -50,15 +52,16 @@ export class InteractionSystem {
                     this.engine.controls.lastAutoLookPos = null;
                 }
                 EventManager.emit(EVENTS.TARGET_CLEARED);
+                EventManager.emit(EVENTS.OSD_MESSAGE, { message: 'Sistema de fijación desactivado', type: 'info' });
             } else {
-                EventManager.emit(EVENTS.OSD_MESSAGE, { message: 'No valid target in sight', type: 'error' });
+                EventManager.emit(EVENTS.OSD_MESSAGE, { message: 'No hay objetivo válido en el visor', type: 'error' });
             }
         }
     }
 
     attemptLandingZone(planet) {
         this.raycaster.setFromCamera(new THREE.Vector2(0, 0), this.engine.camera);
-        
+
         // El planeta no tiene un "mesh" único (es un InstancedMesh), así que usamos una esfera matemática
         const sphere = new THREE.Sphere(new THREE.Vector3(planet.x, planet.y, planet.z), planet.radius);
         const hitPoint = new THREE.Vector3();
@@ -66,33 +69,33 @@ export class InteractionSystem {
 
         if (intersects) {
             const worldDir = hitPoint.clone().sub(new THREE.Vector3(planet.x, planet.y, planet.z));
-            
+
             // Calculamos latitud y longitud en espacio mundo
             const lat = Math.asin(Math.max(-1, Math.min(1, worldDir.y / planet.radius)));
             const worldLon = Math.atan2(worldDir.z, worldDir.x);
-            
+
             // La longitud local = longitud mundial + rotación actual (despejando de worldLon = lon - rotY)
             const rotY = planet.rotationY || 0;
-            let lon = worldLon + rotY; 
-            
+            let lon = worldLon + rotY;
+
             // Normalizar lon a [-PI, PI] para evitar que el aterrizaje genere coordenadas fuera de límites matemáticos
             while (lon > Math.PI) lon -= Math.PI * 2;
             while (lon < -Math.PI) lon += Math.PI * 2;
-            
+
             // Si ya hay un marcador y clickeamos cerca, aterrizamos
             if (this.engine.landingMarker && this.engine.landingMarker.planetName === planet.name) {
                 const markerLat = this.engine.landingMarker.lat;
                 const markerLon = this.engine.landingMarker.lon;
-                
+
                 // Distancia angular simple
                 const distLat = lat - markerLat;
                 let distLon = lon - markerLon;
                 // Normalizar distLon a [-PI, PI]
                 while (distLon > Math.PI) distLon -= Math.PI * 2;
                 while (distLon < -Math.PI) distLon += Math.PI * 2;
-                
+
                 const angularDist = Math.sqrt(distLat * distLat + distLon * distLon);
-                
+
                 // Si la diferencia es menor a ~5 grados (0.08 rad), confirmamos aterrizaje
                 if (angularDist < 0.1) {
                     this.engine.triggerLanding(planet, markerLat, markerLon);
@@ -121,11 +124,11 @@ export class InteractionSystem {
             const geometry = new THREE.TorusGeometry(planet.radius * 0.05, planet.radius * 0.005, 16, 32);
             const material = new THREE.MeshBasicMaterial({ color: 0x00ffcc, transparent: true, opacity: 0.8 });
             this.landingMarkerMesh = new THREE.Mesh(geometry, material);
-            
+
             const light = new THREE.PointLight(0x00ffcc, 2, planet.radius * 0.2);
             this.landingMarkerMesh.add(light);
         }
-        
+
         if (this.landingMarkerMesh.parent !== this.engine.scene) {
             this.engine.scene.add(this.landingMarkerMesh);
         }
@@ -139,7 +142,7 @@ export class InteractionSystem {
 
         // Orientar el marcador hacia la normal de la superficie
         const normal = localPoint.clone().normalize();
-        
+
         // Convertir la posición local a posición mundial sumando el centro del planeta
         this.landingMarkerMesh.position.copy(localPoint.add(new THREE.Vector3(planet.x, planet.y, planet.z)));
         this.landingMarkerMesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), normal);

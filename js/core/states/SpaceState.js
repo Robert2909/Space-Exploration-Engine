@@ -59,9 +59,13 @@ export class SpaceState extends GameState {
                             name: p.name, type: p.type, group: 'Planeta', 
                             radius: p.radius, x: p.lx+cx, y: p.ly+cy, z: p.lz+cz, 
                             distSq: distSq, color: p.color, atmosphereDensity: p.atmosphereDensity,
-                            orbitSpeed: p.orbitSpeed, rotationSpeed: p.rotationSpeed, rotationY: p.rotationY,
+                            orbitRadius: p.orbitRadius, orbitSpeed: p.orbitSpeed, rotationSpeed: p.rotationSpeed, rotationY: p.rotationY,
                             mesh: p.mesh, terrainVariance: p.terrainVariance,
-                            starX: sys.lx+cx, starY: sys.ly+cy, starZ: sys.lz+cz
+                            starX: sys.lx+cx, starY: sys.ly+cy, starZ: sys.lz+cz,
+                            parentSystem: {
+                                sunColor: sys.sunColor,
+                                companion: sys.companion ? { sunColor: sys.companion.sunColor } : null
+                            }
                         });
                     }
                 }
@@ -101,6 +105,31 @@ export class SpaceState extends GameState {
                         // Curva exponencial: Empieza suave, y cuando estás muy cerca (0.8) tiembla horriblemente
                         const panic = Math.pow(panicNorm, 3) * Config.BLACK_HOLE_PANIC_STRENGTH;
                         if (panic > maxPanic) maxPanic = panic;
+                    }
+                }
+
+                // Efecto de escombros/polvo al atravesar cinturones de asteroides
+                if (sys.asteroidBelt) {
+                    const sysPos = new THREE.Vector3(sys.lx + cx, sys.ly + cy, sys.lz + cz);
+                    const distToSys = pos.distanceTo(sysPos);
+                    const inBelt = distToSys > sys.asteroidBelt.innerRadius && distToSys < (sys.asteroidBelt.innerRadius + sys.asteroidBelt.width);
+                    
+                    if (inBelt) {
+                        // Calcular qué tan profundo estamos en el cinturón (0 en los bordes, 1 en el centro)
+                        const beltCenter = sys.asteroidBelt.innerRadius + (sys.asteroidBelt.width / 2);
+                        const depth = 1.0 - (Math.abs(distToSys - beltCenter) / (sys.asteroidBelt.width / 2));
+                        
+                        // Si vamos rápido, la nave tiembla por los micro-impactos
+                        const speed = engine.controls.velocity.length();
+                        if (speed > Config.PLAYER_SPEED_MAX * 0.1) {
+                            const shakeLevel = depth * (speed / Config.PLAYER_SPEED_MAX) * 0.05;
+                            engine.cameraBlurLevel += shakeLevel;
+                            
+                            // Avisar al jugador si va muy rápido
+                            if (speed > Config.PLAYER_SPEED_MAX * 0.5 && Math.random() < 0.02) {
+                                EventManager.emit(EVENTS.OSD_MESSAGE, { message: 'Alerta: Múltiples micro-impactos detectados en el casco', type: 'warning', duration: 2000 });
+                            }
+                        }
                     }
                 }
             }

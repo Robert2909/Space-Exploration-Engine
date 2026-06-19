@@ -178,27 +178,27 @@ export class TerrainControls {
             if (!this.isGrounded) {
                 const impactVelocity = Math.abs(this.velocity.y);
 
-                if (impactVelocity > 40) {
-                    const shakeLevel = Math.min((impactVelocity - 30) / 170, 1.0);
+                if (impactVelocity > 20) {
+                    const shakeLevel = Math.min((impactVelocity - 15) / 170, 1.0);
                     this.shakeIntensity = shakeLevel * 0.4;
                     EventManager.emit(EVENTS.PLAYER_IMPACT, { level: shakeLevel });
                 }
 
                 if (impactVelocity > 170) {
-                    OSDManager.show("IMPACTO FATAL: Peligro de muerte. Retirada de emergencia.", 'error', 6000);
+                    EventManager.emit(EVENTS.OSD_MESSAGE, { message: "IMPACTO FATAL: Peligro de muerte. Retirada de emergencia.", type: 'error', duration: 6000 });
                     EventManager.emit(EVENTS.PLAYER_DEATH);
                 } else if (impactVelocity > 150) {
-                    OSDManager.show("DAÑO SEVERO: Impacto a velocidad extrema. Múltiples fracturas.", 'error', 5000);
+                    EventManager.emit(EVENTS.OSD_MESSAGE, { message: "DAÑO SEVERO: Impacto a velocidad extrema. Múltiples fracturas.", type: 'error', duration: 5000 });
                 } else if (impactVelocity > 130) {
-                    OSDManager.show("PELIGRO: Desaceleración violenta. Rupturas internas.", 'error', 4500);
+                    EventManager.emit(EVENTS.OSD_MESSAGE, { message: "PELIGRO: Desaceleración violenta. Rupturas internas.", type: 'error', duration: 4500 });
                 } else if (impactVelocity > 95) {
-                    OSDManager.show("ALERTA: Integridad ósea comprometida. Hemorragia detectada.", 'error', 4000);
+                    EventManager.emit(EVENTS.OSD_MESSAGE, { message: "ALERTA: Integridad ósea comprometida. Hemorragia detectada.", type: 'error', duration: 4000 });
                 } else if (impactVelocity > 80) {
-                    OSDManager.show("ADVERTENCIA: Sobrecarga cinética. Amortiguadores rebasados.", 'warning', 3500);
+                    EventManager.emit(EVENTS.OSD_MESSAGE, { message: "ADVERTENCIA: Sobrecarga cinética. Amortiguadores rebasados.", type: 'warning', duration: 3500 });
                 } else if (impactVelocity > 65) {
-                    OSDManager.show("PRECAUCIÓN: Aterrizaje agresivo. Picos de estrés térmico y mecánico.", 'warning', 3000);
+                    EventManager.emit(EVENTS.OSD_MESSAGE, { message: "PRECAUCIÓN: Aterrizaje agresivo. Picos de estrés térmico y mecánico.", type: 'warning', duration: 3000 });
                 } else if (impactVelocity > 50) {
-                    OSDManager.show("AVISO: Fuerte impacto. Compensadores estabilizados. Constantes vitales normales.", 'info', 2500);
+                    EventManager.emit(EVENTS.OSD_MESSAGE, { message: "AVISO: Fuerte impacto. Compensadores estabilizados. Constantes vitales normales.", type: 'info', duration: 2500 });
                 }
             }
 
