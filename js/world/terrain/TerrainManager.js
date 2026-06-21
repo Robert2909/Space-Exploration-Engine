@@ -38,8 +38,8 @@ export class TerrainManager {
         const poolSize = (this.renderDistance * 2 + 1) ** 2 + 10;
         for (let i = 0; i < poolSize; i++) {
             this.bufferPool.push({
-                positions: new SharedArrayBuffer(bufferSize),
-                colors: new SharedArrayBuffer(bufferSize)
+                positions: new ArrayBuffer(bufferSize),
+                colors: new ArrayBuffer(bufferSize)
             });
         }
 
@@ -378,8 +378,8 @@ export class TerrainManager {
                         const res = Config.TERRAIN_CHUNK_RESOLUTION;
                         const bufferSize = res * res * 2 * 3 * 3 * 4;
                         this.bufferPool.push({
-                            positions: new SharedArrayBuffer(bufferSize),
-                            colors: new SharedArrayBuffer(bufferSize)
+                            positions: new ArrayBuffer(bufferSize),
+                            colors: new ArrayBuffer(bufferSize)
                         });
                     }
                     const bufferPair = this.bufferPool.pop();
@@ -399,7 +399,7 @@ export class TerrainManager {
                         terrainVariance: this.planetData ? this.planetData.terrainVariance : null,
                         positionsBuffer: bufferPair.positions,
                         colorsBuffer: bufferPair.colors
-                    });
+                    }, [bufferPair.positions, bufferPair.colors]);
                 }
             }
         }
@@ -433,8 +433,13 @@ export class TerrainManager {
     }
 
     onWorkerMessage(e) {
-        const { id } = e.data;
+        const { id, positionsBuffer, colorsBuffer } = e.data;
         const bufferPair = this.activeBuffers.get(id);
+
+        if (bufferPair) {
+            bufferPair.positions = positionsBuffer;
+            bufferPair.colors = colorsBuffer;
+        }
 
         // Si el jugador se movió rápido y el chunk ya no se necesita, descartarlo
         if (!this.chunks.has(id) || this.chunks.get(id) !== 'pending') {
@@ -445,9 +450,9 @@ export class TerrainManager {
             return;
         }
 
-        // Leer datos del SharedArrayBuffer devuelto por el Worker
-        const positions = new Float32Array(bufferPair.positions);
-        const colors = new Float32Array(bufferPair.colors);
+        // Leer datos devueltos por el Worker
+        const positions = new Float32Array(positionsBuffer);
+        const colors = new Float32Array(colorsBuffer);
 
         const geometry = new THREE.BufferGeometry();
         geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));

@@ -151,6 +151,6 @@ self.onmessage = function (e) {
         }
     }
 
-    // FASE 3: Solo enviamos el ID porque la memoria (SharedArrayBuffer) ya fue actualizada in-place
-    self.postMessage({ id });
+    // FASE 3: Enviar los buffers de vuelta (Transferable objects) en lugar de depender de SharedArrayBuffer
+    self.postMessage({ id, positionsBuffer, colorsBuffer }, [positionsBuffer, colorsBuffer]);
 };
