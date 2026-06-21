@@ -342,7 +342,7 @@ export class UIManager {
                         <span style="color:${colorClass};">${icon}</span> ${res.name}
                     </div>
                     <div style="font-size: 0.7rem; color: #888;">
-                        <span style="color: var(--number-color);">${calculatedDist}</span> | R: ${Config.formatNumber(res.radius)}
+                        <span style="color: var(--number-color);">${calculatedDist}</span> | R: ${Config.formatNumber(res.radiusVal)}
                     </div>
                 `;
 
