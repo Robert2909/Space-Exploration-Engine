@@ -111,7 +111,7 @@ export class Chunk {
             systems.push({
                 isMock: true,
                 group: 'BlackHole',
-                type: 'Black Hole',
+                type: 'Agujero Negro',
                 name: finalName,
                 radius: radius,
                 lx: lx, ly: ly, lz: lz,

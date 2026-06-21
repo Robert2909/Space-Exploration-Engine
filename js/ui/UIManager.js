@@ -8,6 +8,7 @@ export class UIManager {
         this.camera = camera;
         this.labelsPool = [];
         this.hud = document.getElementById('hud');
+        this.hudRight = document.getElementById('hud-right');
         this.labelsContainer = document.getElementById('labels-container');
         this.labelsHiddenManually = false;
 
@@ -41,6 +42,10 @@ export class UIManager {
 
                 this.hud.style.filter = `blur(${blur}px) hue-rotate(${level * 90}deg)`;
                 this.hud.style.transform = `translate(${shiftX}px, ${shiftY}px)`;
+                if (this.hudRight) {
+                    this.hudRight.style.filter = `blur(${blur}px) hue-rotate(${level * 90}deg)`;
+                    this.hudRight.style.transform = `translate(${shiftX}px, ${shiftY}px)`;
+                }
                 this.labelsContainer.style.filter = `blur(${blur}px)`;
                 this.labelsContainer.style.transform = `translate(${shiftX * -1}px, ${shiftY}px)`;
 
@@ -48,17 +53,33 @@ export class UIManager {
                 if (Math.random() > 0.9 && level > 0.5) {
                     const titles = this.hud.querySelectorAll('h3');
                     titles.forEach(t => t.style.color = colorGlitch);
+                    if (this.hudRight) {
+                        const rightTitles = this.hudRight.querySelectorAll('h3');
+                        rightTitles.forEach(t => t.style.color = colorGlitch);
+                    }
                 } else {
                     const titles = this.hud.querySelectorAll('h3');
                     titles.forEach(t => t.style.color = '');
+                    if (this.hudRight) {
+                        const rightTitles = this.hudRight.querySelectorAll('h3');
+                        rightTitles.forEach(t => t.style.color = '');
+                    }
                 }
             } else {
                 this.hud.style.filter = 'none';
                 this.hud.style.transform = 'translate(0, 0)';
+                if (this.hudRight) {
+                    this.hudRight.style.filter = 'none';
+                    this.hudRight.style.transform = 'translate(0, 0)';
+                }
                 this.labelsContainer.style.filter = 'none';
                 this.labelsContainer.style.transform = 'translate(0, 0)';
                 const titles = this.hud.querySelectorAll('h3');
                 titles.forEach(t => t.style.color = '');
+                if (this.hudRight) {
+                    const rightTitles = this.hudRight.querySelectorAll('h3');
+                    rightTitles.forEach(t => t.style.color = '');
+                }
             }
         });
         // Telemetría ciega desde el SpaceState
@@ -251,6 +272,13 @@ export class UIManager {
         });
 
         scanBtn.addEventListener('click', () => {
+            const travelBtn = document.getElementById('locator-travel-btn');
+            if (travelBtn) {
+                travelBtn.disabled = true;
+                travelBtn.style.opacity = '0.5';
+                travelBtn.style.cursor = 'not-allowed';
+                travelBtn.innerText = 'iviajar(null)';
+            }
             resultsDiv.innerHTML = '<span class="small-text" style="color: var(--keyword-color);">// Escaneando sector...</span>';
             const extraRangeInput = document.getElementById('locator-extra-range');
             const criteria = {
@@ -264,8 +292,6 @@ export class UIManager {
 
         const renderResults = () => {
             const resultsDiv = document.getElementById('locator-results');
-            const actionContainer = document.getElementById('locator-action-container');
-            if (actionContainer) actionContainer.style.display = 'none';
 
             const sortContainer = document.getElementById('locator-sort-container');
 
@@ -273,17 +299,7 @@ export class UIManager {
                 if (sortContainer) sortContainer.style.display = 'none';
                 resultsDiv.innerHTML = `
                     <span class="small-text" style="color: #ff5555;">// No se encontraron resultados.</span>
-                    <button id="extend-scan-btn" class="hud-btn" style="margin-top: 5px;">>> ampliar_escaneo(+1_chunk)</button>
                 `;
-                document.getElementById('extend-scan-btn').addEventListener('click', () => {
-                    const extraRangeInput = document.getElementById('locator-extra-range');
-                    if (extraRangeInput) {
-                        extraRangeInput.value = parseInt(extraRangeInput.value || 0) + 1;
-                    }
-                    this.latestCriteria.extraRange += 1;
-                    resultsDiv.innerHTML = '<span class="small-text" style="color: var(--keyword-color);">// Escaneando profundidad ' + this.latestCriteria.extraRange + '...</span>';
-                    EventManager.emit(EVENTS.LOCATOR_SCAN_REQUESTED, this.latestCriteria);
-                });
                 return;
             }
 
@@ -292,20 +308,20 @@ export class UIManager {
             // Sort results
             if (this.currentSortMode === 'dist_asc') {
                 this.latestScanResults.sort((a, b) => a.distSq - b.distSq);
-                if (sortDistBtn) { sortDistBtn.style.color = 'var(--number-color)'; sortDistBtn.innerText = '[ dist ▲ ]'; }
-                if (sortRadBtn) { sortRadBtn.style.color = 'var(--function-color)'; sortRadBtn.innerText = '[ radio ]'; }
+                if (sortDistBtn) { sortDistBtn.classList.add('active-sort'); sortDistBtn.classList.remove('active-sort-desc'); sortDistBtn.innerText = 'dist ▲'; }
+                if (sortRadBtn) { sortRadBtn.classList.remove('active-sort', 'active-sort-desc'); sortRadBtn.innerText = 'radio'; }
             } else if (this.currentSortMode === 'dist_desc') {
                 this.latestScanResults.sort((a, b) => b.distSq - a.distSq);
-                if (sortDistBtn) { sortDistBtn.style.color = 'var(--number-color)'; sortDistBtn.innerText = '[ dist ▼ ]'; }
-                if (sortRadBtn) { sortRadBtn.style.color = 'var(--function-color)'; sortRadBtn.innerText = '[ radio ]'; }
+                if (sortDistBtn) { sortDistBtn.classList.add('active-sort', 'active-sort-desc'); sortDistBtn.innerText = 'dist ▼'; }
+                if (sortRadBtn) { sortRadBtn.classList.remove('active-sort', 'active-sort-desc'); sortRadBtn.innerText = 'radio'; }
             } else if (this.currentSortMode === 'rad_asc') {
                 this.latestScanResults.sort((a, b) => a.radiusVal - b.radiusVal);
-                if (sortRadBtn) { sortRadBtn.style.color = 'var(--number-color)'; sortRadBtn.innerText = '[ radio ▲ ]'; }
-                if (sortDistBtn) { sortDistBtn.style.color = 'var(--function-color)'; sortDistBtn.innerText = '[ dist ]'; }
+                if (sortRadBtn) { sortRadBtn.classList.add('active-sort'); sortRadBtn.classList.remove('active-sort-desc'); sortRadBtn.innerText = 'radio ▲'; }
+                if (sortDistBtn) { sortDistBtn.classList.remove('active-sort', 'active-sort-desc'); sortDistBtn.innerText = 'dist'; }
             } else if (this.currentSortMode === 'rad_desc') {
                 this.latestScanResults.sort((a, b) => b.radiusVal - a.radiusVal);
-                if (sortRadBtn) { sortRadBtn.style.color = 'var(--number-color)'; sortRadBtn.innerText = '[ radio ▼ ]'; }
-                if (sortDistBtn) { sortDistBtn.style.color = 'var(--function-color)'; sortDistBtn.innerText = '[ dist ]'; }
+                if (sortRadBtn) { sortRadBtn.classList.add('active-sort', 'active-sort-desc'); sortRadBtn.innerText = 'radio ▼'; }
+                if (sortDistBtn) { sortDistBtn.classList.remove('active-sort', 'active-sort-desc'); sortDistBtn.innerText = 'dist'; }
             }
 
             resultsDiv.innerHTML = `<div style="font-size: 0.7rem; color: var(--keyword-color); margin-bottom: 5px;">// Mostrando ${Math.min(100, this.latestScanResults.length)} de ${this.latestScanTotal || this.latestScanResults.length} coincidencias</div>`;
@@ -313,6 +329,7 @@ export class UIManager {
             displayResults.forEach(res => {
                 const item = document.createElement('div');
                 item.className = 'locator-result-item';
+                item.style.marginBottom = '5px';
 
                 const isStar = res.group === 'Star';
                 const isBlackHole = res.group === 'BlackHole';
@@ -321,7 +338,7 @@ export class UIManager {
                 const calculatedDist = (res.distSq >= 0) ? (Math.round(Math.sqrt(res.distSq)) + 'u') : '???u';
 
                 item.innerHTML = `
-                    <div style="font-size: 0.85rem; font-weight: bold; color: var(--text-primary);">
+                    <div style="font-size: 0.85rem; font-weight: bold; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
                         <span style="color:${colorClass};">${icon}</span> ${res.name}
                     </div>
                     <div style="font-size: 0.7rem; color: #888;">
@@ -332,13 +349,19 @@ export class UIManager {
                 // QoL: Select visualmente
                 item.addEventListener('click', () => {
                     const allItems = resultsDiv.querySelectorAll('.locator-result-item');
-                    allItems.forEach(el => el.style.borderLeft = 'none');
-                    item.style.borderLeft = '2px solid var(--accent-color)';
+                    allItems.forEach(el => el.classList.remove('selected'));
+                    item.classList.add('selected');
 
-                    const actionContainer = document.getElementById('locator-action-container');
-                    if (actionContainer) actionContainer.style.display = 'block';
-
+                    const travelBtn = document.getElementById('locator-travel-btn');
                     const body = res.bodyRef;
+
+                    if (travelBtn) {
+                        travelBtn.disabled = false;
+                        travelBtn.style.opacity = '1';
+                        travelBtn.style.cursor = 'pointer';
+                        travelBtn.innerText = `viajar('${body.name}')`;
+                    }
+
                     body.distSq = res.distSq;
                     this.selectedLocatorBody = body; // Guarda el body seleccionado
                     EventManager.emit(EVENTS.TARGET_CHANGED, body);
@@ -614,7 +637,16 @@ export class UIManager {
     }
 
     updateTerrainHUD(payload) {
-        document.getElementById('terr-compass').innerText = Math.round(payload.heading) + '° ' + payload.cardinal + payload.shipDistText;
+        document.getElementById('terr-compass').innerText = Math.round(payload.heading) + '° ' + payload.cardinal;
+
+        const shipDistEl = document.getElementById('terr-ship-dist');
+        if (payload.distToShip !== null) {
+            shipDistEl.innerText = Math.round(payload.distToShip) + 'm';
+            shipDistEl.className = 'prop-value'; // Default number styling
+        } else {
+            shipDistEl.innerText = "'N/A'";
+            shipDistEl.className = 'prop-value string';
+        }
 
         const tempEl = document.getElementById('terr-temp');
         tempEl.innerText = Math.round(payload.finalTemp) + ' °C';

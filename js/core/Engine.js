@@ -127,7 +127,7 @@ export class Engine {
 
                 for (let sys of systems) {
                     let sysX, sysY, sysZ;
-                    
+
                     // Star/BlackHole world coordinates
                     if (sys.x !== undefined && !sys.isMock) {
                         sysX = sys.x;
@@ -157,7 +157,7 @@ export class Engine {
                         if (sys.planets) {
                             for (let planet of sys.planets) {
                                 let pWorldX, pWorldY, pWorldZ;
-                                
+
                                 if (planet.x !== undefined && !planet.isMock) {
                                     pWorldX = planet.x;
                                     pWorldY = planet.y;
@@ -187,7 +187,7 @@ export class Engine {
                 if (i > 0 && i % batchSize === 0) {
                     const progress = Math.round((i / totalChunks) * 100);
                     EventManager.emit(EVENTS.LOCATOR_SCAN_PROGRESS, { pct: progress, current: i, total: totalChunks });
-                    await new Promise(resolve => setTimeout(resolve, 0)); 
+                    await new Promise(resolve => setTimeout(resolve, 0));
                 }
             }
 
@@ -233,10 +233,17 @@ export class Engine {
         this.targetBody = null;
         document.addEventListener('keydown', (e) => {
             if (this.isTransitioning) return;
+            if (e.repeat) return; // Prevenir spam en las teclas de toggle
 
-            if (Config.KEYS.TARGET.includes(e.code)) {
-                this.interactionSystem.attemptTargeting();
+            // Procesar TOGGLE_FOCUS en keydown es OBLIGATORIO.
+            if (Config.KEYS.TOGGLE_FOCUS.includes(e.code)) {
+                if (document.activeElement && document.activeElement.tagName === 'INPUT') return;
+
+                if (document.pointerLockElement) {
+                    document.exitPointerLock();
+                }
             }
+
             if (Config.KEYS.AUTOPILOT.includes(e.code) && this.targetBody) {
                 if (!this.controls.autoPilotTarget) {
                     this.controls.setAutoPilotTarget(this.targetBody);

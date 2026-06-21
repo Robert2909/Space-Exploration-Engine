@@ -90,7 +90,7 @@ export function generateBlackHoleName(seedBase, cx, cy, cz, isUltraMassive) {
 
     let finalName = bhName + Math.floor(seededRandom(cx, cy, cz, seedBase + 4) * 10000) + suffix;
     if (isUltraMassive) {
-        finalName = 'Super Massive ' + finalName;
+        finalName = 'Supermassive ' + finalName;
     }
     return finalName;
 }

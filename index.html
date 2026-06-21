@@ -4,7 +4,7 @@
 <head>
     <script src="coi-serviceworker.js"></script>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Cosmos Explorer 3D - Antigravity Edition</title>
     <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@300;400;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="css/styles.css">
@@ -24,7 +24,7 @@
 
         <div id="hud">
             <div class="hud-panel">
-                <h3>nave_exploradora</h3>
+                <h3>localizador</h3>
                 <p><span class="prop-name">velocidad</span> <span class="prop-value" id="speed">0</span></p>
                 <span class="small-text" style="color: var(--variable-color); margin-top: 5px;">coordenadas = {</span>
                 <p style="padding-left: 15px;"><span class="prop-name">x</span> <span class="prop-value"
@@ -38,11 +38,13 @@
 
             <!-- Panel para el modo Terreno -->
             <div class="hud-panel" id="jetpack-panel" style="display: none;">
-                <h3>traje_espacial</h3>
+                <h3>telemetria</h3>
                 <p><span class="prop-name">latitud</span> <span class="prop-value" id="terr-lat">0</span></p>
                 <p><span class="prop-name">longitud</span> <span class="prop-value" id="terr-lon">0</span></p>
                 <p><span class="prop-name">altitud</span> <span class="prop-value" id="terr-alt">0</span></p>
                 <p><span class="prop-name">brújula</span> <span class="prop-value string" id="terr-compass">'N'</span>
+                </p>
+                <p><span class="prop-name">distanciaNave</span> <span class="prop-value" id="terr-ship-dist">0m</span>
                 </p>
                 <p><span class="prop-name">temperatura</span> <span class="prop-value" id="terr-temp">0 °C</span></p>
 
@@ -58,7 +60,7 @@
 
 
             <div class="hud-panel" id="target-panel" style="display: none;">
-                <h3>objetivo_fijado</h3>
+                <h3>objetivo</h3>
                 <p><span class="prop-name">nombre</span> <span class="prop-value string"
                         id="target-name">'Ninguno'</span></p>
                 <p><span class="prop-name">tipoAstro</span> <span class="prop-value string"
@@ -81,7 +83,7 @@
             </div>
 
             <div class="hud-panel">
-                <h3>sistema_render</h3>
+                <h3>visibilidad</h3>
                 <p><span class="prop-name">distanciaVisual</span> <span class="prop-value" id="dist-val">3</span></p>
                 <input type="range" id="render-dist" min="1" max="10" value="3" style="pointer-events: auto;">
             </div>
@@ -89,50 +91,56 @@
         </div>
 
         <div id="hud-right">
-            <div class="hud-panel" id="locator-panel" style="display: flex; flex-direction: column; flex: 1; min-height: 0;">
-                <h3>escáner_de_sector</h3>
-                <div style="pointer-events: auto; display: flex; flex-direction: column; gap: 8px; margin-top: 5px; flex-shrink: 0;">
-                    <div>
-                        <span class="prop-name">target.mainType =</span>
-                        <select id="locator-main-type" class="hud-select">
-                            <option value="ALL">'TODOS'</option>
-                            <option value="Star">'Estrellas'</option>
-                            <option value="Planet">'Planetas'</option>
-                            <option value="BlackHole">'Agujeros Negros'</option>
-                        </select>
-                    </div>
+            <div class="hud-panel" id="locator-panel"
+                style="display: flex; flex-direction: column; flex: 0 1 auto; max-height: 100%; min-width: 0;">
+                <div id="locator-header" style="flex-shrink: 0; min-width: 0;">
+                    <h3>localizador</h3>
+                    <div
+                        style="pointer-events: auto; display: flex; flex-direction: column; gap: 8px; margin-top: 5px; min-width: 0;">
+                        <div>
+                            <span class="prop-name">objetivo.tipoPrincipal</span>
+                            <select id="locator-main-type" class="hud-select">
+                                <option value="ALL">'TODOS'</option>
+                                <option value="Star">'Estrellas'</option>
+                                <option value="Planet">'Planetas'</option>
+                                <option value="BlackHole">'Agujeros Negros'</option>
+                            </select>
+                        </div>
 
-                    <div id="locator-sub-type-container" style="display: none;">
-                        <span class="prop-name">target.subType =</span>
-                        <select id="locator-sub-type" class="hud-select">
-                            <option value="ALL">'TODOS'</option>
-                        </select>
-                    </div>
+                        <div id="locator-sub-type-container" style="display: none;">
+                            <span class="prop-name">objetivo.tipoSecundario</span>
+                            <select id="locator-sub-type" class="hud-select">
+                                <option value="ALL">'TODOS'</option>
+                            </select>
+                        </div>
 
-                    <div>
-                        <span class="prop-name">scan.extraChunks =</span>
-                        <input type="number" id="locator-extra-range" class="hud-select" value="0" min="0" max="100" step="1" style="width: 60px;">
-                    </div>
+                        <div>
+                            <span class="prop-name">escaneo.chunksExtra</span>
+                            <input type="number" id="locator-extra-range" class="hud-select" value="0" min="0" max="100"
+                                step="1" style="width: 60px;">
+                        </div>
 
-                    <button id="locator-scan-btn" class="hud-btn">>> execute_scan()</button>
+                        <button id="locator-scan-btn" class="hud-btn">ejecutar_escaneo()</button>
 
-                    <div id="locator-sort-container" style="display: none; gap: 5px; margin-top: 5px;">
-                        <span class="prop-name" style="align-self: center;">sort:</span>
-                        <button id="sort-dist-btn" class="hud-btn"
-                            style="flex: 1; text-align: center; font-size: 0.75rem;">[ dist ]</button>
-                        <button id="sort-rad-btn" class="hud-btn"
-                            style="flex: 1; text-align: center; font-size: 0.75rem;">[ radio ]</button>
+                        <div id="locator-action-container"
+                            style="display: block; margin-top: 5px; pointer-events: auto; min-width: 0;">
+                            <button id="locator-travel-btn" class="hud-btn" disabled
+                                style="width: 100%; display: block; color: var(--keyword-color); opacity: 0.5; cursor: not-allowed; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">viajar(null)</button>
+                        </div>
+
+                        <div id="locator-sort-container" style="display: none; gap: 5px; margin-top: 5px;">
+                            <span class="prop-name" style="align-self: center;">ordenar_por</span>
+                            <button id="sort-dist-btn" class="hud-btn"
+                                style="flex: 1; text-align: center; font-size: 0.75rem;">dist</button>
+                            <button id="sort-rad-btn" class="hud-btn"
+                                style="flex: 1; text-align: center; font-size: 0.75rem;">radio</button>
+                        </div>
                     </div>
                 </div>
 
                 <div id="locator-results"
-                    style="margin-top: 10px; flex: 1; min-height: 0; overflow-y: auto; pointer-events: auto; padding-right: 5px; border-top: 1px dashed var(--hud-border); padding-top: 10px; display: flex; flex-direction: column; gap: 5px;">
+                    style="max-height: calc(50vh - 180px); overflow-y: auto; pointer-events: auto; padding-right: 5px; margin-top: 10px; border-top: 1px dashed var(--hud-border); padding-top: 10px; display: block;">
                     <span class="small-text" style="color: #666;">// Esperando instrucción...</span>
-                </div>
-
-                <div id="locator-action-container" style="display: none; margin-top: 5px; pointer-events: auto;">
-                    <button id="locator-travel-btn" class="hud-btn"
-                        style="width: 100%; color: var(--keyword-color);">>>> engage_autopilot()</button>
                 </div>
             </div>
         </div>

@@ -116,10 +116,19 @@ export class SpaceState extends GameState {
                         }
                     }
 
+                    const eventHorizon = sys.radius * Config.BLACK_HOLE_EVENT_HORIZON_MULT;
+
                     // Pánico visual (Glitches): Aumentamos el rango para que dé miedo antes
                     if (dist < panicRadius) {
-                        const panicNorm = Math.max(0, 1 - (dist / panicRadius));
-                        // Curva exponencial: Empieza suave, y cuando estás muy cerca (0.8) tiembla horriblemente
+                        let panicNorm = 0;
+                        if (dist <= eventHorizon) {
+                            panicNorm = 1.0;
+                        } else {
+                            // Normalizar: 0 en panicRadius, 1.0 en eventHorizon
+                            panicNorm = 1 - ((dist - eventHorizon) / (panicRadius - eventHorizon));
+                        }
+                        
+                        // Curva exponencial: Empieza suave, y cuando estás muy cerca tiembla horriblemente
                         const panic = Math.pow(panicNorm, 3) * Config.BLACK_HOLE_PANIC_STRENGTH;
                         if (panic > maxPanic) maxPanic = panic;
                     }
@@ -241,7 +250,7 @@ export class SpaceState extends GameState {
         if (nearbyBodies.length > 0) {
             for (const body of nearbyBodies) {
                 // Filtrar estrellas (usando group) y agujeros negros, pero dejar gaseosos para advertir
-                if (body.group === 'Estrella' || (body.type && body.type.includes('Black Hole'))) continue;
+                if (body.group === 'Estrella' || (body.type && body.type.includes('Agujero Negro'))) continue;
 
                 this._bodyPos.set(body.x, body.y, body.z);
                 const dist = engine.camera.position.distanceTo(this._bodyPos);

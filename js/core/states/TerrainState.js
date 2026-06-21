@@ -135,11 +135,10 @@ export class TerrainState extends GameState {
                 else if (heading > 292.5 && heading <= 337.5) cardinal = "NO";
                 
                 // Distancia y marcador a la Nave
-                let shipDistText = '';
+                let distToShip = null;
                 if (this.shipEntity) {
                     this._toShip.subVectors(this.shipEntity.getMesh().position, engine.camera.position);
-                    const distToShip = this._toShip.length();
-                    shipDistText = ` (Nave: ${Math.round(distToShip)}m)`;
+                    distToShip = this._toShip.length();
                     
                     this._dirFlat.copy(this._dir).setY(0).normalize();
                     this._toShipFlat.copy(this._toShip).setY(0).normalize();
@@ -170,7 +169,7 @@ export class TerrainState extends GameState {
                 EventManager.emit(EVENTS.HUD_TERRAIN_UPDATED, {
                     heading,
                     cardinal,
-                    shipDistText,
+                    distToShip,
                     finalTemp,
                     tempColor,
                     fuelPct,

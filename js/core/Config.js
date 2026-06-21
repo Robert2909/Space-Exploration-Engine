@@ -100,7 +100,7 @@ export const Config = {
     BLACK_HOLE_PULL_RADIUS_MULT: 100.0,      // Alcance gravitatorio (n veces su tamaño)
     BLACK_HOLE_GRAVITY_STRENGTH: 1000.0,      // Fuerza del empuje gravitacional (1/r^2)
     BLACK_HOLE_EVENT_HORIZON_MULT: 5.0,     // Fricción aplastante al cruzar esto
-    BLACK_HOLE_PANIC_STRENGTH: 1,         // Multiplicador del efecto de pánico visual
+    BLACK_HOLE_PANIC_STRENGTH: 0.3,         // Multiplicador del efecto de pánico visual
 
     // ==========================================
     // RENDERIZADO Y MEMORIA DEL TERRENO
@@ -182,9 +182,10 @@ export const Config = {
         ROLL_RIGHT: ['KeyE'],
         BOOST: ['ShiftLeft', 'ShiftRight'],
         BRAKE: ['Space'],
-        TARGET: ['KeyT'],
+        TARGET: [], // Ahora exclusivo del clic izquierdo
+        TOGGLE_FOCUS: ['KeyT'],
         AUTOPILOT: ['KeyJ'],
-        TOGGLE_HUD: ['KeyH'],
+        TOGGLE_HUD: ['Tab'],
         TOGGLE_LABELS: ['KeyL'],
         TOGGLE_CINEMATIC: ['KeyF'],
         TOGGLE_LANDING: ['Enter'],

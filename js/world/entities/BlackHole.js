@@ -6,7 +6,7 @@ import { Config } from '../../core/Config.js';
 export class BlackHole extends CelestialBody {
     constructor(config) {
         super(config);
-        this.type = 'Black Hole'; // Para que SpaceState.js sepa que no se puede aterrizar
+        this.type = 'Agujero Negro'; // Para que SpaceState.js sepa que no se puede aterrizar
         this.group = 'BlackHole';
         // Agujero negros have high mass/radius
         this.mass = config.mass || this.radius * 1000;
