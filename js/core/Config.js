@@ -1,4 +1,12 @@
 export const Config = {
+    // Helper para formatear números masivos de manera global (con comas para los miles)
+    formatNumber: (value, decimals = 0) => {
+        return Number(value).toLocaleString('en-US', {
+            minimumFractionDigits: decimals,
+            maximumFractionDigits: decimals
+        });
+    },
+
     // ==========================================
     // CÓDIGO GENÉTICO DEL UNIVERSO
     // ==========================================
@@ -155,8 +163,8 @@ export const Config = {
     AUTOPILOT_MIN_SPEED: 100000,         // Velocidad mínima de viaje (unidades por segundo)
     AUTOPILOT_MAX_SPEED: 1000000,        // Velocidad máxima permitida (50M uds/s)
     AUTOPILOT_DESIRED_SECONDS: 1.0,       // Segundos teóricos en los que queremos que llegue al objetivo para escalar velocidad
-    AUTOPILOT_BRAKE_ZONE_MULT: 4.0,      // Multiplicador de radio para empezar a frenar violentamente
-    AUTOPILOT_BRAKE_MULTIPLIER: 0.99,     // Fricción de frenado agresivo (10% por frame)
+    AUTOPILOT_BRAKE_ZONE_MULT: 1.0,      // Multiplicador de radio para empezar a frenar violentamente
+    AUTOPILOT_BRAKE_MULTIPLIER: 0.20,     // Fricción de frenado agresivo (10% por frame)
     AUTOPILOT_ARRIVAL_MULT: 4,            // Multiplicador de radio para considerar llegada e inserción orbital
 
     // ==========================================

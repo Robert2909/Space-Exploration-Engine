@@ -219,10 +219,10 @@ export class UIManager {
     updateHUD(speed, pos) {
         if (this.hud.classList.contains('hidden')) return;
 
-        document.getElementById('speed').innerText = Math.round(speed * 10);
-        document.getElementById('pos-x').innerText = Math.round(pos.x);
-        document.getElementById('pos-y').innerText = Math.round(pos.y);
-        document.getElementById('pos-z').innerText = Math.round(pos.z);
+        document.getElementById('speed').innerText = Config.formatNumber(speed * 10);
+        document.getElementById('pos-x').innerText = Config.formatNumber(pos.x);
+        document.getElementById('pos-y').innerText = Config.formatNumber(pos.y);
+        document.getElementById('pos-z').innerText = Config.formatNumber(pos.z);
     }
 
     setupLocator() {
@@ -335,14 +335,14 @@ export class UIManager {
                 const isBlackHole = res.group === 'BlackHole';
                 const colorClass = isStar ? 'var(--function-color)' : (isBlackHole ? '#8a2be2' : 'var(--variable-color)');
                 const icon = isStar ? '❖' : (isBlackHole ? '🌀' : '○');
-                const calculatedDist = (res.distSq >= 0) ? (Math.round(Math.sqrt(res.distSq)) + 'u') : '???u';
+                const calculatedDist = (res.distSq >= 0) ? (Config.formatNumber(Math.sqrt(res.distSq)) + 'u') : '???u';
 
                 item.innerHTML = `
                     <div style="font-size: 0.85rem; font-weight: bold; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
                         <span style="color:${colorClass};">${icon}</span> ${res.name}
                     </div>
                     <div style="font-size: 0.7rem; color: #888;">
-                        <span style="color: var(--number-color);">${calculatedDist}</span> | R: ${res.radius}
+                        <span style="color: var(--number-color);">${calculatedDist}</span> | R: ${Config.formatNumber(res.radius)}
                     </div>
                 `;
 
@@ -437,7 +437,7 @@ export class UIManager {
                 if (!el) continue;
                 el._usedThisFrame = true;
 
-                const distText = Math.round(Math.max(0, dist - body.radius)) + 'u';
+                const distText = Config.formatNumber(Math.max(0, dist - body.radius)) + 'u';
 
                 if (el._lastName !== body.name) {
                     const isStar = body.group === 'Estrella';
@@ -520,7 +520,7 @@ export class UIManager {
         document.getElementById('target-panel').style.display = 'block';
         document.getElementById('target-name').innerText = "'" + target.name + "'";
         document.getElementById('target-type').innerText = "'" + target.type + "'";
-        document.getElementById('target-radius').innerText = Math.round(target.radius);
+        document.getElementById('target-radius').innerText = Config.formatNumber(target.radius);
 
         const targetAtmo = document.getElementById('target-atmo');
         const targetGravity = document.getElementById('target-gravity');
@@ -554,7 +554,7 @@ export class UIManager {
             let baseGravity = target.type === 'Gigante gaseoso' ? 2.5 : 1.0;
             let radiusFactor = target.radius / 2000;
             let calculatedG = baseGravity * radiusFactor;
-            targetGravity.innerText = calculatedG.toFixed(2) + ' G';
+            targetGravity.innerText = Config.formatNumber(calculatedG, 2) + ' G';
 
             if (calculatedG < 0.5) targetGravity.style.color = '#55ffff';
             else if (calculatedG < 1.5) targetGravity.style.color = '#ffffff';
@@ -562,12 +562,12 @@ export class UIManager {
         }
 
         if (targetOrbit) {
-            if (target.orbitSpeed) targetOrbit.innerText = `'${(Math.abs(target.orbitSpeed) * 1000).toFixed(1)} km/s'`;
+            if (target.orbitSpeed) targetOrbit.innerText = `'${Config.formatNumber(Math.abs(target.orbitSpeed) * 1000, 1)} km/s'`;
             else targetOrbit.innerText = "'N/A'";
         }
 
         if (targetRot) {
-            if (target.rotationSpeed) targetRot.innerText = `'${(target.rotationSpeed * 1000).toFixed(1)} km/h'`;
+            if (target.rotationSpeed) targetRot.innerText = `'${Config.formatNumber(target.rotationSpeed * 1000, 1)} km/h'`;
             else targetRot.innerText = "'N/A'";
         }
 
@@ -610,26 +610,26 @@ export class UIManager {
 
         if (targetDist) {
             if (payload.gameState === 'TERRAIN') {
-                targetDist.innerText = Math.round(payload.cameraPos.y) + 'm';
+                targetDist.innerText = Config.formatNumber(payload.cameraPos.y) + 'm';
                 if (targetLat) targetLat.innerText = "'N/A'";
                 if (targetLon) targetLon.innerText = "'N/A'";
             } else {
                 this._planetPos.set(target.x, target.y, target.z);
                 this._relativePos.subVectors(payload.cameraPos, this._planetPos);
                 const dist = this._relativePos.length();
-                targetDist.innerText = Math.round(dist) + 'u';
+                targetDist.innerText = Config.formatNumber(dist) + 'u';
 
                 if (targetLat && targetLon) {
                     if (payload.landingMarker && payload.landingMarker.planetName === target.name) {
-                        targetLat.innerText = (payload.landingMarker.lat * (180 / Math.PI)).toFixed(2) + '° (Fijado)';
-                        targetLon.innerText = (payload.landingMarker.lon * (180 / Math.PI)).toFixed(2) + '° (Fijado)';
+                        targetLat.innerText = Config.formatNumber(payload.landingMarker.lat * (180 / Math.PI), 2) + '° (Fijado)';
+                        targetLon.innerText = Config.formatNumber(payload.landingMarker.lon * (180 / Math.PI), 2) + '° (Fijado)';
                     } else {
                         const lat = Math.asin(Math.max(-1, Math.min(1, this._relativePos.y / dist)));
                         const lon = Math.atan2(this._relativePos.z, this._relativePos.x);
                         // Convertir a lon estática (despejando de worldLon = surfaceLon - rotY -> surfaceLon = worldLon + rotY)
                         const surfaceLon = lon + (target.rotationY || 0);
-                        targetLat.innerText = (lat * (180 / Math.PI)).toFixed(2) + '°';
-                        targetLon.innerText = (surfaceLon * (180 / Math.PI)).toFixed(2) + '°';
+                        targetLat.innerText = Config.formatNumber(lat * (180 / Math.PI), 2) + '°';
+                        targetLon.innerText = Config.formatNumber(surfaceLon * (180 / Math.PI), 2) + '°';
                     }
                 }
             }
@@ -637,11 +637,11 @@ export class UIManager {
     }
 
     updateTerrainHUD(payload) {
-        document.getElementById('terr-compass').innerText = Math.round(payload.heading) + '° ' + payload.cardinal;
+        document.getElementById('terr-compass').innerText = Config.formatNumber(payload.heading) + '° ' + payload.cardinal;
 
         const shipDistEl = document.getElementById('terr-ship-dist');
         if (payload.distToShip !== null) {
-            shipDistEl.innerText = Math.round(payload.distToShip) + 'm';
+            shipDistEl.innerText = Config.formatNumber(payload.distToShip) + 'm';
             shipDistEl.className = 'prop-value'; // Default number styling
         } else {
             shipDistEl.innerText = "'N/A'";
@@ -649,7 +649,7 @@ export class UIManager {
         }
 
         const tempEl = document.getElementById('terr-temp');
-        tempEl.innerText = Math.round(payload.finalTemp) + ' °C';
+        tempEl.innerText = Config.formatNumber(payload.finalTemp) + ' °C';
         tempEl.style.color = payload.tempColor;
 
         const fuelBar = document.getElementById('jetpack-fuel-bar');
@@ -659,15 +659,15 @@ export class UIManager {
             else fuelBar.style.backgroundColor = 'var(--string-color)';
         }
 
-        if (payload.speed !== undefined) document.getElementById('speed').innerText = Math.round(payload.speed) + ' u/s';
+        if (payload.speed !== undefined) document.getElementById('speed').innerText = Config.formatNumber(payload.speed) + ' u/s';
         if (payload.pos) {
-            document.getElementById('pos-x').innerText = Math.round(payload.pos.x);
-            document.getElementById('pos-y').innerText = Math.round(payload.pos.y);
-            document.getElementById('pos-z').innerText = Math.round(payload.pos.z);
-            document.getElementById('terr-alt').innerText = Math.round(payload.pos.y) + 'm';
+            document.getElementById('pos-x').innerText = Config.formatNumber(payload.pos.x);
+            document.getElementById('pos-y').innerText = Config.formatNumber(payload.pos.y);
+            document.getElementById('pos-z').innerText = Config.formatNumber(payload.pos.z);
+            document.getElementById('terr-alt').innerText = Config.formatNumber(payload.pos.y) + 'm';
         }
 
-        if (payload.latDeg !== undefined) document.getElementById('terr-lat').innerText = payload.latDeg.toFixed(2) + '°';
-        if (payload.lonDeg !== undefined) document.getElementById('terr-lon').innerText = payload.lonDeg.toFixed(2) + '°';
+        if (payload.latDeg !== undefined) document.getElementById('terr-lat').innerText = Config.formatNumber(payload.latDeg, 2) + '°';
+        if (payload.lonDeg !== undefined) document.getElementById('terr-lon').innerText = Config.formatNumber(payload.lonDeg, 2) + '°';
     }
 }
