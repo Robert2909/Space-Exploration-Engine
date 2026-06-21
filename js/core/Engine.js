@@ -12,6 +12,7 @@ import { TerrainState } from './states/TerrainState.js';
 import { RenderSystem } from './systems/RenderSystem.js';
 import { InteractionSystem } from './systems/InteractionSystem.js';
 import { AudioManager } from '../audio/AudioManager.js';
+import { Chunk } from '../world/universe/Chunk.js';
 
 export class Engine {
     constructor() {
@@ -62,6 +63,151 @@ export class Engine {
             }
         });
 
+        EventManager.on(EVENTS.LOCATOR_SCAN_REQUESTED, async (criteria) => {
+            if (this.gameState !== 'SPACE') {
+                EventManager.emit(EVENTS.OSD_MESSAGE, { message: 'El escáner solo funciona en el espacio', type: 'error' });
+                return;
+            }
+
+            const { mainType, subType, extraRange } = criteria;
+            const results = [];
+            const pos = this.camera.position;
+            const chunksToProcess = [];
+
+            for (let [key, chunk] of this.universe.chunks.entries()) {
+                if (chunk === 'pending') {
+                    const [cx, cy, cz] = key.split(',').map(Number);
+                    chunksToProcess.push({ cx, cy, cz });
+                } else {
+                    chunksToProcess.push({ chunkObj: chunk });
+                }
+            }
+
+            if (extraRange && extraRange > 0) {
+                const px = Math.floor(pos.x / Config.UNIVERSE_CHUNK_SIZE);
+                const py = Math.floor(pos.y / Config.UNIVERSE_CHUNK_SIZE);
+                const pz = Math.floor(pos.z / Config.UNIVERSE_CHUNK_SIZE);
+                const scanRange = this.universe.renderDistance + extraRange;
+
+                for (let x = -scanRange; x <= scanRange; x++) {
+                    for (let y = -scanRange; y <= scanRange; y++) {
+                        for (let z = -scanRange; z <= scanRange; z++) {
+                            const cx = px + x;
+                            const cy = py + y;
+                            const cz = pz + z;
+                            const key = `${cx},${cy},${cz}`;
+                            if (!this.universe.chunks.has(key)) {
+                                chunksToProcess.push({ cx, cy, cz });
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Procesar en lotes asíncronos para no congelar la UI
+            const batchSize = 1000;
+            const totalChunks = chunksToProcess.length;
+
+            for (let i = 0; i < totalChunks; i++) {
+                const task = chunksToProcess[i];
+                let systems = [];
+                let cx, cy, cz;
+
+                if (task.chunkObj) {
+                    systems = task.chunkObj.systems;
+                    cx = task.chunkObj.cx; cy = task.chunkObj.cy; cz = task.chunkObj.cz;
+                } else {
+                    systems = Chunk.getMockSystemsData(task.cx, task.cy, task.cz, Config.UNIVERSE_CHUNK_SIZE);
+                    cx = task.cx; cy = task.cy; cz = task.cz;
+                }
+
+                const cxW = cx * Config.UNIVERSE_CHUNK_SIZE;
+                const cyW = cy * Config.UNIVERSE_CHUNK_SIZE;
+                const czW = cz * Config.UNIVERSE_CHUNK_SIZE;
+
+                for (let sys of systems) {
+                    let sysX, sysY, sysZ;
+                    
+                    // Star/BlackHole world coordinates
+                    if (sys.x !== undefined && !sys.isMock) {
+                        sysX = sys.x;
+                        sysY = sys.y;
+                        sysZ = sys.z;
+                    } else {
+                        let slx = sys.lx || 0;
+                        let sly = sys.ly || 0;
+                        let slz = sys.lz || 0;
+                        sysX = slx + cxW;
+                        sysY = sly + cyW;
+                        sysZ = slz + czW;
+                    }
+
+                    let dx = sysX - pos.x;
+                    let dy = sysY - pos.y;
+                    let dz = sysZ - pos.z;
+                    let distSq = dx * dx + dy * dy + dz * dz;
+
+                    // Agujeros negros don't have planets
+                    if (sys.group === 'BlackHole') {
+                        this._checkAndAddLocatorResult(sys, 'BlackHole', 'Agujero Negro', distSq, results, sysX, sysY, sysZ, criteria);
+                    } else {
+                        // It's a Star
+                        this._checkAndAddLocatorResult(sys, 'Star', sys.type, distSq, results, sysX, sysY, sysZ, criteria);
+
+                        if (sys.planets) {
+                            for (let planet of sys.planets) {
+                                let pWorldX, pWorldY, pWorldZ;
+                                
+                                if (planet.x !== undefined && !planet.isMock) {
+                                    pWorldX = planet.x;
+                                    pWorldY = planet.y;
+                                    pWorldZ = planet.z;
+                                } else {
+                                    // For mock planets, planet.lx is already relative to the chunk center (it includes parent star's lx)
+                                    let plx = planet.lx || 0;
+                                    let ply = planet.ly || 0;
+                                    let plz = planet.lz || 0;
+                                    pWorldX = cxW + plx;
+                                    pWorldY = cyW + ply;
+                                    pWorldZ = czW + plz;
+                                }
+
+                                let pdx = pWorldX - pos.x;
+                                let pdy = pWorldY - pos.y;
+                                let pdz = pWorldZ - pos.z;
+                                let pdistSq = pdx * pdx + pdy * pdy + pdz * pdz;
+
+                                this._checkAndAddLocatorResult(planet, 'Planet', planet.type, pdistSq, results, pWorldX, pWorldY, pWorldZ, criteria);
+                            }
+                        }
+                    }
+                }
+
+                // Yield to main thread for progress update
+                if (i > 0 && i % batchSize === 0) {
+                    const progress = Math.round((i / totalChunks) * 100);
+                    EventManager.emit(EVENTS.LOCATOR_SCAN_PROGRESS, { pct: progress, current: i, total: totalChunks });
+                    await new Promise(resolve => setTimeout(resolve, 0)); 
+                }
+            }
+
+            EventManager.emit(EVENTS.LOCATOR_SCAN_PROGRESS, { pct: 100, current: totalChunks, total: totalChunks });
+
+            // Ordenar por distancia inicialmente
+            results.sort((a, b) => a.distSq - b.distSq);
+
+            EventManager.emit(EVENTS.LOCATOR_RESULTS_READY, { results: results, total: results.length });
+            EventManager.emit(EVENTS.OSD_MESSAGE, { message: `Escaneo completado. ${results.length} coincidencias.`, type: 'info', duration: 3000 });
+        });
+
+        EventManager.on(EVENTS.TARGET_CHANGED, (target) => {
+            this.targetBody = target;
+        });
+
+        EventManager.on(EVENTS.TARGET_CLEARED, () => {
+            this.targetBody = null;
+        });
+
         EventManager.on(EVENTS.PLAYER_DEATH, () => {
             if (this.gameState === 'TERRAIN') {
                 if (this.terrainControls) this.terrainControls.isDead = true;
@@ -72,6 +218,16 @@ export class Engine {
         this.cameraBlurLevel = 0;
         EventManager.on(EVENTS.PLAYER_IMPACT, (payload) => {
             this.cameraBlurLevel += payload.level || 0;
+        });
+
+        EventManager.on(EVENTS.LOCATOR_TRAVEL_REQUESTED, (body) => {
+            if (this.gameState === 'SPACE' && this.controls) {
+                this.targetBody = body;
+                this.updateTargetHUD(body);
+                EventManager.emit(EVENTS.TARGET_CHANGED, body);
+                this.controls.setAutoPilotTarget(this.targetBody);
+                EventManager.emit(EVENTS.OSD_MESSAGE, { message: `Piloto Automático remoto activado hacia ${this.targetBody.name}`, type: 'info', duration: 3000 });
+            }
         });
 
         this.targetBody = null;
@@ -427,5 +583,30 @@ export class Engine {
         }
 
         this.renderSystem.render();
+    }
+
+    _checkAndAddLocatorResult(body, actualMainType, actualSubType, distSq, resultsArr, wx, wy, wz, criteria) {
+        if (criteria.mainType !== 'ALL' && criteria.mainType !== actualMainType) return;
+        if (criteria.subType !== 'ALL' && criteria.subType !== actualSubType) return;
+
+        if (body.isMock) {
+            body.x = wx; body.y = wy; body.z = wz;
+        }
+
+        // Distancia real aproximada
+        const dist = Math.sqrt(distSq);
+
+        resultsArr.push({
+            id: body.name + '_' + wx, // ID único temporal
+            name: body.name,
+            type: actualSubType,
+            mainType: actualMainType,
+            distSq: distSq,
+            distance: Math.round(dist) + 'u',
+            radius: Math.round(body.radius) + 'u',
+            x: wx, y: wy, z: wz,
+            group: body.group || actualMainType, // para que sea compatible con target
+            bodyRef: body // Guardamos la referencia para el sistema de interacción
+        });
     }
 }

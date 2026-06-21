@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { EventManager, EVENTS } from '../EventManager.js';
+import { Config } from '../Config.js';
 
 export class InteractionSystem {
     constructor(engine) {
@@ -28,8 +29,9 @@ export class InteractionSystem {
             this._toBody.subVectors(this._bodyPos, this.engine.camera.position);
             if (this._toBody.dot(this.raycaster.ray.direction) > 0) {
                 const distToRay = this.raycaster.ray.distanceSqToPoint(this._bodyPos);
-                const hitThreshold = Math.max(body.radius * 3, 200) ** 2;
-                if (distToRay < hitThreshold && body.distSq < closestDist) {
+                const hitThreshold = Math.max(body.radius * Config.TARGET_HITBOX_MULT, 200) ** 2;
+                const maxTargetDist = Math.max(Config.UI_LABEL_MAX_DISTANCE, body.radius * Config.UI_LABEL_DISTANCE_MULT);
+                if (distToRay < hitThreshold && body.distSq < closestDist && body.distSq <= (maxTargetDist * maxTargetDist)) {
                     closestDist = body.distSq;
                     closest = body;
                 }

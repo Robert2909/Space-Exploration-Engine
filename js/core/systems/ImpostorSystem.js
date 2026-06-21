@@ -7,7 +7,7 @@ export class ImpostorSystem {
         this.scene = scene;
         this.universe = universe;
         this.impostors = new Map();
-        
+
         // Material base para el sprite del quásar lejano
         const canvas = document.createElement('canvas');
         canvas.width = 256;
@@ -20,7 +20,7 @@ export class ImpostorSystem {
         grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
         ctx.fillStyle = grad;
         ctx.fillRect(0, 0, 256, 256);
-        
+
         const tex = new THREE.CanvasTexture(canvas);
         this.material = new THREE.SpriteMaterial({
             map: tex,
@@ -42,7 +42,7 @@ export class ImpostorSystem {
         const cx = Math.floor(playerPos.x / Config.UNIVERSE_CHUNK_SIZE);
         const cy = Math.floor(playerPos.y / Config.UNIVERSE_CHUNK_SIZE);
         const cz = Math.floor(playerPos.z / Config.UNIVERSE_CHUNK_SIZE);
-        
+
         const chunkKey = `${cx},${cy},${cz}`;
         if (this.lastChunkKey === chunkKey) return; // Si no cruzamos de chunk, no hay nada nuevo que escanear
         this.lastChunkKey = chunkKey;
@@ -54,21 +54,21 @@ export class ImpostorSystem {
         for (let x = cx - dist; x <= cx + dist; x++) {
             for (let y = cy - dist; y <= cy + dist; y++) {
                 for (let z = cz - dist; z <= cz + dist; z++) {
-                    
+
                     // No poner impostor si el chunk real está renderizado
-                    if (Math.sqrt((x-cx)**2 + (y-cy)**2 + (z-cz)**2) <= this.universe.renderDistance + 0.5) continue;
+                    if (Math.sqrt((x - cx) ** 2 + (y - cy) ** 2 + (z - cz) ** 2) <= this.universe.renderDistance + 0.5) continue;
 
                     // Lógica determinista de Chunk.js (sin instanciar el chunk entero)
                     const hasBlackHole = seededRandom(x, y, z, 500) > (1 - Config.BLACK_HOLE_SPAWN_CHANCE);
                     if (hasBlackHole) {
                         const bhSeed = x * 73856 + y * 1920 + z * 8831 + Config.UNIVERSE_SEED_OFFSET;
-                        
+
                         let bhSizeMult = 1.0 + seededRandom(x, y, z, bhSeed + 9) * Config.BLACK_HOLE_SIZE_MULT_NORMAL;
                         const isUltramassive = seededRandom(x, y, z, bhSeed + 10) > (1 - Config.BLACK_HOLE_ULTRA_MASSIVE_CHANCE);
-                        
+
                         if (isUltramassive) {
                             bhSizeMult = 4.0 + seededRandom(x, y, z, bhSeed + 11) * Config.BLACK_HOLE_SIZE_MULT_ULTRA;
-                            
+
                             // Si es lo bastante masivo para merecer un impostor visual
                             if (bhSizeMult >= Config.BLACK_HOLE_SUPERMASSIVE_THRESHOLD) {
                                 const key = `${x},${y},${z}`;
@@ -82,15 +82,15 @@ export class ImpostorSystem {
 
                                     const sprite = new THREE.Sprite(this.material);
                                     // Escalar según su radio proyectado en láser
-                                    const impostorScale = radius * 40; 
+                                    const impostorScale = radius * 40;
                                     sprite.scale.set(impostorScale, impostorScale, 1);
-                                    
+
                                     // Posición real global
                                     const posX = x * cSize + lx;
                                     const posY = y * cSize + ly;
                                     const posZ = z * cSize + lz;
                                     sprite.position.set(posX, posY, posZ);
-                                    
+
                                     this.scene.add(sprite);
                                     this.impostors.set(key, sprite);
                                 }

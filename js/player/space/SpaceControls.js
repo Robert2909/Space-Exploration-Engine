@@ -39,6 +39,7 @@ export class SpaceControls {
     setAutoPilotTarget(target, retainState = false) {
         this.autoPilotTarget = target;
         if (target) {
+            this.lastManualCameraMoveTime = 0;
             if (!retainState) this.autoPilotState = 'ALIGNING';
             this.autoLookTarget = null;
             this.lastAutoLookPos = null;
@@ -51,7 +52,8 @@ export class SpaceControls {
         this._onPointerLockChange = () => {
             this.isLocked = document.pointerLockElement === this.domElement;
         };
-        this._onClick = () => {
+        this._onClick = (e) => {
+            if (e && e.target && e.target.closest('#ui-layer')) return;
             if (!this.isLocked) {
                 const promise = this.domElement.requestPointerLock();
                 if (promise) promise.catch(e => console.warn("PointerLock:", e));
@@ -65,6 +67,7 @@ export class SpaceControls {
             if (Math.abs(movementX) > 100 || Math.abs(movementY) > 100) return;
 
             if (Math.abs(movementX) > 0 || Math.abs(movementY) > 0) {
+                this.lastManualCameraMoveTime = performance.now();
                 if (this.autoLookTarget) {
                     this.autoLookTarget = null;
                     this.lastAutoLookPos = null;
@@ -105,6 +108,7 @@ export class SpaceControls {
 
     onKey(event, isDown) {
         if (isDown && [...Config.KEYS.FORWARD, ...Config.KEYS.BACKWARD, ...Config.KEYS.LEFT, ...Config.KEYS.RIGHT, ...Config.KEYS.ROLL_LEFT, ...Config.KEYS.ROLL_RIGHT].includes(event.code)) {
+            this.lastManualCameraMoveTime = performance.now();
             if (this.autoLookTarget) {
                 this.autoLookTarget = null;
                 this.lastAutoLookPos = null;
@@ -137,9 +141,7 @@ export class SpaceControls {
             this.cameraVelocity.multiplyScalar(Config.CINEMATIC_CAMERA_FRICTION);
         }
 
-        if (!this.isLocked) {
-            this.velocity.multiplyScalar(0.95);
-        } else if (this.autoPilotTarget || this.autoLookTarget) {
+        if (this.autoPilotTarget || this.autoLookTarget) {
             const tgt = this.autoPilotTarget || this.autoLookTarget;
             this._targetPos.set(tgt.x, tgt.y, tgt.z);
 
@@ -147,7 +149,19 @@ export class SpaceControls {
             this._targetQuat.setFromRotationMatrix(this._matrix);
 
             const angleToTarget = this.camera.quaternion.angleTo(this._targetQuat);
-            this.camera.quaternion.slerp(this._targetQuat, dt * 3.0);
+            
+            let shouldAlign = true;
+            if (this.autoPilotTarget && this.autoPilotState === 'TRAVELING') {
+                if (performance.now() - (this.lastManualCameraMoveTime || 0) <= 1500) {
+                    shouldAlign = false;
+                }
+            } else if (this.autoLookTarget) {
+                // Auto look also shouldn't fight mouse if we decide to keep it (but it's cancelled on mouse move anyway)
+            }
+
+            if (shouldAlign) {
+                this.camera.quaternion.slerp(this._targetQuat, dt * 3.0);
+            }
 
             if (this.autoPilotTarget) {
                 this._dir.subVectors(this._targetPos, this.camera.position).normalize();
@@ -165,6 +179,10 @@ export class SpaceControls {
                     if (angleToTarget < 0.05) {
                         this.autoPilotState = 'TRAVELING';
                         EventManager.emit(EVENTS.OSD_MESSAGE, { message: 'Alineación completa. Iniciando viaje.', type: 'success', duration: 2000 });
+                    } else if (performance.now() - (this.lastManualCameraMoveTime || 0) <= 500) {
+                        // User decided to look around manually during alignment, skip alignment wait
+                        this.autoPilotState = 'TRAVELING';
+                        EventManager.emit(EVENTS.OSD_MESSAGE, { message: 'Intervención manual. Iniciando viaje.', type: 'info', duration: 2000 });
                     }
                 } else if (this.autoPilotState === 'TRAVELING') {
                     // Freno de salto cuántico: calculamos exactamente la distancia de frenado
@@ -209,8 +227,8 @@ export class SpaceControls {
                     // 2. Girar alrededor del planeta independientemente de las interacciones
                     this._offset.subVectors(this.camera.position, this._targetPos);
 
-                    // 3. Ajustar suavemente a la distancia orbital óptima (multiplicador * radio)
-                    const optimalDistance = tgt.radius * Config.AUTOPILOT_ARRIVAL_MULT; // Distancia fija óptima (ajustada por radio)
+                    // 3. Ajustar suavemente a la distancia orbital óptima (multiplicador * radio) con límite máximo
+                    const optimalDistance = Math.min(tgt.radius * Config.AUTOPILOT_ARRIVAL_MULT, tgt.radius + Config.AUTOPILOT_MAX_ARRIVAL_DISTANCE); // Distancia fija óptima
                     const currentDistance = this._offset.length();
                     if (Math.abs(optimalDistance - currentDistance) > 1.0) {
                         const adjustSpeed = Math.max(10, currentDistance * 0.5); // Velocidad de ajuste
@@ -240,27 +258,31 @@ export class SpaceControls {
                 }
             }
         } else {
-            const currentSpeed = this.speed * (this.keys.shift ? this.boostMultiplier : 1);
-
-            this._direction.set(0, 0, 0);
-            this._direction.z = Number(this.keys.w) - Number(this.keys.s);
-            this._direction.x = Number(this.keys.d) - Number(this.keys.a);
-            this._direction.normalize();
-
-            if (this.keys.w || this.keys.s) this.velocity.z -= this._direction.z * currentSpeed * dt;
-            if (this.keys.a || this.keys.d) this.velocity.x += this._direction.x * currentSpeed * dt;
-
-            const targetRoll = (Number(this.keys.q) - Number(this.keys.e)) * Config.ROLL_SPEED;
-            this.currentRollSpeed += (targetRoll - this.currentRollSpeed) * dt * 5.0; // Lerp suave
-
-            if (Math.abs(this.currentRollSpeed) > 0.001) {
-                this.camera.rotateZ(this.currentRollSpeed * dt);
-            }
-
-            if (this.keys.space) {
-                this.velocity.multiplyScalar(Config.PLAYER_BRAKE_FRICTION);
+            if (!this.isLocked) {
+                this.velocity.multiplyScalar(0.95);
             } else {
-                this.velocity.multiplyScalar(this.friction);
+                const currentSpeed = this.speed * (this.keys.shift ? this.boostMultiplier : 1);
+
+                this._direction.set(0, 0, 0);
+                this._direction.z = Number(this.keys.w) - Number(this.keys.s);
+                this._direction.x = Number(this.keys.d) - Number(this.keys.a);
+                this._direction.normalize();
+
+                if (this.keys.w || this.keys.s) this.velocity.z -= this._direction.z * currentSpeed * dt;
+                if (this.keys.a || this.keys.d) this.velocity.x += this._direction.x * currentSpeed * dt;
+                
+                const targetRoll = (Number(this.keys.q) - Number(this.keys.e)) * Config.ROLL_SPEED;
+                this.currentRollSpeed += (targetRoll - this.currentRollSpeed) * dt * 5.0; // Lerp suave
+
+                if (Math.abs(this.currentRollSpeed) > 0.001) {
+                    this.camera.rotateZ(this.currentRollSpeed * dt);
+                }
+
+                if (this.keys.space) {
+                    this.velocity.multiplyScalar(Config.PLAYER_BRAKE_FRICTION);
+                } else {
+                    this.velocity.multiplyScalar(this.friction);
+                }
             }
         }
 

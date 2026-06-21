@@ -56,8 +56,8 @@ export class SpaceState extends GameState {
                 let dz = sys.lz + cz - pos.z;
                 let distSq = dx * dx + dy * dy + dz * dz;
 
-                let allowDistSq = maxDistSq;
-                if (sys.group === 'BlackHole') allowDistSq = maxDistSq * 100;
+                let specificMaxDist = Math.max(maxDist, sys.radius * Config.UI_LABEL_DISTANCE_MULT);
+                let allowDistSq = specificMaxDist * specificMaxDist;
 
                 if (distSq < allowDistSq) {
                     nearbyBodies.push({ name: sys.name, type: sys.type, group: sys.group || 'Estrella', radius: sys.radius, x: sys.lx + cx, y: sys.ly + cy, z: sys.lz + cz, distSq: distSq });
@@ -69,7 +69,8 @@ export class SpaceState extends GameState {
                     dy = p.ly + cy - pos.y;
                     dz = p.lz + cz - pos.z;
                     distSq = dx * dx + dy * dy + dz * dz;
-                    if (distSq < maxDistSq) {
+                    let pMaxDist = Math.max(maxDist, p.radius * Config.UI_LABEL_DISTANCE_MULT);
+                    if (distSq < pMaxDist * pMaxDist) {
                         nearbyBodies.push({
                             name: p.name, type: p.type, group: 'Planeta',
                             radius: p.radius, x: p.lx + cx, y: p.ly + cy, z: p.lz + cz,
@@ -135,15 +136,16 @@ export class SpaceState extends GameState {
                         const beltCenter = sys.asteroidBelt.innerRadius + (sys.asteroidBelt.width / 2);
                         const depth = 1.0 - (Math.abs(distToSys - beltCenter) / (sys.asteroidBelt.width / 2));
 
-                        // Si vamos rápido, la nave tiembla por los micro-impactos
+                        // Si vamos rápido relativo a nuestra velocidad máxima, la nave tiembla levemente
                         const speed = engine.controls.velocity.length();
-                        if (speed > Config.PLAYER_SPEED_MAX * 0.1) {
-                            const shakeLevel = depth * (speed / Config.PLAYER_SPEED_MAX) * 0.05;
+                        if (speed > Config.PLAYER_SPEED_MAX * 0.2) {
+                            // Reducimos drásticamente la intensidad (de 0.05 a 0.005) para que no maree
+                            const shakeLevel = depth * (speed / Config.PLAYER_SPEED_MAX) * 0.005;
                             engine.cameraBlurLevel += shakeLevel;
 
-                            // Avisar al jugador si va muy rápido
-                            if (speed > Config.PLAYER_SPEED_MAX * 0.5 && Math.random() < 0.02) {
-                                EventManager.emit(EVENTS.OSD_MESSAGE, { message: 'Alerta: Múltiples micro-impactos detectados en el casco', type: 'warning', duration: 2000 });
+                            // Avisar al jugador con mucha menor frecuencia (de 0.02 a 0.001)
+                            if (speed > Config.PLAYER_SPEED_MAX * 0.6 && Math.random() < 0.001) {
+                                EventManager.emit(EVENTS.OSD_MESSAGE, { message: 'Alerta: Micro-impactos detectados en el exterior', type: 'warning', duration: 2000 });
                             }
                         }
                     }
@@ -183,8 +185,10 @@ export class SpaceState extends GameState {
 
             engine.updateTargetHUD(engine.targetBody);
 
-            // Umbral de llegada relativo al tamaño del cuerpo (cinemático)
-            const arrivalThreshold = Math.max(engine.targetBody.radius * Config.AUTOPILOT_ARRIVAL_MULT, engine.targetBody.radius + 30);
+            // Umbral de llegada relativo al tamaño del cuerpo (cinemático), limitado para monstruosidades
+            let idealRadius = engine.targetBody.radius * Config.AUTOPILOT_ARRIVAL_MULT;
+            idealRadius = Math.min(idealRadius, engine.targetBody.radius + Config.AUTOPILOT_MAX_ARRIVAL_DISTANCE);
+            const arrivalThreshold = Math.max(idealRadius, engine.targetBody.radius + 30);
 
             // Detección de Overshoot (Tunneling de físicas): Si nos pasamos de largo por lag o velocidad excesiva
             let overshot = false;

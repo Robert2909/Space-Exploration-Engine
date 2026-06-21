@@ -18,7 +18,7 @@ export class TerrainManager {
             for (let i = 0; i < planetData.name.length; i++) seed += planetData.name.charCodeAt(i);
         }
 
-        this.generator = new TerrainGenerator(this.chunkSize * 3, seed, planetData ? planetData.type : 'Rocky Planet', planetData ? planetData.radius * 10 : 50000, planetData ? planetData.terrainVariance : null);
+        this.generator = new TerrainGenerator(this.chunkSize * 3, seed, planetData ? planetData.type : 'Planeta rocoso', planetData ? planetData.radius * 10 : 50000, planetData ? planetData.terrainVariance : null);
         this.chunks = new Map(); // Ahora usamos un Map para buscar chunks por "x,z"
 
         // Web Worker para generación de terreno asíncrona
@@ -29,11 +29,11 @@ export class TerrainManager {
         // FASE 3: Object Pool de SharedArrayBuffers para cero-clonación y cero-GC
         this.bufferPool = [];
         this.activeBuffers = new Map();
-        
+
         const res = Config.TERRAIN_CHUNK_RESOLUTION;
         const numVertices = res * res * 2 * 3;
         const bufferSize = numVertices * 3 * 4; // 3 floats por vértice * 4 bytes
-        
+
         // 3x3 chunks visibles = 9 + un pequeño margen
         const poolSize = (this.renderDistance * 2 + 1) ** 2 + 10;
         for (let i = 0; i < poolSize; i++) {
@@ -77,7 +77,7 @@ export class TerrainManager {
         groundColor.offsetHSL(0, -0.1, -0.1);
 
         this.groundColor = groundColor; // Guardar para pasarlo al generador
-        
+
         this.material = new THREE.MeshStandardMaterial({
             vertexColors: true,
             roughness: 0.8,
@@ -120,7 +120,7 @@ export class TerrainManager {
             canvas.width = 256; canvas.height = 256;
             const ctx = canvas.getContext('2d');
             const gradient = ctx.createRadialGradient(128, 128, 0, 128, 128, 128);
-            
+
             if (this.hasAtmosphere) {
                 gradient.addColorStop(0, 'rgba(255, 255, 255, 1)');
                 gradient.addColorStop(0.2, 'rgba(255, 240, 200, 0.8)');
@@ -131,7 +131,7 @@ export class TerrainManager {
                 gradient.addColorStop(0.15, 'rgba(255, 250, 230, 0.2)');
                 gradient.addColorStop(1, 'rgba(255, 250, 230, 0)');
             }
-            
+
             ctx.fillStyle = gradient;
             ctx.fillRect(0, 0, 256, 256);
             const glowMaterial = new THREE.SpriteMaterial({
@@ -171,7 +171,7 @@ export class TerrainManager {
             this.waterMesh = new THREE.Mesh(waterGeo, waterMat);
             this.group.add(this.waterMesh);
         }
-        
+
         // Generar los chunks iniciales
         this.update(0, { x: startX, z: startZ });
     }
@@ -208,7 +208,7 @@ export class TerrainManager {
         const seedValue = this.generator.seed + cx * 1000 + cz;
         // Probabilidad de que haya un POI en este chunk (10%)
         const chance = Math.abs(Math.sin(seedValue * 12.345));
-        
+
         if (chance > 0.90) {
             const px = offsetX + (Math.sin(seedValue * 1.1) - 0.5) * this.chunkSize * 0.8;
             const pz = offsetZ + (Math.cos(seedValue * 1.2) - 0.5) * this.chunkSize * 0.8;
@@ -219,14 +219,14 @@ export class TerrainManager {
 
             let mesh;
             const poiType = Math.abs(Math.sin(seedValue * 2.34));
-            
+
             if (poiType > 0.5) {
                 // Monolito alienígena
                 const geo = new THREE.BoxGeometry(10, 100, 10);
                 const mat = new THREE.MeshStandardMaterial({ color: 0x111111, metalness: 0.9, roughness: 0.1 });
                 mesh = new THREE.Mesh(geo, mat);
                 mesh.position.set(px, py + 50, pz);
-                
+
                 // Luz de faro
                 const light = new THREE.PointLight(0xff00ff, 3, 300);
                 light.position.y = 50;
@@ -237,7 +237,7 @@ export class TerrainManager {
                 const mat = new THREE.MeshStandardMaterial({ color: 0x00ffff, emissive: 0x003355, roughness: 0.2, transparent: true, opacity: 0.8 });
                 mesh = new THREE.Mesh(geo, mat);
                 mesh.position.set(px, py + 10, pz);
-                
+
                 const light = new THREE.PointLight(0x00ffff, 2, 200);
                 mesh.add(light);
             }
@@ -276,10 +276,10 @@ export class TerrainManager {
 
         for (let i = 0; i < this.suns.length; i++) {
             const sunObj = this.suns[i];
-            
+
             // Para la compañera, agregamos un offset al timeOfDay
-            const timeOffset = i === 1 ? Math.PI * 0.3 : 0; 
-            
+            const timeOffset = i === 1 ? Math.PI * 0.3 : 0;
+
             const eqX = Math.cos(this.timeOfDay + timeOffset) * sunOrbitRadius;
             const eqY = Math.sin(this.timeOfDay + timeOffset) * sunOrbitRadius;
             const eqZ = 0;
@@ -393,7 +393,7 @@ export class TerrainManager {
                         chunkSize: this.chunkSize,
                         resolution: Config.TERRAIN_CHUNK_RESOLUTION,
                         baseColor: this.groundColor.getHex(),
-                        planetType: this.planetData ? this.planetData.type : 'Rocky Planet',
+                        planetType: this.planetData ? this.planetData.type : 'Planeta rocoso',
                         seed: this.seed,
                         terrainRadius: this.terrainRadius,
                         terrainVariance: this.planetData ? this.planetData.terrainVariance : null,
@@ -412,14 +412,14 @@ export class TerrainManager {
                     mesh.geometry.dispose();
                 }
                 this.chunks.delete(key);
-                
+
                 // Retornar al pool (FASE 3)
                 const bufferPair = this.activeBuffers.get(key);
                 if (bufferPair) {
                     this.bufferPool.push(bufferPair);
                     this.activeBuffers.delete(key);
                 }
-                
+
                 // Destruir POIs asociados
                 if (this.pois && this.pois.has(key)) {
                     for (let poiMesh of this.pois.get(key)) {
@@ -435,7 +435,7 @@ export class TerrainManager {
     onWorkerMessage(e) {
         const { id } = e.data;
         const bufferPair = this.activeBuffers.get(id);
-        
+
         // Si el jugador se movió rápido y el chunk ya no se necesita, descartarlo
         if (!this.chunks.has(id) || this.chunks.get(id) !== 'pending') {
             if (bufferPair) {
@@ -459,7 +459,7 @@ export class TerrainManager {
         const [xStr, zStr] = id.split(',');
         const x = parseInt(xStr);
         const z = parseInt(zStr);
-        
+
         const offsetX = x * this.chunkSize;
         const offsetZ = z * this.chunkSize;
 
@@ -481,7 +481,7 @@ export class TerrainManager {
         }
         this.chunks.clear();
         this.material.dispose();
-        if(this.waterMesh) {
+        if (this.waterMesh) {
             this.waterMesh.geometry.dispose();
             this.waterMesh.material.dispose();
             this.scene.remove(this.waterMesh);

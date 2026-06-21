@@ -64,7 +64,7 @@ export function generatePlanetName(starName, planetIndex, seedBase, cx, cy, cz) 
     }
 }
 
-export function generateBlackHoleName(seedBase, cx, cy, cz, bhSizeMult) {
+export function generateBlackHoleName(seedBase, cx, cy, cz, isUltraMassive) {
     const bhPrefixes = [
         'Leviathan', 'Abyss', 'Void', 'Jaws', 'Devourer', 'Singularity', 'Erebus',
         'Vortex', 'Horizon', 'Tartarus', 'Collapse', 'Maelstrom', 'Cenotaph', 'Gehenna',
@@ -89,7 +89,7 @@ export function generateBlackHoleName(seedBase, cx, cy, cz, bhSizeMult) {
     const suffix = chars[Math.floor(seededRandom(cx, cy, cz, seedBase + 6) * chars.length)];
 
     let finalName = bhName + Math.floor(seededRandom(cx, cy, cz, seedBase + 4) * 10000) + suffix;
-    if (bhSizeMult >= Config.BLACK_HOLE_SUPERMASSIVE_THRESHOLD) {
+    if (isUltraMassive) {
         finalName = 'Super Massive ' + finalName;
     }
     return finalName;

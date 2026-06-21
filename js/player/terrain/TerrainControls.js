@@ -45,7 +45,8 @@ export class TerrainControls {
         // Fall Damage tracking
         this.highestPoint = 0;
 
-        this._onClick = () => {
+        this._onClick = (e) => {
+            if (e && e.target && e.target.closest('#ui-layer')) return;
             if (!this.isLocked) {
                 const promise = this.domElement.requestPointerLock();
                 if (promise) promise.catch(e => console.warn("PointerLock:", e));

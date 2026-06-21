@@ -4,6 +4,7 @@
     --hud-bg: rgba(37, 37, 38, 0.85);
     /* VS Code Editor Dark */
     --hud-border: rgba(69, 69, 69, 0.8);
+    --border-color: rgba(69, 69, 69, 0.8);
     --text-primary: #cccccc;
     /* VS Code standard text */
     --accent-color: #007acc;
@@ -81,6 +82,38 @@ canvas {
     pointer-events: none;
 }
 
+#hud-right {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    bottom: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    transition: transform 0.3s ease, opacity 0.3s ease;
+    pointer-events: none;
+}
+
+#hud-right.hidden {
+    transform: translateX(120%);
+    opacity: 0;
+}
+
+#locator-results::-webkit-scrollbar {
+    width: 6px;
+}
+#locator-results::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 4px;
+}
+#locator-results::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 4px;
+}
+#locator-results::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.4);
+}
+
 #labels-container {
     transition: opacity 0.3s ease;
 }
@@ -88,6 +121,23 @@ canvas {
 .hidden {
     opacity: 0 !important;
     pointer-events: none !important;
+}
+
+.hud-btn:hover {
+    background: rgba(100, 100, 100, 0.4);
+}
+
+.locator-result-item {
+    cursor: pointer;
+    padding: 4px;
+    padding-left: 8px;
+    border-left: 2px solid transparent;
+    transition: background 0.1s ease;
+    border-radius: 0 4px 4px 0;
+}
+
+.locator-result-item:hover {
+    background: rgba(100, 100, 100, 0.2);
 }
 
 .hud-panel {
@@ -255,6 +305,61 @@ input[type=range]::-webkit-slider-thumb {
 .shake-animation {
     animation: shake-ui 0.5s;
     animation-iteration-count: 1;
+}
+
+
+
+.hud-select {
+    width: 100%;
+    background: transparent;
+    color: var(--string-color);
+    border: none;
+    border-bottom: 1px dashed var(--border-color);
+    font-family: 'Fira Code', monospace;
+    font-size: 0.9rem;
+    padding: 2px 0;
+    outline: none;
+    cursor: pointer;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+    color-scheme: dark; /* Fuerza tema oscuro en OS/Navegador */
+}
+
+.hud-select option {
+    background: var(--hud-bg);
+    color: var(--text-primary);
+}
+
+.hud-btn {
+    width: 100%;
+    background: transparent;
+    color: var(--function-color);
+    border: 1px solid var(--function-color);
+    padding: 4px;
+    font-family: 'Fira Code', monospace;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-align: left;
+}
+
+.hud-btn:hover {
+    background: var(--function-color);
+    color: #000;
+}
+
+.locator-result-item {
+    border-left: 2px solid var(--border-color);
+    padding: 4px 8px;
+    cursor: pointer;
+    background-color: transparent;
+    transition: all 0.2s;
+}
+
+.locator-result-item:hover {
+    border-left-color: var(--keyword-color);
+    background-color: rgba(20, 25, 40, 0.6);
 }
 
 /* Error Manager Styles */

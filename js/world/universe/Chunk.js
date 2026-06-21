@@ -77,7 +77,9 @@ export class Chunk {
         this.scene = scene; this.size = chunkSize;
         this.group = new THREE.Group();
         this.group.position.set(cx * this.size, cy * this.size, cz * this.size);
-        this.scene.add(this.group);
+        if (this.scene) {
+            this.scene.add(this.group);
+        }
         this.systems = [];
         this.planetMesh = null;
         this.generate();
@@ -86,6 +88,110 @@ export class Chunk {
     generate() {
         this.generateStarfield();
         this.generateSystems();
+    }
+
+    static getMockSystemsData(cx, cy, cz, size) {
+        const systems = [];
+        const hasBlackHole = seededRandom(cx, cy, cz, 500) > (1 - Config.BLACK_HOLE_SPAWN_CHANCE);
+        if (hasBlackHole) {
+            const bhSeed = cx * 73856 + cy * 1920 + cz * 8831 + Config.UNIVERSE_SEED_OFFSET;
+            const lx = (seededRandom(cx, cy, cz, bhSeed) - 0.5) * size * 0.8;
+            const ly = (seededRandom(cx, cy, cz, bhSeed + 1) - 0.5) * size * 0.8;
+            const lz = (seededRandom(cx, cy, cz, bhSeed + 2) - 0.5) * size * 0.8;
+
+            let bhSizeMult = 1.0 + seededRandom(cx, cy, cz, bhSeed + 9) * Config.BLACK_HOLE_SIZE_MULT_NORMAL;
+            let isUltraMassive = false;
+            if (seededRandom(cx, cy, cz, bhSeed + 10) > (1 - Config.BLACK_HOLE_ULTRA_MASSIVE_CHANCE)) {
+                bhSizeMult = Config.BLACK_HOLE_SIZE_MULT_NORMAL + seededRandom(cx, cy, cz, bhSeed + 11) * (Config.BLACK_HOLE_SIZE_MULT_ULTRA - Config.BLACK_HOLE_SIZE_MULT_NORMAL);
+                isUltraMassive = true;
+            }
+            const radius = Config.STAR_RADIUS_MAX * (1 + seededRandom(cx, cy, cz, bhSeed + 3) * Config.BLACK_HOLE_BASE_RADIUS_VAR) * bhSizeMult;
+            const finalName = generateBlackHoleName(bhSeed, cx, cy, cz, isUltraMassive);
+
+            systems.push({
+                isMock: true,
+                group: 'BlackHole',
+                type: 'Black Hole',
+                name: finalName,
+                radius: radius,
+                lx: lx, ly: ly, lz: lz,
+                planets: []
+            });
+            return systems;
+        }
+
+        const hasSystem = seededRandom(cx, cy, cz, 100) > (1 - Config.SYSTEM_SPAWN_CHANCE);
+        if (hasSystem || (cx === 0 && cy === 0 && cz === 0)) {
+            const numSystems = Math.floor(seededRandom(cx, cy, cz, 101) * Config.MAX_SYSTEMS_PER_CHUNK) + 1;
+            for (let i = 0; i < numSystems; i++) {
+                const seedBase = 200 + i * 10;
+                const lx = (seededRandom(cx, cy, cz, seedBase) - 0.5) * size * 0.8;
+                const ly = (seededRandom(cx, cy, cz, seedBase + 1) - 0.5) * size * 0.8;
+                const lz = (seededRandom(cx, cy, cz, seedBase + 2) - 0.5) * size * 0.8;
+                const starName = generateStarName(seedBase + 13, cx, cy, cz);
+                const starTypeRand = seededRandom(cx, cy, cz, seedBase + 3);
+                let cumulative = 1.0;
+                let starType = 'Yellow Dwarf'; 
+                for (const [sName, sData] of Object.entries(Config.STAR_TYPES)) {
+                    cumulative -= sData.chance;
+                    if (starTypeRand > cumulative) {
+                        starType = sName;
+                        break;
+                    }
+                }
+                const starRadius = Config.STAR_RADIUS_MIN + seededRandom(cx, cy, cz, seedBase + 5) * (Config.STAR_RADIUS_MAX - Config.STAR_RADIUS_MIN);
+                
+                const planetsData = [];
+                const numPlanets = Math.floor(seededRandom(cx, cy, cz, seedBase + 6) * Config.PLANETS_MAX_PER_SYSTEM) + 1;
+                for (let j = 0; j < numPlanets; j++) {
+                    const pSeed = seedBase + 20 + j;
+                    const pName = generatePlanetName(starName, j, pSeed + 13, cx, cy, cz);
+                    const isGasGiant = seededRandom(cx, cy, cz, pSeed + 5) > (1 - Config.GAS_GIANT_CHANCE);
+                    let pType = 'Planeta rocoso';
+                    if (isGasGiant) {
+                        pType = 'Gigante gaseoso';
+                    } else {
+                        const typeRand = seededRandom(cx, cy, cz, pSeed + 20);
+                        let pCumulative = 1.0;
+                        for (const [biomeName, biomeData] of Object.entries(Config.PLANET_BIOMES)) {
+                            if (biomeName !== 'Planeta rocoso') {
+                                pCumulative -= biomeData.chance;
+                                if (typeRand > pCumulative) {
+                                    pType = biomeName;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    const pRadius = isGasGiant ? (Config.PLANET_GAS_RADIUS_MIN + seededRandom(cx, cy, cz, pSeed + 6) * (Config.PLANET_GAS_RADIUS_MAX - Config.PLANET_GAS_RADIUS_MIN)) : (Config.PLANET_ROCKY_RADIUS_MIN + seededRandom(cx, cy, cz, pSeed + 7) * (Config.PLANET_ROCKY_RADIUS_MAX - Config.PLANET_ROCKY_RADIUS_MIN));
+                    
+                    const orbitRadius = starRadius * 1.5 + Config.ORBIT_DISTANCE_START + j * (Config.ORBIT_DISTANCE_SPACING + seededRandom(cx, cy, cz, pSeed + 8) * Config.ORBIT_DISTANCE_VAR);
+                    const startAngle = seededRandom(cx, cy, cz, pSeed + 11) * Math.PI * 2;
+                    
+                    planetsData.push({
+                        isMock: true,
+                        group: 'Planet',
+                        type: pType,
+                        name: pName,
+                        radius: pRadius,
+                        lx: lx + Math.cos(startAngle) * orbitRadius,
+                        ly: ly,
+                        lz: lz + Math.sin(startAngle) * orbitRadius
+                    });
+                }
+
+                systems.push({
+                    isMock: true,
+                    group: 'Star',
+                    type: starType,
+                    name: starName,
+                    radius: starRadius,
+                    lx: lx, ly: ly, lz: lz,
+                    planets: planetsData
+                });
+            }
+        }
+        return systems;
     }
 
     generateStarfield() {
@@ -124,13 +230,15 @@ export class Chunk {
             const lz = (seededRandom(this.cx, this.cy, this.cz, bhSeed + 2) - 0.5) * this.size * 0.8;
 
             let bhSizeMult = 1.0 + seededRandom(this.cx, this.cy, this.cz, bhSeed + 9) * Config.BLACK_HOLE_SIZE_MULT_NORMAL;
+            let isUltraMassive = false;
 
             if (seededRandom(this.cx, this.cy, this.cz, bhSeed + 10) > (1 - Config.BLACK_HOLE_ULTRA_MASSIVE_CHANCE)) {
-                bhSizeMult = 4.0 + seededRandom(this.cx, this.cy, this.cz, bhSeed + 11) * Config.BLACK_HOLE_SIZE_MULT_ULTRA;
+                bhSizeMult = Config.BLACK_HOLE_SIZE_MULT_NORMAL + seededRandom(this.cx, this.cy, this.cz, bhSeed + 11) * (Config.BLACK_HOLE_SIZE_MULT_ULTRA - Config.BLACK_HOLE_SIZE_MULT_NORMAL);
+                isUltraMassive = true;
             }
             const radius = Config.STAR_RADIUS_MAX * (1 + seededRandom(this.cx, this.cy, this.cz, bhSeed + 3) * Config.BLACK_HOLE_BASE_RADIUS_VAR) * bhSizeMult;
 
-            const finalName = generateBlackHoleName(bhSeed, this.cx, this.cy, this.cz, bhSizeMult);
+            const finalName = generateBlackHoleName(bhSeed, this.cx, this.cy, this.cz, isUltraMassive);
 
             const blackHole = new BlackHole({
                 name: finalName,
@@ -139,7 +247,7 @@ export class Chunk {
             });
             this.systems.push(blackHole);
             this.group.add(blackHole.mesh);
-            return; // Si hay agujero negro, devora todo lo demás, no hay estrellas normales.
+            return; // Si hay blackHole, devora todo lo demás, no hay estrellas normales.
         }
 
         const hasSystem = seededRandom(this.cx, this.cy, this.cz, 100) > (1 - Config.SYSTEM_SPAWN_CHANCE);
@@ -155,22 +263,30 @@ export class Chunk {
                 const ly = (seededRandom(this.cx, this.cy, this.cz, seedBase + 1) - 0.5) * this.size * 0.8;
                 const lz = (seededRandom(this.cx, this.cy, this.cz, seedBase + 2) - 0.5) * this.size * 0.8;
                 const starName = generateStarName(seedBase + 13, this.cx, this.cy, this.cz);
-                const isBlue = seededRandom(this.cx, this.cy, this.cz, seedBase + 3) > (1 - Config.STAR_BLUE_CHANCE);
-                const isRed = seededRandom(this.cx, this.cy, this.cz, seedBase + 4) > (1 - Config.STAR_RED_CHANCE);
-                let starType = 'Main Sequence Star';
-                let sunColorObj = new THREE.Color();
-                if (isBlue) {
-                    starType = 'Blue Giant';
-                    sunColorObj.setHSL(0.55 + seededRandom(this.cx, this.cy, this.cz, seedBase + 10) * 0.1, 0.8, 0.7 + seededRandom(this.cx, this.cy, this.cz, seedBase + 11) * 0.2);
-                } else if (isRed) {
-                    starType = 'Red Dwarf';
-                    sunColorObj.setHSL(0.0 + seededRandom(this.cx, this.cy, this.cz, seedBase + 10) * 0.1, 0.8, 0.5 + seededRandom(this.cx, this.cy, this.cz, seedBase + 11) * 0.2);
-                } else {
-                    sunColorObj.setHSL(0.1 + seededRandom(this.cx, this.cy, this.cz, seedBase + 10) * 0.08, 0.6 + seededRandom(this.cx, this.cy, this.cz, seedBase + 11) * 0.4, 0.6 + seededRandom(this.cx, this.cy, this.cz, seedBase + 12) * 0.4);
+                const starTypeRand = seededRandom(this.cx, this.cy, this.cz, seedBase + 3);
+                let cumulative = 1.0;
+                let starType = 'Yellow Dwarf'; // Fallback
+                let starData = Config.STAR_TYPES['Yellow Dwarf'];
+
+                for (const [sName, sData] of Object.entries(Config.STAR_TYPES)) {
+                    cumulative -= sData.chance;
+                    if (starTypeRand > cumulative) {
+                        starType = sName;
+                        starData = sData;
+                        break;
+                    }
                 }
+
+                let sunColorObj = new THREE.Color();
+                sunColorObj.setHSL(
+                    starData.hueBase + seededRandom(this.cx, this.cy, this.cz, seedBase + 10) * starData.hueVar,
+                    starData.sat,
+                    starData.litBase + seededRandom(this.cx, this.cy, this.cz, seedBase + 11) * starData.litVar
+                );
                 const sunColor = sunColorObj.getHex();
 
-                const sunRadius = Config.STAR_RADIUS_MIN + seededRandom(this.cx, this.cy, this.cz, seedBase + 5) * (Config.STAR_RADIUS_MAX - Config.STAR_RADIUS_MIN);
+                const baseRadius = Config.STAR_RADIUS_MIN + seededRandom(this.cx, this.cy, this.cz, seedBase + 5) * (Config.STAR_RADIUS_MAX - Config.STAR_RADIUS_MIN);
+                const sunRadius = baseRadius * (starData.radiusMultMin + seededRandom(this.cx, this.cy, this.cz, seedBase + 6) * (starData.radiusMultMax - starData.radiusMultMin));
                 const numPlanets = Math.floor(seededRandom(this.cx, this.cy, this.cz, seedBase + 6) * Config.PLANETS_MAX_PER_SYSTEM) + 1;
                 const planets = [];
 
@@ -179,16 +295,16 @@ export class Chunk {
                     const pName = generatePlanetName(starName, j, pSeed + 13, this.cx, this.cy, this.cz);
                     const hue = seededRandom(this.cx, this.cy, this.cz, pSeed);
                     const isGasGiant = seededRandom(this.cx, this.cy, this.cz, pSeed + 5) > (1 - Config.GAS_GIANT_CHANCE);
-                    let pType = 'Rocky Planet';
+                    let pType = 'Planeta rocoso';
                     if (isGasGiant) {
-                        pType = 'Gas Giant';
+                        pType = 'Gigante gaseoso';
                     } else {
                         const typeRand = seededRandom(this.cx, this.cy, this.cz, pSeed + 20);
                         let cumulative = 1.0;
-                        pType = 'Rocky Planet'; // Fallback
+                        pType = 'Planeta rocoso'; // Fallback
 
                         for (const [biomeName, biomeData] of Object.entries(Config.PLANET_BIOMES)) {
-                            if (biomeName !== 'Rocky Planet') {
+                            if (biomeName !== 'Planeta rocoso') {
                                 cumulative -= biomeData.chance;
                                 if (typeRand > cumulative) {
                                     pType = biomeName;
@@ -206,7 +322,7 @@ export class Chunk {
                         atmosphereDensity = 0.001; // Densidad enorme para gaseosos (aunque no aterricemos)
                     } else {
                         // Leer datos del registro (Data-Driven Pattern)
-                        const biome = Config.PLANET_BIOMES[pType] || Config.PLANET_BIOMES['Rocky Planet'];
+                        const biome = Config.PLANET_BIOMES[pType] || Config.PLANET_BIOMES['Planeta rocoso'];
 
                         // Color base procedural
                         let pSat = biome.sat !== undefined ? biome.sat : (biome.satRandomBase + seededRandom(this.cx, this.cy, this.cz, pSeed + 1) * biome.satRandomMult);
@@ -259,22 +375,32 @@ export class Chunk {
                 // --- BINARY STAR CHECK ---
                 const isBinary = seededRandom(this.cx, this.cy, this.cz, seedBase + 50) > (1 - Config.BINARY_STAR_CHANCE);
                 if (isBinary) {
-                    const compRadius = sunRadius * (0.3 + seededRandom(this.cx, this.cy, this.cz, seedBase + 51) * 0.6); // 30% to 90% size of main star
-                    const compIsBlue = seededRandom(this.cx, this.cy, this.cz, seedBase + 52) > 0.5;
-                    const compIsRed = seededRandom(this.cx, this.cy, this.cz, seedBase + 53) > 0.5;
-                    let compColorObj = new THREE.Color();
-                    if (compIsBlue) {
-                        compColorObj.setHSL(0.55 + seededRandom(this.cx, this.cy, this.cz, seedBase + 54) * 0.1, 0.8, 0.7);
-                    } else if (compIsRed) {
-                        compColorObj.setHSL(0.0 + seededRandom(this.cx, this.cy, this.cz, seedBase + 54) * 0.1, 0.8, 0.5);
-                    } else {
-                        compColorObj.setHSL(0.1 + seededRandom(this.cx, this.cy, this.cz, seedBase + 54) * 0.08, 0.6, 0.6);
+                    const compTypeRand = seededRandom(this.cx, this.cy, this.cz, seedBase + 52);
+                    let compCumulative = 1.0;
+                    let compStarData = Config.STAR_TYPES['Red Dwarf']; // Fallback common companion
+
+                    for (const [sName, sData] of Object.entries(Config.STAR_TYPES)) {
+                        compCumulative -= sData.chance;
+                        if (compTypeRand > compCumulative) {
+                            compStarData = sData;
+                            break;
+                        }
                     }
+
+                    let compColorObj = new THREE.Color();
+                    compColorObj.setHSL(
+                        compStarData.hueBase + seededRandom(this.cx, this.cy, this.cz, seedBase + 54) * compStarData.hueVar,
+                        compStarData.sat,
+                        compStarData.litBase + seededRandom(this.cx, this.cy, this.cz, seedBase + 55) * compStarData.litVar
+                    );
                     const compColor = compColorObj.getHex();
 
-                    const compDistance = sunRadius * 2 + seededRandom(this.cx, this.cy, this.cz, seedBase + 55) * sunRadius * 3;
-                    const compAngle = seededRandom(this.cx, this.cy, this.cz, seedBase + 56) * Math.PI * 2;
-                    const compSpeed = Config.PLANET_ORBIT_SPEED_MAX * (0.5 + seededRandom(this.cx, this.cy, this.cz, seedBase + 57)) * (seededRandom(this.cx, this.cy, this.cz, seedBase + 58) > 0.5 ? 1 : -1);
+                    const compBaseRadius = Config.STAR_RADIUS_MIN + seededRandom(this.cx, this.cy, this.cz, seedBase + 60) * (Config.STAR_RADIUS_MAX - Config.STAR_RADIUS_MIN);
+                    const compRadius = compBaseRadius * (compStarData.radiusMultMin + seededRandom(this.cx, this.cy, this.cz, seedBase + 61) * (compStarData.radiusMultMax - compStarData.radiusMultMin));
+
+                    const compDistance = sunRadius * 2 + seededRandom(this.cx, this.cy, this.cz, seedBase + 56) * sunRadius * 3;
+                    const compAngle = seededRandom(this.cx, this.cy, this.cz, seedBase + 57) * Math.PI * 2;
+                    const compSpeed = Config.PLANET_ORBIT_SPEED_MAX * (0.5 + seededRandom(this.cx, this.cy, this.cz, seedBase + 58)) * (seededRandom(this.cx, this.cy, this.cz, seedBase + 59) > 0.5 ? 1 : -1);
 
                     const companionInstance = new Star({
                         name: starName + " B", type: "Binary Companion Star", sunColor: compColor, radius: compRadius,
@@ -300,16 +426,16 @@ export class Chunk {
                 const hasAsteroids = seededRandom(this.cx, this.cy, this.cz, seedBase + 60) > (1 - Config.ASTEROID_BELT_CHANCE);
                 if (hasAsteroids) {
                     starInstance.asteroidBelt = {
-                        count: 100 + Math.floor(seededRandom(this.cx, this.cy, this.cz, seedBase + 61) * 300),
-                        innerRadius: sunRadius * 4 + seededRandom(this.cx, this.cy, this.cz, seedBase + 62) * sunRadius * 5,
-                        width: sunRadius * 2,
-                        speed: (seededRandom(this.cx, this.cy, this.cz, seedBase + 63) * 0.05 + 0.01) * (seededRandom(this.cx, this.cy, this.cz, seedBase + 64) > 0.5 ? 1 : -1),
+                        count: Config.ASTEROID_BELT_COUNT_BASE + Math.floor(seededRandom(this.cx, this.cy, this.cz, seedBase + 61) * Config.ASTEROID_BELT_COUNT_VAR),
+                        innerRadius: sunRadius * Config.ASTEROID_BELT_RADIUS_MULT_BASE + seededRandom(this.cx, this.cy, this.cz, seedBase + 62) * sunRadius * Config.ASTEROID_BELT_RADIUS_MULT_VAR,
+                        width: sunRadius * Config.ASTEROID_BELT_WIDTH_MULT,
+                        speed: (seededRandom(this.cx, this.cy, this.cz, seedBase + 63) * Config.ASTEROID_BELT_SPEED_VAR + Config.ASTEROID_BELT_SPEED_BASE) * (seededRandom(this.cx, this.cy, this.cz, seedBase + 64) > 0.5 ? 1 : -1),
                         angle: 0,
                         asteroids: [] // { radius, dist, angleOffset, rotSpeed, rotAxis, tilt }
                     };
                     for (let i = 0; i < starInstance.asteroidBelt.count; i++) {
                         starInstance.asteroidBelt.asteroids.push({
-                            radius: (seededRandom(this.cx, this.cy, this.cz, seedBase + 65 + i) * 0.8 + 0.2) * 500, // Rocas de 100 a 500 unidades
+                            radius: Config.ASTEROID_SIZE_MIN + seededRandom(this.cx, this.cy, this.cz, seedBase + 65 + i) * (Config.ASTEROID_SIZE_MAX - Config.ASTEROID_SIZE_MIN),
                             dist: starInstance.asteroidBelt.innerRadius + seededRandom(this.cx, this.cy, this.cz, seedBase + 66 + i) * starInstance.asteroidBelt.width,
                             angleOffset: seededRandom(this.cx, this.cy, this.cz, seedBase + 67 + i) * Math.PI * 2,
                             tilt: (seededRandom(this.cx, this.cy, this.cz, seedBase + 68 + i) - 0.5) * 0.4, // Ligera variación en Y
@@ -425,6 +551,6 @@ export class Chunk {
         });
         if (this.planetMesh) this.planetMesh.dispose();
         if (this.asteroidMesh) this.asteroidMesh.dispose();
-        this.scene.remove(this.group);
+        if (this.scene) this.scene.remove(this.group);
     }
 }

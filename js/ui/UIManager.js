@@ -122,6 +122,10 @@ export class UIManager {
             if (jpPanel) {
                 jpPanel.style.display = state === 'TERRAIN' ? 'block' : 'none';
             }
+            const locatorPanel = document.getElementById('locator-panel');
+            if (locatorPanel) {
+                locatorPanel.style.display = state === 'SPACE' ? 'block' : 'none';
+            }
             if (state === 'TERRAIN') {
                 this.labelsContainer.classList.add('hidden');
                 for (let i = 0; i < this.labelsPool.length; i++) {
@@ -134,6 +138,8 @@ export class UIManager {
                 }
             }
         });
+
+        this.setupLocator();
 
         // Selección de objetivo
         EventManager.on(EVENTS.TARGET_CHANGED, (target) => {
@@ -162,6 +168,8 @@ export class UIManager {
     setupToggles() {
         const toggleHUD = () => {
             this.hud.classList.toggle('hidden');
+            const hudRight = document.getElementById('hud-right');
+            if (hudRight) hudRight.classList.toggle('hidden');
         };
 
         const toggleLabels = () => {
@@ -196,6 +204,178 @@ export class UIManager {
         document.getElementById('pos-z').innerText = Math.round(pos.z);
     }
 
+    setupLocator() {
+        const mainSelect = document.getElementById('locator-main-type');
+        const subContainer = document.getElementById('locator-sub-type-container');
+        const subSelect = document.getElementById('locator-sub-type');
+        const scanBtn = document.getElementById('locator-scan-btn');
+        const resultsDiv = document.getElementById('locator-results');
+        const sortDistBtn = document.getElementById('sort-dist-btn');
+        const sortRadBtn = document.getElementById('sort-rad-btn');
+        const renderDistSlider = document.getElementById('render-dist');
+
+        if (!mainSelect || !subSelect || !scanBtn || !resultsDiv) return;
+
+        this.latestScanResults = [];
+        this.currentSortMode = 'dist'; // 'dist' or 'rad'
+
+        // Populate sub types based on main type
+        mainSelect.addEventListener('change', () => {
+            const val = mainSelect.value;
+            subSelect.innerHTML = '<option value="ALL">\'TODOS\'</option>';
+
+            if (val === 'ALL' || val === 'BlackHole') {
+                subContainer.style.display = 'none';
+            } else {
+                subContainer.style.display = 'block';
+                if (val === 'Star') {
+                    for (let key in Config.STAR_TYPES) {
+                        subSelect.innerHTML += `<option value="${key}">'${key}'</option>`;
+                    }
+                } else if (val === 'Planet') {
+                    for (let key in Config.PLANET_BIOMES) {
+                        subSelect.innerHTML += `<option value="${key}">'${key}'</option>`;
+                    }
+                }
+            }
+        });
+
+        EventManager.on(EVENTS.LOCATOR_SCAN_PROGRESS, (progress) => {
+            const resultsDiv = document.getElementById('locator-results');
+            if (resultsDiv) {
+                const filled = Math.floor(progress.pct / 10);
+                const empty = 10 - filled;
+                const bar = '[' + '='.repeat(filled) + ' '.repeat(empty) + ']';
+                resultsDiv.innerHTML = `<span class="small-text" style="color: var(--keyword-color);">// Escaneando sector...<br>${bar} ${progress.pct}% (${progress.current}/${progress.total})</span>`;
+            }
+        });
+
+        scanBtn.addEventListener('click', () => {
+            resultsDiv.innerHTML = '<span class="small-text" style="color: var(--keyword-color);">// Escaneando sector...</span>';
+            const extraRangeInput = document.getElementById('locator-extra-range');
+            const criteria = {
+                mainType: mainSelect.value,
+                subType: subContainer.style.display === 'none' ? 'ALL' : subSelect.value,
+                extraRange: extraRangeInput ? parseInt(extraRangeInput.value) || 0 : 0
+            };
+            this.latestCriteria = criteria;
+            EventManager.emit(EVENTS.LOCATOR_SCAN_REQUESTED, criteria);
+        });
+
+        const renderResults = () => {
+            const resultsDiv = document.getElementById('locator-results');
+            const actionContainer = document.getElementById('locator-action-container');
+            if (actionContainer) actionContainer.style.display = 'none';
+
+            const sortContainer = document.getElementById('locator-sort-container');
+
+            if (this.latestScanResults.length === 0) {
+                if (sortContainer) sortContainer.style.display = 'none';
+                resultsDiv.innerHTML = `
+                    <span class="small-text" style="color: #ff5555;">// No se encontraron resultados.</span>
+                    <button id="extend-scan-btn" class="hud-btn" style="margin-top: 5px;">>> ampliar_escaneo(+1_chunk)</button>
+                `;
+                document.getElementById('extend-scan-btn').addEventListener('click', () => {
+                    const extraRangeInput = document.getElementById('locator-extra-range');
+                    if (extraRangeInput) {
+                        extraRangeInput.value = parseInt(extraRangeInput.value || 0) + 1;
+                    }
+                    this.latestCriteria.extraRange += 1;
+                    resultsDiv.innerHTML = '<span class="small-text" style="color: var(--keyword-color);">// Escaneando profundidad ' + this.latestCriteria.extraRange + '...</span>';
+                    EventManager.emit(EVENTS.LOCATOR_SCAN_REQUESTED, this.latestCriteria);
+                });
+                return;
+            }
+
+            if (sortContainer) sortContainer.style.display = 'flex';
+
+            // Sort results
+            if (this.currentSortMode === 'dist_asc') {
+                this.latestScanResults.sort((a, b) => a.distSq - b.distSq);
+                if (sortDistBtn) { sortDistBtn.style.color = 'var(--number-color)'; sortDistBtn.innerText = '[ dist ▲ ]'; }
+                if (sortRadBtn) { sortRadBtn.style.color = 'var(--function-color)'; sortRadBtn.innerText = '[ radio ]'; }
+            } else if (this.currentSortMode === 'dist_desc') {
+                this.latestScanResults.sort((a, b) => b.distSq - a.distSq);
+                if (sortDistBtn) { sortDistBtn.style.color = 'var(--number-color)'; sortDistBtn.innerText = '[ dist ▼ ]'; }
+                if (sortRadBtn) { sortRadBtn.style.color = 'var(--function-color)'; sortRadBtn.innerText = '[ radio ]'; }
+            } else if (this.currentSortMode === 'rad_asc') {
+                this.latestScanResults.sort((a, b) => a.radiusVal - b.radiusVal);
+                if (sortRadBtn) { sortRadBtn.style.color = 'var(--number-color)'; sortRadBtn.innerText = '[ radio ▲ ]'; }
+                if (sortDistBtn) { sortDistBtn.style.color = 'var(--function-color)'; sortDistBtn.innerText = '[ dist ]'; }
+            } else if (this.currentSortMode === 'rad_desc') {
+                this.latestScanResults.sort((a, b) => b.radiusVal - a.radiusVal);
+                if (sortRadBtn) { sortRadBtn.style.color = 'var(--number-color)'; sortRadBtn.innerText = '[ radio ▼ ]'; }
+                if (sortDistBtn) { sortDistBtn.style.color = 'var(--function-color)'; sortDistBtn.innerText = '[ dist ]'; }
+            }
+
+            resultsDiv.innerHTML = `<div style="font-size: 0.7rem; color: var(--keyword-color); margin-bottom: 5px;">// Mostrando ${Math.min(100, this.latestScanResults.length)} de ${this.latestScanTotal || this.latestScanResults.length} coincidencias</div>`;
+            const displayResults = this.latestScanResults.slice(0, 100);
+            displayResults.forEach(res => {
+                const item = document.createElement('div');
+                item.className = 'locator-result-item';
+
+                const isStar = res.group === 'Star';
+                const isBlackHole = res.group === 'BlackHole';
+                const colorClass = isStar ? 'var(--function-color)' : (isBlackHole ? '#8a2be2' : 'var(--variable-color)');
+                const icon = isStar ? '❖' : (isBlackHole ? '🌀' : '○');
+                const calculatedDist = (res.distSq >= 0) ? (Math.round(Math.sqrt(res.distSq)) + 'u') : '???u';
+
+                item.innerHTML = `
+                    <div style="font-size: 0.85rem; font-weight: bold; color: var(--text-primary);">
+                        <span style="color:${colorClass};">${icon}</span> ${res.name}
+                    </div>
+                    <div style="font-size: 0.7rem; color: #888;">
+                        <span style="color: var(--number-color);">${calculatedDist}</span> | R: ${res.radius}
+                    </div>
+                `;
+
+                // QoL: Select visualmente
+                item.addEventListener('click', () => {
+                    const allItems = resultsDiv.querySelectorAll('.locator-result-item');
+                    allItems.forEach(el => el.style.borderLeft = 'none');
+                    item.style.borderLeft = '2px solid var(--accent-color)';
+
+                    const actionContainer = document.getElementById('locator-action-container');
+                    if (actionContainer) actionContainer.style.display = 'block';
+
+                    const body = res.bodyRef;
+                    body.distSq = res.distSq;
+                    this.selectedLocatorBody = body; // Guarda el body seleccionado
+                    EventManager.emit(EVENTS.TARGET_CHANGED, body);
+                    EventManager.emit(EVENTS.OSD_MESSAGE, { message: 'Objetivo remoto fijado: ' + body.name, type: 'success' });
+                });
+
+                resultsDiv.appendChild(item);
+            });
+        };
+
+        const travelBtn = document.getElementById('locator-travel-btn');
+        if (travelBtn) {
+            travelBtn.addEventListener('click', () => {
+                if (this.selectedLocatorBody) {
+                    EventManager.emit(EVENTS.LOCATOR_TRAVEL_REQUESTED, this.selectedLocatorBody);
+                }
+            });
+        }
+
+        if (sortDistBtn) sortDistBtn.addEventListener('click', () => {
+            this.currentSortMode = (this.currentSortMode === 'dist_asc') ? 'dist_desc' : 'dist_asc';
+            renderResults();
+        });
+        if (sortRadBtn) sortRadBtn.addEventListener('click', () => {
+            this.currentSortMode = (this.currentSortMode === 'rad_desc') ? 'rad_asc' : 'rad_desc';
+            renderResults();
+        });
+
+        EventManager.on(EVENTS.LOCATOR_RESULTS_READY, (payload) => {
+            // Attach raw radius value for sorting
+            payload.results.forEach(r => r.radiusVal = r.bodyRef.radius);
+            this.latestScanResults = payload.results;
+            this.latestScanTotal = payload.total;
+            renderResults();
+        });
+    }
+
     updateLabels(nearby) {
         if (!nearby) return;
         const maxDist = Config.UI_LABEL_MAX_DISTANCE;
@@ -205,22 +385,34 @@ export class UIManager {
 
         if (this.labelsContainer.classList.contains('hidden')) return;
 
-        let labelIndex = 0;
+        for (let i = 0; i < this.labelsPool.length; i++) {
+            this.labelsPool[i]._usedThisFrame = false;
+        }
 
         for (let i = 0; i < nearby.length; i++) {
-            if (labelIndex >= this.labelsPool.length) break;
 
             const body = nearby[i];
             const dist = Math.sqrt(body.distSq);
-            if (dist > maxDist) continue;
+            let specificMaxDist = Math.max(maxDist, body.radius * Config.UI_LABEL_DISTANCE_MULT);
+            if (dist > specificMaxDist) continue;
 
             this._tempV.set(body.x, body.y, body.z);
             this._tempV.project(this.camera);
 
             if (this._tempV.z < 1 && this._tempV.x > -1.1 && this._tempV.x < 1.1 && this._tempV.y > -1.1 && this._tempV.y < 1.1) {
+                // Calcular el radio aparente en píxeles usando el FOV
+                const fovRad = Config.RENDER_FOV * Math.PI / 180;
+                const fovFactor = (window.innerHeight / 2) / Math.tan(fovRad / 2);
+                const apparentRadiusPx = Math.min((body.radius / dist) * fovFactor, window.innerHeight / 2.5);
+
                 const x = (this._tempV.x * 0.5 + 0.5) * window.innerWidth;
-                const y = (this._tempV.y * -0.5 + 0.5) * window.innerHeight;
-                const el = this.labelsPool[labelIndex];
+                const y = (this._tempV.y * -0.5 + 0.5) * window.innerHeight - apparentRadiusPx - 10;
+                let el = this.labelsPool.find(l => l._lastName === body.name);
+                if (!el) el = this.labelsPool.find(l => !l._usedThisFrame && l._lastName === '');
+                if (!el) el = this.labelsPool.find(l => !l._usedThisFrame);
+
+                if (!el) continue;
+                el._usedThisFrame = true;
 
                 const distText = Math.round(Math.max(0, dist - body.radius)) + 'u';
 
@@ -246,24 +438,29 @@ export class UIManager {
                     el._lastDistText = distText;
                 }
 
-                el.style.transform = `translate(-50%, -50%) translate(${x}px, ${y}px)`;
+                // Escalar la etiqueta visualmente según qué tan lejos esté
+                // Cerca (distancia < radio*4) = scale 1.0.  Lejos = scale 0.5
+                const normalizedDist = Math.max(0, dist - body.radius * 4) / maxDist;
+                const scale = Math.max(0.5, 1.0 - normalizedDist * 0.8);
+
+                el.style.transform = `translate(-50%, -100%) translate(${x}px, ${y}px) scale(${scale})`;
                 el.style.left = '0px';
                 el.style.top = '0px';
 
                 let targetOpacity = 1.0;
-                let specificMaxDist = body.group === 'BlackHole' ? maxDist * 10 : maxDist;
 
                 if (dist > specificMaxDist * 0.7) {
                     targetOpacity = 1 - ((dist - specificMaxDist * 0.7) / (specificMaxDist * 0.3));
                 }
                 el.style.opacity = Math.max(0, targetOpacity).toString();
-                labelIndex++;
             }
         }
 
-        for (let i = labelIndex; i < this.labelsPool.length; i++) {
-            this.labelsPool[i].style.opacity = '0';
-            this.labelsPool[i]._lastName = '';
+        for (let i = 0; i < this.labelsPool.length; i++) {
+            if (!this.labelsPool[i]._usedThisFrame) {
+                this.labelsPool[i].style.opacity = '0';
+                this.labelsPool[i]._lastName = '';
+            }
         }
     }
 
@@ -313,7 +510,7 @@ export class UIManager {
 
         if (targetAtmo) {
             targetAtmo.style.color = 'var(--string-color)';
-            if (target.type === 'Gas Giant') {
+            if (target.type === 'Gigante gaseoso') {
                 targetAtmo.innerText = "'Letal/Tóxica'";
                 targetAtmo.style.color = '#ff5555';
             } else if (target.atmosphereDensity > 0) {
@@ -331,7 +528,7 @@ export class UIManager {
         }
 
         if (targetGravity) {
-            let baseGravity = target.type === 'Gas Giant' ? 2.5 : 1.0;
+            let baseGravity = target.type === 'Gigante gaseoso' ? 2.5 : 1.0;
             let radiusFactor = target.radius / 2000;
             let calculatedG = baseGravity * radiusFactor;
             targetGravity.innerText = calculatedG.toFixed(2) + ' G';

@@ -8,11 +8,25 @@ export const Config = {
     // UNIVERSO Y GENERACIÓN PROCEDURAL
     // ==========================================
     UNIVERSE_CHUNK_SIZE: 10000000,         // Tamaño de un sector del espacio (u)
-    STARS_PER_CHUNK: 300,              // Cantidad de estrellas decorativas (puntos) por sector
+    STARS_PER_CHUNK: 200,              // Cantidad de estrellas decorativas (puntos) por sector
     SYSTEM_SPAWN_CHANCE: 0.5,            // Probabilidad (0.0 a 1.0) de que aparezcan planetas en un sector vacío
     MAX_SYSTEMS_PER_CHUNK: 2,             // Número máximo de sistemas solares por sector
     BINARY_STAR_CHANCE: 0.01,             // Probabilidad de que un sistema sea binario
     ASTEROID_BELT_CHANCE: 0.30,           // Probabilidad de que un sistema tenga cinturón de asteroides
+
+    // ==========================================
+    // CINTURONES DE ASTEROIDES
+    // ==========================================
+    ASTEROID_BELT_COUNT_BASE: 100,        // Asteroides mínimos por cinturón
+    ASTEROID_BELT_COUNT_VAR: 400,         // Asteroides extra aleatorios
+    ASTEROID_BELT_RADIUS_MULT_BASE: 10,    // Multiplicador del radio del Sol para el inicio del cinturón
+    ASTEROID_BELT_RADIUS_MULT_VAR: 5,     // Variación aleatoria del radio interior
+    ASTEROID_BELT_WIDTH_MULT: 2,          // Multiplicador del radio del Sol para el ancho del cinturón
+    ASTEROID_BELT_SPEED_BASE: 0.01,       // Velocidad base de órbita del cinturón
+    ASTEROID_BELT_SPEED_VAR: 0.05,        // Variación de velocidad orbital del cinturón
+    ASTEROID_SIZE_MIN: 100,               // Radio mínimo de un asteroide
+    ASTEROID_SIZE_MAX: 500,               // Radio máximo de un asteroide
+
     BLACK_HOLE_SPAWN_CHANCE: 0.001,       // Probabilidad de que un chunk contenga un agujero negro (aislado)
 
     // ==========================================
@@ -20,7 +34,7 @@ export const Config = {
     // ==========================================
     STAR_RADIUS_MIN: 5000,               // Radio mínimo de la estrella principal
     STAR_RADIUS_MAX: 30000,              // Radio máximo de la estrella
-    PLANETS_MAX_PER_SYSTEM: 4,         // Número máximo de planetas girando alrededor de una estrella
+    PLANETS_MAX_PER_SYSTEM: 15,         // Número máximo de planetas girando alrededor de una estrella
     GAS_GIANT_CHANCE: 0.2,             // Probabilidad de que un planeta sea gigante gaseoso (0.0 - 1.0)
     PLANET_ROCKY_RADIUS_MIN: 500,        // Radio mínimo de planeta rocoso
     PLANET_ROCKY_RADIUS_MAX: 4000,       // Radio máximo de planeta rocoso
@@ -30,25 +44,57 @@ export const Config = {
     PLANET_ORBIT_SPEED_MAX: 0.008,       // Velocidad orbital máxima (Año corto, ~12 min)
     PLANET_ROTATION_SPEED_MIN: 0.005,    // Velocidad de rotación mínima (Día de ~20 minutos)
     PLANET_ROTATION_SPEED_MAX: 0.04,     // Velocidad de rotación máxima (Día rápido de ~2.5 minutos)
-    ORBIT_DISTANCE_START: 15000,         // Distancia inicial mínima del primer planeta a su sol
-    ORBIT_DISTANCE_SPACING: 8000,        // Espacio mínimo entre las órbitas de los planetas
-    ORBIT_DISTANCE_VAR: 15000,           // Variación aleatoria del espacio entre órbitas
-    STAR_BLUE_CHANCE: 0.15,            // Probabilidad (0-1) de que una estrella sea azul (muy caliente)
-    STAR_RED_CHANCE: 0.30,             // Probabilidad (0-1) de que una estrella sea roja (fría)
+    ORBIT_DISTANCE_START: 40000,         // Distancia inicial mínima del primer planeta a su sol
+    ORBIT_DISTANCE_SPACING: 30000,        // Espacio mínimo entre las órbitas de los planetas
+    ORBIT_DISTANCE_VAR: 150000,           // Variación aleatoria extrema del espacio entre órbitas
+    // ==========================================
+    // TIPOS DE ESTRELLAS (DICCIONARIO MAESTRO)
+    // ==========================================
+    STAR_TYPES: {
+        'Gigante azul': {
+            chance: 0.10, // Probabilidad
+            hueBase: 0.55, hueVar: 0.1, sat: 0.8, litBase: 0.7, litVar: 0.2,
+            radiusMultMin: 1.5, radiusMultMax: 3.0 // Estrellas enormes
+        },
+        'Enana blanca': {
+            chance: 0.05,
+            hueBase: 0.6, hueVar: 0.1, sat: 0.1, litBase: 0.9, litVar: 0.1,
+            radiusMultMin: 0.1, radiusMultMax: 0.3 // Estrellas muy pequeñas
+        },
+        'Enana amarilla': {
+            chance: 0.35, // Muy común (como nuestro sol)
+            hueBase: 0.12, hueVar: 0.05, sat: 0.7, litBase: 0.6, litVar: 0.2,
+            radiusMultMin: 0.8, radiusMultMax: 1.2
+        },
+        'Enana naranja': {
+            chance: 0.25, // Común
+            hueBase: 0.08, hueVar: 0.04, sat: 0.8, litBase: 0.5, litVar: 0.2,
+            radiusMultMin: 0.5, radiusMultMax: 0.9
+        },
+        'Enana roja': {
+            chance: 0.20, // Común
+            hueBase: 0.0, hueVar: 0.05, sat: 0.8, litBase: 0.4, litVar: 0.2,
+            radiusMultMin: 0.2, radiusMultMax: 0.5 // Pequeñas
+        },
+        'Enana marrón': {
+            chance: 0.05, // Casi fallidas
+            hueBase: 0.05, hueVar: 0.02, sat: 0.6, litBase: 0.3, litVar: 0.1,
+            radiusMultMin: 0.15, radiusMultMax: 0.3
+        }
+    },
     SUN_GLOW_SCALE: 4.5,               // Tamaño del halo de luz visual de las estrellas (1.0 = igual al planeta)
 
     // ==========================================
     // AGUJEROS NEGROS
     // ==========================================
     BLACK_HOLE_SIZE_MULT_NORMAL: 10.0,       // Variación de tamaño para agujeros negros normales (1.0 + X)
-    BLACK_HOLE_ULTRA_MASSIVE_CHANCE: 0.1,  // Probabilidad de generar un ultramasivo (0.0 a 1.0)
-    BLACK_HOLE_SIZE_MULT_ULTRA: 15.0,        // Tamaño extra para los ultramasivos
-    BLACK_HOLE_SUPERMASSIVE_THRESHOLD: 4.0, // Multiplicador a partir del cual se gana el prefijo "Super Massive"
-    BLACK_HOLE_BASE_RADIUS_VAR: 4.0,        // Variación del radio base antes de multiplicadores
+    BLACK_HOLE_ULTRA_MASSIVE_CHANCE: 0.05,  // Probabilidad de generar un ultramasivo (0.0 a 1.0)
+    BLACK_HOLE_SIZE_MULT_ULTRA: 50.0,        // Tamaño extra para los ultramasivos
+    BLACK_HOLE_BASE_RADIUS_VAR: 20.0,        // Variación del radio base antes de multiplicadores
     BLACK_HOLE_DISK_SCALE: 1.0,             // Escala de los discos de acreción
-    BLACK_HOLE_JET_LENGTH: 120.0,           // Longitud del chorro relativista
+    BLACK_HOLE_JET_LENGTH: 90.0,           // Longitud del chorro relativista
     BLACK_HOLE_JET_WIDTH: 6.0,              // Ancho del chorro relativista
-    BLACK_HOLE_PANIC_RANGE_MULT: 300.0,     // Rango de distorsión de cámara
+    BLACK_HOLE_PANIC_RANGE_MULT: 100.0,     // Rango de distorsión de cámara
     BLACK_HOLE_DEATH_RANGE_MULT: 1.5,       // Distancia para el evento de muerte
     BLACK_HOLE_MAX_GRAVITY_MULT: 1.0,      // Fuerza de atracción máxima
     BLACK_HOLE_PULL_RADIUS_MULT: 100.0,      // Alcance gravitatorio (n veces su tamaño)
@@ -78,25 +124,25 @@ export const Config = {
     // ==========================================
     // Este registro reemplaza miles de if/else. Define las propiedades generativas de todos los tipos de planeta.
     PLANET_BIOMES: {
-        'Ocean Planet': { chance: 0.10, atmoBase: 0.0003, atmoVar: 0.0002, hueBase: 0.55, hueVar: 0.10, sat: 0.8, lit: 0.30, terrainMods: { octavesAdd: -1, exponentMult: 0.8, heightMult: 0.4 }, aesthetics: { waterLevel: 0, waterColor: 0x1144aa, beachColor: 0xddccaa, beachBlend: 0.6 } },
-        'Lava Planet': { chance: 0.10, atmoBase: 0.0004, atmoVar: 0.0000, hueBase: 0.00, hueVar: 0.10, sat: 0.9, lit: 0.40, terrainMods: { octavesAdd: 1, exponentMult: 1.3, heightMult: 1.5 }, aesthetics: { crackLevel: -100, crackColor: 0xff3300, baseLerpColor: 0x1a1a1a, baseLerp: 0.9 } },
-        'Ice Planet': { chance: 0.10, atmoBase: 0.0001, atmoVar: 0.0002, hueBase: 0.50, hueVar: 0.10, sat: 0.4, lit: 0.80, terrainMods: { octavesAdd: -1, exponentMult: 0.7, heightMult: 0.6 }, aesthetics: { globalLerpColor: 0xffffff, globalLerpBase: 0.5, globalLerpLat: 0.5 } },
-        'Crystal Planet': { chance: 0.05, atmoBase: 0.0000, atmoVar: 0.0000, useSystemHue: true, sat: 0.9, lit: 0.60, terrainMods: { octavesAdd: 0, exponentMult: 2.0, heightMult: 1.8 }, aesthetics: { invertLighting: true } },
-        'Desert Planet': { chance: 0.15, atmoBase: 0.0002, atmoVar: 0.0001, hueBase: 0.10, hueVar: 0.05, sat: 0.6, lit: 0.60, terrainMods: { octavesAdd: -1, exponentMult: 0.9, heightMult: 0.7 }, aesthetics: { hasSand: true, sandColor: 0xddbb55, hasSnow: false } },
-        'Toxic Planet': { chance: 0.05, atmoBase: 0.0005, atmoVar: 0.0003, hueBase: 0.30, hueVar: 0.10, sat: 0.8, lit: 0.40, terrainMods: { octavesAdd: 1, exponentMult: 1.5, heightMult: 0.8 }, aesthetics: { hasSand: true, sandColor: 0xddbb55, hasSnow: false } },
-        'Jungle Planet': { chance: 0.05, atmoBase: 0.0002, atmoVar: 0.0002, hueBase: 0.35, hueVar: 0.10, sat: 0.7, lit: 0.25, terrainMods: { octavesAdd: 1, exponentMult: 1.1, heightMult: 1.2 }, aesthetics: { hasSand: true, sandColor: 0xddbb55, hasSnow: true } },
-        'Barren Planet': { chance: 0.20, atmoBase: 0.0000, atmoVar: 0.0000, hueBase: 0.05, hueVar: 0.05, sat: 0.1, lit: 0.40, terrainMods: { octavesAdd: -2, exponentMult: 0.6, heightMult: 0.3 }, aesthetics: { hasSand: false, hasSnow: false } },
-        // Rocky Planet es el comodín si no cae en ninguno de los anteriores
-        'Rocky Planet': { chance: 0.00, atmoChance: 0.3, atmoBase: 0.00005, atmoVar: 0.00045, useSystemHue: true, satRandomBase: 0.2, satRandomMult: 0.4, litRandomBase: 0.2, litRandomMult: 0.5, terrainMods: { octavesAdd: 0, exponentMult: 1.0, heightMult: 1.0 }, aesthetics: { hasSand: true, sandColor: 0xddbb55, hasSnow: true } }
+        'Planeta oceánico': { chance: 0.10, atmoBase: 0.0003, atmoVar: 0.0002, hueBase: 0.55, hueVar: 0.10, sat: 0.8, lit: 0.30, terrainMods: { octavesAdd: -1, exponentMult: 0.8, heightMult: 0.4 }, aesthetics: { waterLevel: 0, waterColor: 0x1144aa, beachColor: 0xddccaa, beachBlend: 0.6 } },
+        'Planeta de lava': { chance: 0.10, atmoBase: 0.0004, atmoVar: 0.0000, hueBase: 0.00, hueVar: 0.10, sat: 0.9, lit: 0.40, terrainMods: { octavesAdd: 1, exponentMult: 1.3, heightMult: 1.5 }, aesthetics: { crackLevel: -100, crackColor: 0xff3300, baseLerpColor: 0x1a1a1a, baseLerp: 0.9 } },
+        'Planeta helado': { chance: 0.10, atmoBase: 0.0001, atmoVar: 0.0002, hueBase: 0.50, hueVar: 0.10, sat: 0.4, lit: 0.80, terrainMods: { octavesAdd: -1, exponentMult: 0.7, heightMult: 0.6 }, aesthetics: { globalLerpColor: 0xffffff, globalLerpBase: 0.5, globalLerpLat: 0.5 } },
+        'Planeta de cristal': { chance: 0.05, atmoBase: 0.0000, atmoVar: 0.0000, useSystemHue: true, sat: 0.9, lit: 0.60, terrainMods: { octavesAdd: 0, exponentMult: 2.0, heightMult: 1.8 }, aesthetics: { invertLighting: true } },
+        'Planeta desértico': { chance: 0.15, atmoBase: 0.0002, atmoVar: 0.0001, hueBase: 0.10, hueVar: 0.05, sat: 0.6, lit: 0.60, terrainMods: { octavesAdd: -1, exponentMult: 0.9, heightMult: 0.7 }, aesthetics: { hasSand: true, sandColor: 0xddbb55, hasSnow: false } },
+        'Planeta tóxico': { chance: 0.05, atmoBase: 0.0005, atmoVar: 0.0003, hueBase: 0.30, hueVar: 0.10, sat: 0.8, lit: 0.40, terrainMods: { octavesAdd: 1, exponentMult: 1.5, heightMult: 0.8 }, aesthetics: { hasSand: true, sandColor: 0xddbb55, hasSnow: false } },
+        'Planeta tropical': { chance: 0.05, atmoBase: 0.0002, atmoVar: 0.0002, hueBase: 0.35, hueVar: 0.10, sat: 0.7, lit: 0.25, terrainMods: { octavesAdd: 1, exponentMult: 1.1, heightMult: 1.2 }, aesthetics: { hasSand: true, sandColor: 0xddbb55, hasSnow: true } },
+        'Planeta yermo': { chance: 0.20, atmoBase: 0.0000, atmoVar: 0.0000, hueBase: 0.05, hueVar: 0.05, sat: 0.1, lit: 0.40, terrainMods: { octavesAdd: -2, exponentMult: 0.6, heightMult: 0.3 }, aesthetics: { hasSand: false, hasSnow: false } },
+        // 'Planeta rocoso' es el comodín si no cae en ninguno de los anteriores
+        'Planeta rocoso': { chance: 0.00, atmoChance: 0.3, atmoBase: 0.00005, atmoVar: 0.00045, useSystemHue: true, satRandomBase: 0.2, satRandomMult: 0.4, litRandomBase: 0.2, litRandomMult: 0.5, terrainMods: { octavesAdd: 0, exponentMult: 1.0, heightMult: 1.0 }, aesthetics: { hasSand: true, sandColor: 0xddbb55, hasSnow: true } }
     },
 
     // ==========================================
     // FÍSICAS DE LA NAVE (JUGADOR)
     // ==========================================
-    PLAYER_SPEED: 150000,                 // Velocidad base de vuelo (unidades por segundo)
+    PLAYER_SPEED: 10000,                 // Velocidad base de vuelo (unidades por segundo)
     PLAYER_SPEED_SCROLL_MULT: 1.3,        // Multiplicador de velocidad por tic de la rueda del ratón (Exponencial)
     PLAYER_SPEED_MIN_STEP: 500,           // Velocidad mínima para arrancar desde cero con la rueda
-    PLAYER_SPEED_MAX: 10000000,           // Límite de velocidad base para evitar romper la simulación física
+    PLAYER_SPEED_MAX: 100000,           // Límite de velocidad base para evitar romper la simulación física
     PLAYER_BOOST_MULTIPLIER: 30,          // Multiplicador de velocidad al presionar Shift (Hyperdrive)
     PLAYER_FRICTION: 0.985,               // Fricción en el espacio (1.0 = patinar infinito, 0.5 = freno brusco)
     PLAYER_BRAKE_FRICTION: 0.90,          // Fricción al presionar [ESPACIO] para frenar
@@ -106,10 +152,10 @@ export const Config = {
     ROLL_SPEED: 2.0,                      // Velocidad máxima de alabeo (rotar en el eje Z con Q y E)
 
     // Autopilot Cinemático
-    AUTOPILOT_MIN_SPEED: 1000000,         // Velocidad mínima de viaje (unidades por segundo)
-    AUTOPILOT_MAX_SPEED: 25000000,        // Velocidad máxima permitida (50M uds/s)
-    AUTOPILOT_DESIRED_SECONDS: 5.0,       // Segundos teóricos en los que queremos que llegue al objetivo para escalar velocidad
-    AUTOPILOT_BRAKE_ZONE_MULT: 10.0,      // Multiplicador de radio para empezar a frenar violentamente
+    AUTOPILOT_MIN_SPEED: 100000,         // Velocidad mínima de viaje (unidades por segundo)
+    AUTOPILOT_MAX_SPEED: 1000000,        // Velocidad máxima permitida (50M uds/s)
+    AUTOPILOT_DESIRED_SECONDS: 1.0,       // Segundos teóricos en los que queremos que llegue al objetivo para escalar velocidad
+    AUTOPILOT_BRAKE_ZONE_MULT: 4.0,      // Multiplicador de radio para empezar a frenar violentamente
     AUTOPILOT_BRAKE_MULTIPLIER: 0.99,     // Fricción de frenado agresivo (10% por frame)
     AUTOPILOT_ARRIVAL_MULT: 4,            // Multiplicador de radio para considerar llegada e inserción orbital
 
@@ -152,7 +198,7 @@ export const Config = {
     RENDER_FAR_PLANE: 100000000,      // Límite visual de la cámara (1 billón de u para ver quásares)
     RENDER_LOGARITHMIC_DEPTH: false,    // Mantiene matemáticas estables a trillones de km sin romper la textura (Z-Fighting)
     RENDER_PIXEL_RATIO_MAX: 1.0,       // Límite de resolución para no quemar la gráfica (1.0 = rápido, 2.0 = nítido 4K)
-    RENDER_FOG_BASE: 3,              // Densidad de la niebla estelar profunda
+    RENDER_FOG_BASE: 2,              // Densidad de la niebla estelar profunda
     RENDER_STAR_POINT_SIZE: 1,         // Tamaño de los puntos de luz estelares
     RENDER_ANTIALIAS: false,           // Suavizado de bordes (Apagar para +70% FPS)
 
@@ -170,10 +216,12 @@ export const Config = {
     LIGHT_SUN_DISTANCE: 2000000,         // Distancia a la que viaja la luz del Sol más cercano
 
     // ==========================================
-    // INTERFAZ (HUD) Y ETIQUETAS
+    // INTERFAZ Y CONTROLES
     // ==========================================
-    UI_MAX_LABELS: 30,                 // Máximo de etiquetas de nombres mostrándose al mismo tiempo
-    UI_LABEL_MAX_DISTANCE: 150000,        // Distancia máxima (u) a la que ves el nombre de un planeta/estrella
+    UI_MAX_LABELS: 100,                    // Máximo de etiquetas de nombres mostrándose al mismo tiempo
+    UI_LABEL_MAX_DISTANCE: 1000000,        // Distancia máxima base (u) a la que ves el nombre de un planeta/estrella
+    UI_LABEL_DISTANCE_MULT: 100,           // Multiplicador del radio para ver el label a mayor distancia si es un gigante
+    TARGET_HITBOX_MULT: 100,              // Multiplicador del radio del astro para hacer clic en él
 
     // ==========================================
     // PILOTO AUTOMÁTICO Y CINEMÁTICAS
@@ -181,6 +229,8 @@ export const Config = {
     AUTOPILOT_BRAKE_MULTIPLIER: 0.70,     // Desaceleración violenta por frame al llegar (Salto cuántico)
     AUTOPILOT_BRAKE_ZONE_MULT: 5,         // Multiplicador de radio para iniciar la frenada cuántica
     AUTOPILOT_ARRIVAL_MULT: 3.5,          // Multiplicador de radio para detenerse y orbitar (Cinemático FOV)
+    AUTOPILOT_MAX_ARRIVAL_DISTANCE: 5000000, // Límite máximo absoluto de distancia de órbita para monstruosidades
+    AUTOPILOT_MAX_SPEED_NORMAL: 800000,   // Velocidad crucero normal
     CINEMATIC_ORBIT_SPEED: 0.15,          // Velocidad (rad/s) de la órbita de cámara alrededor del objetivo
 
     // ==========================================
@@ -202,15 +252,15 @@ export const Config = {
 
     // TEMPERATURAS BASE POR TIPO DE PLANETA
     PLANET_BASE_TEMPS: {
-        'Ice Planet': -60,
-        'Lava Planet': 400,
-        'Desert Planet': 45,
-        'Toxic Planet': 70,
-        'Ocean Planet': 10,
-        'Jungle Planet': 30,
-        'Barren Planet': -10,
-        'Gas Giant': -150,
-        'Rocky Planet': 15
+        'Planeta helado': -60,
+        'Planeta de lava': 400,
+        'Planeta desértico': 45,
+        'Planeta tóxico': 70,
+        'Planeta oceánico': 10,
+        'Planeta tropical': 30,
+        'Planeta yermo': -10,
+        'Gigante gaseoso': -150,
+        'Planeta rocoso': 15
     },
 
     // ==========================================

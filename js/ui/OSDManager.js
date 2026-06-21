@@ -7,29 +7,36 @@ export class OSDManager {
     static isListening = false;
 
     static init() {
-        if (this.container) return;
-        this.container = document.createElement('div');
-        this.container.id = 'osd-container';
-        this.container.style.position = 'absolute';
-        this.container.style.bottom = '15%';
-        this.container.style.left = '50%';
-        this.container.style.transform = 'translateX(-50%)';
-        this.container.style.display = 'flex';
-        this.container.style.justifyContent = 'center';
-        this.container.style.pointerEvents = 'none';
-        this.container.style.zIndex = '100';
-        
-        const uiLayer = document.getElementById('ui-layer');
-        if (uiLayer) {
-            uiLayer.appendChild(this.container);
-        } else {
-            document.body.appendChild(this.container);
-        }
-
         if (!this.isListening) {
             EventManager.on(EVENTS.OSD_MESSAGE, (payload) => this.show(payload.message, payload.type, payload.duration));
             EventManager.on(EVENTS.OSD_HIDE, () => this.hide());
             this.isListening = true;
+        }
+
+        let needsAppend = false;
+        if (!this.container) {
+            this.container = document.createElement('div');
+            this.container.id = 'osd-container';
+            this.container.style.position = 'absolute';
+            this.container.style.bottom = '15%';
+            this.container.style.left = '50%';
+            this.container.style.transform = 'translateX(-50%)';
+            this.container.style.display = 'flex';
+            this.container.style.justifyContent = 'center';
+            this.container.style.pointerEvents = 'none';
+            this.container.style.zIndex = '100';
+            needsAppend = true;
+        } else if (!document.body.contains(this.container)) {
+            needsAppend = true;
+        }
+
+        if (needsAppend) {
+            const uiLayer = document.getElementById('ui-layer');
+            if (uiLayer) {
+                uiLayer.appendChild(this.container);
+            } else {
+                document.body.appendChild(this.container);
+            }
         }
     }
 
@@ -65,10 +72,11 @@ export class OSDManager {
         this.container.appendChild(el);
         this.currentEl = el;
         
-        requestAnimationFrame(() => {
-            el.style.opacity = '1';
-            el.style.transform = 'translateY(0)';
-        });
+        // Forzar reflow para garantizar que el navegador aplique la transición
+        void el.offsetWidth;
+        
+        el.style.opacity = '1';
+        el.style.transform = 'translateY(0)';
         
         if (duration > 0) {
             this.timeoutId = setTimeout(() => {

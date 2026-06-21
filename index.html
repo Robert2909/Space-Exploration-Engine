@@ -82,8 +82,58 @@
 
             <div class="hud-panel">
                 <h3>sistema_render</h3>
-                <p><span class="prop-name">distanciaVisual</span> <span class="prop-value" id="dist-val">1</span></p>
+                <p><span class="prop-name">distanciaVisual</span> <span class="prop-value" id="dist-val">3</span></p>
                 <input type="range" id="render-dist" min="1" max="10" value="3" style="pointer-events: auto;">
+            </div>
+
+        </div>
+
+        <div id="hud-right">
+            <div class="hud-panel" id="locator-panel" style="display: flex; flex-direction: column; flex: 1; min-height: 0;">
+                <h3>escáner_de_sector</h3>
+                <div style="pointer-events: auto; display: flex; flex-direction: column; gap: 8px; margin-top: 5px; flex-shrink: 0;">
+                    <div>
+                        <span class="prop-name">target.mainType =</span>
+                        <select id="locator-main-type" class="hud-select">
+                            <option value="ALL">'TODOS'</option>
+                            <option value="Star">'Estrellas'</option>
+                            <option value="Planet">'Planetas'</option>
+                            <option value="BlackHole">'Agujeros Negros'</option>
+                        </select>
+                    </div>
+
+                    <div id="locator-sub-type-container" style="display: none;">
+                        <span class="prop-name">target.subType =</span>
+                        <select id="locator-sub-type" class="hud-select">
+                            <option value="ALL">'TODOS'</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <span class="prop-name">scan.extraChunks =</span>
+                        <input type="number" id="locator-extra-range" class="hud-select" value="0" min="0" max="100" step="1" style="width: 60px;">
+                    </div>
+
+                    <button id="locator-scan-btn" class="hud-btn">>> execute_scan()</button>
+
+                    <div id="locator-sort-container" style="display: none; gap: 5px; margin-top: 5px;">
+                        <span class="prop-name" style="align-self: center;">sort:</span>
+                        <button id="sort-dist-btn" class="hud-btn"
+                            style="flex: 1; text-align: center; font-size: 0.75rem;">[ dist ]</button>
+                        <button id="sort-rad-btn" class="hud-btn"
+                            style="flex: 1; text-align: center; font-size: 0.75rem;">[ radio ]</button>
+                    </div>
+                </div>
+
+                <div id="locator-results"
+                    style="margin-top: 10px; flex: 1; min-height: 0; overflow-y: auto; pointer-events: auto; padding-right: 5px; border-top: 1px dashed var(--hud-border); padding-top: 10px; display: flex; flex-direction: column; gap: 5px;">
+                    <span class="small-text" style="color: #666;">// Esperando instrucción...</span>
+                </div>
+
+                <div id="locator-action-container" style="display: none; margin-top: 5px; pointer-events: auto;">
+                    <button id="locator-travel-btn" class="hud-btn"
+                        style="width: 100%; color: var(--keyword-color);">>>> engage_autopilot()</button>
+                </div>
             </div>
         </div>
 
