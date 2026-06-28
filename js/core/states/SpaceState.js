@@ -259,7 +259,7 @@ export class SpaceState extends GameState {
                 if (dist < threshold && dist < minLandingDist) {
                     closestLandingBody = body;
                     minLandingDist = dist;
-                    isGasGiant = body.type.includes('Gas');
+                    isGasGiant = body.type === 'Gigante gaseoso';
                 }
             }
         }

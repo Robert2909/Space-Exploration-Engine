@@ -342,10 +342,10 @@ export class Chunk {
 
                     // Generar las variables de varianza únicas del planeta
                     const terrainVariance = {
-                        heightMod: 0.5 + seededRandom(this.cx, this.cy, this.cz, pSeed + 30) * 1.5, // 0.5x a 2.0x
-                        freqMod: 0.5 + seededRandom(this.cx, this.cy, this.cz, pSeed + 31) * 1.5,   // 0.5x a 2.0x
-                        octavesMod: Math.floor(seededRandom(this.cx, this.cy, this.cz, pSeed + 32) * 3) - 1, // -1, 0, o +1
-                        exponentMod: 0.8 + seededRandom(this.cx, this.cy, this.cz, pSeed + 33) * 0.6  // 0.8x a 1.4x
+                        heightMod: Config.TERRAIN_VAR_HEIGHT_BASE + seededRandom(this.cx, this.cy, this.cz, pSeed + 30) * Config.TERRAIN_VAR_HEIGHT_RANGE,
+                        freqMod: Config.TERRAIN_VAR_FREQ_BASE + seededRandom(this.cx, this.cy, this.cz, pSeed + 31) * Config.TERRAIN_VAR_FREQ_RANGE,
+                        octavesMod: Math.floor(seededRandom(this.cx, this.cy, this.cz, pSeed + 32) * Config.TERRAIN_VAR_OCTAVES_SPREAD) - 1,
+                        exponentMod: Config.TERRAIN_VAR_EXPONENT_BASE + seededRandom(this.cx, this.cy, this.cz, pSeed + 33) * Config.TERRAIN_VAR_EXPONENT_RANGE
                     };
 
                     const pRadius = isGasGiant ? (Config.PLANET_GAS_RADIUS_MIN + seededRandom(this.cx, this.cy, this.cz, pSeed + 6) * (Config.PLANET_GAS_RADIUS_MAX - Config.PLANET_GAS_RADIUS_MIN)) : (Config.PLANET_ROCKY_RADIUS_MIN + seededRandom(this.cx, this.cy, this.cz, pSeed + 7) * (Config.PLANET_ROCKY_RADIUS_MAX - Config.PLANET_ROCKY_RADIUS_MIN));
@@ -398,7 +398,7 @@ export class Chunk {
                     const compBaseRadius = Config.STAR_RADIUS_MIN + seededRandom(this.cx, this.cy, this.cz, seedBase + 60) * (Config.STAR_RADIUS_MAX - Config.STAR_RADIUS_MIN);
                     const compRadius = compBaseRadius * (compStarData.radiusMultMin + seededRandom(this.cx, this.cy, this.cz, seedBase + 61) * (compStarData.radiusMultMax - compStarData.radiusMultMin));
 
-                    const compDistance = sunRadius * 2 + seededRandom(this.cx, this.cy, this.cz, seedBase + 56) * sunRadius * 3;
+                    const compDistance = sunRadius * Config.BINARY_STAR_DISTANCE_BASE_MULT + seededRandom(this.cx, this.cy, this.cz, seedBase + 56) * sunRadius * Config.BINARY_STAR_DISTANCE_VAR_MULT;
                     const compAngle = seededRandom(this.cx, this.cy, this.cz, seedBase + 57) * Math.PI * 2;
                     const compSpeed = Config.PLANET_ORBIT_SPEED_MAX * (0.5 + seededRandom(this.cx, this.cy, this.cz, seedBase + 58)) * (seededRandom(this.cx, this.cy, this.cz, seedBase + 59) > 0.5 ? 1 : -1);
 
@@ -452,12 +452,8 @@ export class Chunk {
                 }
             }
 
-            if (totalPlanets > 0) {
-                this.planetMesh = new THREE.InstancedMesh(SHARED_SPHERE_GEO, SHARED_PLANET_MAT, totalPlanets);
-                this.planetMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-                this.planetMesh.frustumCulled = false;
-                this.group.add(this.planetMesh);
-            }
+            // Planetas ahora usan Meshes individuales para evitar jitter de Float32 en WebGL
+            // (El InstancedMesh sumaba posiciones masivas en la GPU, arruinando la precisión)
             if (totalAsteroids > 0) {
                 this.asteroidMesh = new THREE.InstancedMesh(SHARED_ASTEROID_GEO, SHARED_ASTEROID_MAT, totalAsteroids);
                 this.asteroidMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
@@ -479,9 +475,12 @@ export class Chunk {
                 this.group.add(sunSprite);
 
                 for (let p of sys.planets) {
-                    p.instanceId = pIndex;
-                    if (this.planetMesh) this.planetMesh.setColorAt(pIndex, p.color);
-                    pIndex++;
+                    // Crear un Mesh individual por planeta
+                    p.mesh = new THREE.Mesh(SHARED_SPHERE_GEO, SHARED_PLANET_MAT.clone());
+                    p.mesh.material.color = p.color;
+                    p.mesh.scale.set(p.radius, p.radius, p.radius);
+                    p.mesh.frustumCulled = true; // Descartar si no se ve
+                    this.group.add(p.mesh);
                 }
                 if (sys.asteroidBelt) {
                     sys.asteroidBelt.startIndex = aIndex;
@@ -505,13 +504,9 @@ export class Chunk {
             for (let p of sys.planets) {
                 p.updateAbsolutePosition(this.group.position.x, this.group.position.y, this.group.position.z);
 
-                if (this.planetMesh) {
-                    dummy.position.set(p.lx, p.ly, p.lz);
-                    dummy.rotation.set(0, p.rotationY, 0);
-                    dummy.scale.set(p.radius, p.radius, p.radius);
-                    dummy.updateMatrix();
-                    this.planetMesh.setMatrixAt(p.instanceId, dummy.matrix);
-                    matricesUpdated = true;
+                if (p.mesh) {
+                    p.mesh.position.set(p.lx, p.ly, p.lz);
+                    p.mesh.rotation.y = p.rotationY;
                 }
             }
 
@@ -536,7 +531,7 @@ export class Chunk {
                 }
             }
         }
-        if (matricesUpdated && this.planetMesh) this.planetMesh.instanceMatrix.needsUpdate = true;
+        // Planetas se actualizan solos mediante pos/rot. Asteroides si ocupan update.
         if (asteroidsUpdated && this.asteroidMesh) this.asteroidMesh.instanceMatrix.needsUpdate = true;
     }
 
@@ -547,9 +542,18 @@ export class Chunk {
                 if (Array.isArray(child.material)) child.material.forEach(m => m.dispose());
                 else child.material.dispose();
             }
-            if (child.isSprite && child.material) child.material.dispose();
         });
-        if (this.planetMesh) this.planetMesh.dispose();
+        for (let sys of this.systems) {
+            if (sys.sprite) {
+                sys.sprite.material.dispose();
+            }
+            for (let p of sys.planets) {
+                if (p.mesh) {
+                    if (p.mesh.material) p.mesh.material.dispose();
+                    this.group.remove(p.mesh);
+                }
+            }
+        }
         if (this.asteroidMesh) this.asteroidMesh.dispose();
         if (this.scene) this.scene.remove(this.group);
     }
