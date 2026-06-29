@@ -94,8 +94,8 @@ export class TerrainManager {
             this.scene.fog = new THREE.FogExp2(0x000000, Config.TERRAIN_FOG_FALLBACK);
         }
 
-        const planetOrbitRadius = this.planetData ? this.planetData.orbitRadius : 5000;
-        this.sunDistanceMultiplier = THREE.MathUtils.clamp(1.0 / (planetOrbitRadius / 5000), 0.2, 1.5);
+        const planetOrbitRadius = this.planetData && this.planetData.orbitRadius ? this.planetData.orbitRadius : Config.REFERENCE_HABITABLE_ZONE_U;
+        this.sunDistanceMultiplier = THREE.MathUtils.clamp(1.0 / (planetOrbitRadius / Config.REFERENCE_HABITABLE_ZONE_U), 0.2, 1.5);
 
         // Generar Estrellas en el cielo
         this.createStars();

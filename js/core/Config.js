@@ -38,10 +38,10 @@ export const Config = {
     ASTEROID_BELT_RADIUS_MULT_BASE: 10, // Multiplicador del radio del Sol para el inicio del cinturón
     ASTEROID_BELT_RADIUS_MULT_VAR: 10, // Variación aleatoria del radio interior
     ASTEROID_BELT_WIDTH_MULT: 5, // Multiplicador del radio del Sol para el ancho del cinturón
-    ASTEROID_BELT_SPEED_BASE: 0.01, // Velocidad base de órbita del cinturón
-    ASTEROID_BELT_SPEED_VAR: 0.05, // Variación de velocidad orbital del cinturón
-    ASTEROID_SIZE_MIN: 100, // Radio mínimo de un asteroide
-    ASTEROID_SIZE_MAX: 500, // Radio máximo de un asteroide
+    ASTEROID_BELT_SPEED_BASE: 0.001, // Velocidad base de órbita del cinturón
+    ASTEROID_BELT_SPEED_VAR: 0.005, // Variación de velocidad orbital del cinturón
+    ASTEROID_SIZE_MIN: 5, // Radio mínimo de un asteroide (50 km)
+    ASTEROID_SIZE_MAX: 50, // Radio máximo de un asteroide (500 km)
 
     BLACK_HOLE_SPAWN_CHANCE: 0.001, // Probabilidad de que un chunk contenga un agujero negro (aislado)
 
@@ -51,21 +51,21 @@ export const Config = {
     // ==========================================
     // ASTROS Y SISTEMAS SOLARES
     // ==========================================
-    STAR_RADIUS_MIN: 5000, // Radio mínimo de la estrella principal
-    STAR_RADIUS_MAX: 50000, // Radio máximo de la estrella
+    STAR_RADIUS_MIN: 20000, // Radio mínimo de estrella principal (200,000 km)
+    STAR_RADIUS_MAX: 100000, // Radio máximo de estrella (1,000,000 km)
     PLANETS_MAX_PER_SYSTEM: 10, // Número máximo de planetas girando alrededor de una estrella
     GAS_GIANT_CHANCE: 0.15, // Probabilidad de que un planeta sea gigante gaseoso (0.0 - 1.0)
-    PLANET_ROCKY_RADIUS_MIN: 500, // Radio mínimo de planeta rocoso
-    PLANET_ROCKY_RADIUS_MAX: 5000, // Radio máximo de planeta rocoso
-    PLANET_GAS_RADIUS_MIN: 5000, // Radio mínimo de planeta gaseoso
-    PLANET_GAS_RADIUS_MAX: 10000, // Radio máximo de planeta gaseoso
-    PLANET_ORBIT_SPEED_MIN: 0.0005, // Velocidad orbital mínima (Año muy largo)
-    PLANET_ORBIT_SPEED_MAX: 0.008, // Velocidad orbital máxima (Año corto, ~12 min)
-    PLANET_ROTATION_SPEED_MIN: 0.005, // Velocidad de rotación mínima (Día de ~20 minutos)
-    PLANET_ROTATION_SPEED_MAX: 0.04, // Velocidad de rotación máxima (Día rápido de ~2.5 minutos)
-    ORBIT_DISTANCE_START: 500000, // Distancia inicial mínima del primer planeta a su sol
-    ORBIT_DISTANCE_SPACING: 250000, // Espacio mínimo entre las órbitas de los planetas
-    ORBIT_DISTANCE_VAR: 150000, // Variación aleatoria extrema del espacio entre órbitas
+    PLANET_ROCKY_RADIUS_MIN: 400, // Radio mínimo planeta rocoso (~4,000 km, similar a Marte/Tierra)
+    PLANET_ROCKY_RADIUS_MAX: 1000, // Radio máximo planeta rocoso (~10,000 km, Súper-Tierras)
+    PLANET_GAS_RADIUS_MIN: 3000, // Radio mínimo planeta gaseoso (~30,000 km)
+    PLANET_GAS_RADIUS_MAX: 8000, // Radio máximo planeta gaseoso (~80,000 km, tipo Júpiter)
+    PLANET_ORBIT_SPEED_MIN: 0.00000005, // Velocidad orbital mínima (Equivalente a Neptuno x20)
+    PLANET_ORBIT_SPEED_MAX: 0.00002, // Velocidad orbital máxima (Equivalente a Mercurio x20)
+    PLANET_ROTATION_SPEED_MIN: 0.00001, // Velocidad de rotación mínima (Planetas rocosos lentos x20)
+    PLANET_ROTATION_SPEED_MAX: 0.004, // Velocidad de rotación máxima (Gigantes gaseosos ultrarrápidos x20)
+    ORBIT_DISTANCE_START: 1500000, // Distancia inicial (15 millones de km del Sol)
+    ORBIT_DISTANCE_SPACING: 800000, // Espacio mínimo entre las órbitas (8 millones de km)
+    ORBIT_DISTANCE_VAR: 500000, // Variación aleatoria del espacio entre órbitas
 
 
 
@@ -110,12 +110,22 @@ export const Config = {
 
 
     // ==========================================
+    // SISTEMA DE MEDICIÓN (VISUAL)
+    // ==========================================
+    SCALE_U_TO_KM: 10, // 1 U espacial = 10 km reales (Ej: Planeta de 5,000 U = 50,000 km)
+    SCALE_U_TO_AU: 0.0000000668,
+    SCALE_U_TO_LY: 0.000000000001,
+    TIME_SCALE_ACCELERATION: 250, // Factor de "cámara rápida" del universo para que velocidades parezcan realistas (Tierra = 30km/s)
+    REFERENCE_EARTH_RADIUS_U: 637.1, // Radio real de la Tierra en unidades espaciales (Base 1G)
+    REFERENCE_HABITABLE_ZONE_U: 15000000, // Distancia de la Tierra al Sol en unidades (Zona habitable / Luz óptima)
+
+    // ==========================================
     // AGUJEROS NEGROS
     // ==========================================
-    BLACK_HOLE_SIZE_MULT_NORMAL: 100.0, // Variación de tamaño para agujeros negros normales (1.0 + X)
+    BLACK_HOLE_SIZE_MULT_NORMAL: 20.0, // Variación de tamaño para agujeros negros normales (1.0 + X)
     BLACK_HOLE_ULTRA_MASSIVE_CHANCE: 0.05, // Probabilidad de generar un ultramasivo (0.0 a 1.0)
-    BLACK_HOLE_SIZE_MULT_ULTRA: 500.0, // Tamaño extra para los ultramasivos
-    BLACK_HOLE_BASE_RADIUS_VAR: 200.0, // Variación del radio base antes de multiplicadores
+    BLACK_HOLE_SIZE_MULT_ULTRA: 150.0, // Tamaño extra para los ultramasivos
+    BLACK_HOLE_BASE_RADIUS_VAR: 50.0, // Variación del radio base antes de multiplicadores
     BLACK_HOLE_DISK_SCALE: 1.0, // Escala de los discos de acreción
     BLACK_HOLE_JET_LENGTH: 90.0, // Longitud del chorro relativista
     BLACK_HOLE_JET_WIDTH: 6.0, // Ancho del chorro relativista
@@ -186,7 +196,7 @@ export const Config = {
     // FÍSICAS DE LA NAVE (JUGADOR)
     // ==========================================
     PLAYER_SPEED: 5000, // Velocidad base de vuelo (unidades por segundo)
-    PLAYER_SPEED_SCROLL_MULT: 1.1, // Multiplicador de velocidad por tic de la rueda del ratón (Exponencial)
+    PLAYER_SPEED_SCROLL_MULT: 1.2, // Multiplicador de velocidad por tic de la rueda del ratón (Exponencial)
     PLAYER_SPEED_MIN_STEP: 500, // Velocidad mínima para arrancar desde cero con la rueda
     PLAYER_SPEED_MAX: 50000, // Límite de velocidad base para evitar romper la simulación física
     PLAYER_BOOST_MULTIPLIER: 20, // Multiplicador de velocidad al presionar Shift (Hyperdrive)
@@ -198,13 +208,7 @@ export const Config = {
     ROLL_SPEED: 2.0, // Velocidad máxima de alabeo (rotar en el eje Z con Q y E)
 
 
-    // Autopilot Cinemático
-    AUTOPILOT_MIN_SPEED: 100000, // Velocidad mínima de viaje (unidades por segundo)
-    AUTOPILOT_MAX_SPEED: 5000000000, // Velocidad máxima permitida (50M uds/s)
-    AUTOPILOT_DESIRED_SECONDS: 1.0, // Segundos teóricos en los que queremos que llegue al objetivo para escalar velocidad
-    AUTOPILOT_BRAKE_ZONE_MULT: 1.0, // Multiplicador de radio para empezar a frenar violentamente
-    AUTOPILOT_BRAKE_MULTIPLIER: 0.20, // Fricción de frenado agresivo (10% por frame)
-    AUTOPILOT_ARRIVAL_MULT: 4, // Multiplicador de radio para considerar llegada e inserción orbital
+
 
 
 
@@ -272,7 +276,7 @@ export const Config = {
     // ==========================================
     LIGHT_AMBIENT_COLOR: 0x222233, // Color de la luz base que baña todo el espacio (Gris azulado oscuro)
     LIGHT_SUN_INTENSITY: 4, // Fuerza con la que el Sol más cercano ilumina tus planetas
-    LIGHT_SUN_DISTANCE: 2000000, // Distancia a la que viaja la luz del Sol más cercano
+    LIGHT_SUN_DISTANCE: 100000000, // Distancia a la que viaja la luz del Sol más cercano
 
 
 
@@ -281,9 +285,9 @@ export const Config = {
     // INTERFAZ Y CONTROLES
     // ==========================================
     UI_MAX_LABELS: 20, // Máximo de etiquetas de nombres mostrándose al mismo tiempo
-    UI_LABEL_MAX_DISTANCE: 1000000, // Distancia máxima base (u) a la que ves el nombre de un planeta/estrella
+    UI_LABEL_MAX_DISTANCE: 10000000, // Distancia máxima base (u) a la que ves el nombre de un planeta/estrella
     UI_LABEL_DISTANCE_MULT: 100, // Multiplicador del radio para ver el label a mayor distancia si es un gigante
-    TARGET_HITBOX_MULT: 100, // Multiplicador del radio del astro para hacer clic en él
+    TARGET_HITBOX_MULT: 1.2, // Multiplicador del radio del astro para hacer clic en él (1.2 = ligero perdón visual)
 
 
 
@@ -291,10 +295,15 @@ export const Config = {
     // ==========================================
     // PILOTO AUTOMÁTICO Y CINEMÁTICAS
     // ==========================================
+    AUTOPILOT_MIN_SPEED: 100000, // Velocidad mínima de viaje (unidades por segundo)
+    AUTOPILOT_MAX_SPEED: 5000000000, // Velocidad máxima permitida (50M uds/s)
+    AUTOPILOT_DESIRED_SECONDS: 1.0, // Segundos teóricos en los que queremos que llegue al objetivo para escalar velocidad
     AUTOPILOT_BRAKE_MULTIPLIER: 0.70, // Desaceleración violenta por frame al llegar (Salto cuántico)
     AUTOPILOT_BRAKE_ZONE_MULT: 5, // Multiplicador de radio para iniciar la frenada cuántica
     AUTOPILOT_ARRIVAL_MULT: 3.5, // Multiplicador de radio para detenerse y orbitar (Cinemático FOV)
     AUTOPILOT_MAX_ARRIVAL_DISTANCE: 5000000, // Límite máximo absoluto de distancia de órbita para monstruosidades
+    AUTOPILOT_APPROACH_LOCK_MULT: 1.5, // Multiplicador relativo a la órbita final para bloquear cámara y mostrar alerta
+    AUTOPILOT_FREELOOK_TIMEOUT: 3000, // Ms de inactividad libre antes de re-alinear vista
     AUTOPILOT_MAX_SPEED_NORMAL: 800000, // Velocidad crucero normal
     CINEMATIC_ORBIT_SPEED: 0.15, // Velocidad (rad/s) de la órbita de cámara alrededor del objetivo
 

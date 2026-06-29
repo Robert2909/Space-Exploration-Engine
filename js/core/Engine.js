@@ -388,6 +388,7 @@ export class Engine {
                 color: planet.color,
                 atmosphereDensity: planet.atmosphereDensity,
                 orbitSpeed: planet.orbitSpeed,
+                orbitRadius: planet.orbitRadius,
                 rotationSpeed: planet.rotationSpeed,
                 terrainVariance: planet.terrainVariance
             };
@@ -609,8 +610,11 @@ export class Engine {
             type: actualSubType,
             mainType: actualMainType,
             distSq: distSq,
-            distance: Math.round(dist) + 'u',
-            radius: Math.round(body.radius) + 'u',
+            distance: Math.round(dist),
+            radius: body.radius,
+            orbitSpeed: body.orbitSpeed || 0,
+            rotationSpeed: body.rotationSpeed || 0,
+            orbitRadius: body.orbitRadius || 0,
             x: wx, y: wy, z: wz,
             group: body.group || actualMainType, // para que sea compatible con target
             bodyRef: body // Guardamos la referencia para el sistema de interacción

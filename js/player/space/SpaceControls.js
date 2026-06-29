@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { Config } from '../../core/Config.js';
 import { OSDManager } from '../../ui/OSDManager.js';
 import { EventManager, EVENTS } from '../../core/EventManager.js';
+import { MeasurementSystem } from '../../core/systems/MeasurementSystem.js';
 
 export class SpaceControls {
     constructor(camera, domElement) {
@@ -39,12 +40,16 @@ export class SpaceControls {
     setAutoPilotTarget(target, retainState = false) {
         this.autoPilotTarget = target;
         if (target) {
-            this.lastManualCameraMoveTime = 0;
-            if (!retainState) this.autoPilotState = 'ALIGNING';
+            if (!retainState) {
+                this.lastManualCameraMoveTime = 0;
+                this.autoPilotState = 'ALIGNING';
+                this._notifiedFinalApproach = false;
+            }
             this.autoLookTarget = null;
             this.lastAutoLookPos = null;
         } else {
             this.autoPilotState = 'NONE';
+            this._notifiedFinalApproach = false;
         }
     }
 
@@ -68,10 +73,8 @@ export class SpaceControls {
 
             if (Math.abs(movementX) > 0 || Math.abs(movementY) > 0) {
                 this.lastManualCameraMoveTime = performance.now();
-                if (this.autoLookTarget) {
-                    this.autoLookTarget = null;
-                    this.lastAutoLookPos = null;
-                }
+                // Nota: autoLookTarget YA NO se cancela al mover el mouse, 
+                // permitiendo mirar libremente mientras orbitamos.
             }
 
             if (this.cinematicMode) {
@@ -95,7 +98,7 @@ export class SpaceControls {
                 if (this.speed < Config.PLAYER_SPEED_MIN_STEP) this.speed = 0;
             }
 
-            EventManager.emit(EVENTS.OSD_MESSAGE, { message: `Velocidad base: ${Math.round(this.speed)} u/s`, type: 'info', duration: 1000 });
+            EventManager.emit(EVENTS.OSD_MESSAGE, { message: `Velocidad base fijada: ${MeasurementSystem.formatSpeed(this.speed)}`, type: 'info', duration: 1000 });
         };
 
         document.addEventListener('pointerlockchange', this._onPointerLockChange);
@@ -107,11 +110,12 @@ export class SpaceControls {
     }
 
     onKey(event, isDown) {
-        if (isDown && [...Config.KEYS.FORWARD, ...Config.KEYS.BACKWARD, ...Config.KEYS.LEFT, ...Config.KEYS.RIGHT, ...Config.KEYS.ROLL_LEFT, ...Config.KEYS.ROLL_RIGHT].includes(event.code)) {
+        if (isDown && [...Config.KEYS.FORWARD, ...Config.KEYS.BACKWARD, ...Config.KEYS.LEFT, ...Config.KEYS.RIGHT, ...Config.KEYS.ROLL_LEFT, ...Config.KEYS.ROLL_RIGHT, ...Config.KEYS.BRAKE].includes(event.code)) {
             this.lastManualCameraMoveTime = performance.now();
             if (this.autoLookTarget) {
                 this.autoLookTarget = null;
                 this.lastAutoLookPos = null;
+                EventManager.emit(EVENTS.OSD_MESSAGE, { message: 'Órbita abandonada', type: 'warning', duration: 2000 });
             }
         }
 
@@ -149,14 +153,34 @@ export class SpaceControls {
             this._targetQuat.setFromRotationMatrix(this._matrix);
 
             const angleToTarget = this.camera.quaternion.angleTo(this._targetQuat);
-            
+
             let shouldAlign = true;
             if (this.autoPilotTarget && this.autoPilotState === 'TRAVELING') {
-                if (performance.now() - (this.lastManualCameraMoveTime || 0) <= 1500) {
-                    shouldAlign = false;
+                const distToTarget = this.camera.position.distanceTo(this._targetPos);
+                const optimalOrbit = this.autoPilotTarget.radius * Config.AUTOPILOT_ARRIVAL_MULT;
+
+                // Umbral de bloqueo: 15x la órbita, o al menos 2 segundos de viaje a máxima velocidad
+                const lockDistance = Math.max(optimalOrbit * Config.AUTOPILOT_APPROACH_LOCK_MULT, Config.PLAYER_SPEED_MAX * 2);
+
+                if (distToTarget < lockDistance) {
+                    if (!this._notifiedFinalApproach) {
+                        this._notifiedFinalApproach = true;
+                        EventManager.emit(EVENTS.OSD_MESSAGE, { message: 'Aproximación final. Cámara fijada al objetivo.', type: 'warning', duration: 3000 });
+                    }
+                    shouldAlign = true;
+                    // Bloqueo total: nulificamos el input del mouse para que la cámara no pelee
+                    this.cameraVelocity.set(0, 0);
+                } else {
+                    // Tiempo de inactividad flexible para mirar alrededor (usando Config)
+                    if (performance.now() - (this.lastManualCameraMoveTime || 0) <= Config.AUTOPILOT_FREELOOK_TIMEOUT) {
+                        shouldAlign = false;
+                    }
                 }
             } else if (this.autoLookTarget) {
-                // Auto look also shouldn't fight mouse if we decide to keep it (but it's cancelled on mouse move anyway)
+                // Permite mirar libremente durante unos segundos, luego re-enfoca suavemente
+                if (performance.now() - (this.lastManualCameraMoveTime || 0) <= Config.AUTOPILOT_FREELOOK_TIMEOUT) {
+                    shouldAlign = false;
+                }
             }
 
             if (shouldAlign) {
@@ -166,11 +190,38 @@ export class SpaceControls {
             if (this.autoPilotTarget) {
                 this._dir.subVectors(this._targetPos, this.camera.position).normalize();
                 const dist = this.camera.position.distanceTo(this._targetPos);
-                // Velocidad dinámica basada en la distancia para un recorrido de X segundos
-                let targetSpeed = Math.max(
-                    Config.AUTOPILOT_MIN_SPEED,
-                    Math.min(Config.AUTOPILOT_MAX_SPEED, dist / Config.AUTOPILOT_DESIRED_SECONDS)
-                );
+                const optimalDistance = this.autoPilotTarget.radius * Config.AUTOPILOT_ARRIVAL_MULT;
+                const distToOrbit = Math.max(1, dist - optimalDistance);
+
+                // Curva de frenado cinemático tipo SpaceEngine
+                const approachPace = distToOrbit * 1.5; // Relación de velocidad a distancia restante
+
+                let targetSpeed;
+                // Min cruise speed can just be a small base
+                const minCruiseSpeed = Config.AUTOPILOT_MIN_SPEED || Config.PLAYER_SPEED_MAX; 
+                
+                // El piloto automático usa su PROPIA velocidad máxima independiente.
+                // Pero si usamos el hiperimpulsor (Shift), multiplicamos esa velocidad.
+                const currentCruiseLimit = Config.AUTOPILOT_MAX_SPEED * (this.keys.shift ? Config.PLAYER_BOOST_MULTIPLIER : 1);
+
+                if (distToOrbit > minCruiseSpeed) {
+                    // Fase de crucero: Mantener velocidad alta
+                    targetSpeed = Math.max(minCruiseSpeed, approachPace);
+                    targetSpeed = Math.min(currentCruiseLimit, targetSpeed);
+                } else {
+                    // Fase final (Braking): Ceder totalmente a la curva para evitar overshoot
+                    targetSpeed = approachPace;
+                }
+                // Velocidad base de traslación del planeta para igualarla y no quedarnos atrás
+                let planetSpeed = 0;
+                if (this.autoPilotTarget.orbitSpeed && this.autoPilotTarget.orbitRadius) {
+                    planetSpeed = Math.abs(this.autoPilotTarget.orbitSpeed * this.autoPilotTarget.orbitRadius);
+                }
+
+                // Sumar la velocidad base (traslación del planeta) para que nuestro targetSpeed 
+                // sea nuestra velocidad DE ACERCAMIENTO real, no la velocidad absoluta.
+                // Math.max(10, ...) garantiza que rompemos la asíntota matemática y cruzamos la meta.
+                targetSpeed = planetSpeed + Math.max(10, targetSpeed);
 
                 if (this.autoPilotState === 'ALIGNING') {
                     // Stop sideways movement and rotate first
@@ -185,24 +236,24 @@ export class SpaceControls {
                         EventManager.emit(EVENTS.OSD_MESSAGE, { message: 'Intervención manual. Iniciando viaje.', type: 'info', duration: 2000 });
                     }
                 } else if (this.autoPilotState === 'TRAVELING') {
-                    // Freno de salto cuántico: calculamos exactamente la distancia de frenado
-                    const brakeZone = Math.max(this.autoPilotTarget.radius * Config.AUTOPILOT_BRAKE_ZONE_MULT, 4000);
-
-                    if (dist < brakeZone) {
-                        // Frenado violento y agresivo
-                        targetSpeed = this.speed;
-                        if (Math.abs(this.velocity.z) > targetSpeed) {
-                            this.velocity.multiplyScalar(Config.AUTOPILOT_BRAKE_MULTIPLIER); // Desaceleración brutal estilo hiperespacio
-                        }
-                    }
-
-                    // Para viajar en línea recta matemáticamente perfecta (sin importar si la rotación visual va un poco atrasada)
-                    // transformamos el vector direccional global a espacio local de la cámara.
+                    // Dirección matemática hacia el objetivo
                     this._camInverseQuat.copy(this.camera.quaternion).invert();
                     this._localDir.copy(this._dir).applyQuaternion(this._camInverseQuat);
 
                     const currentVelMag = this.velocity.length();
-                    const newVelMag = THREE.MathUtils.lerp(currentVelMag, targetSpeed, dt * 5.0);
+
+                    let newVelMag;
+                    if (currentVelMag > targetSpeed) {
+                        // Desaceleración estricta y rápida para no saltarnos la curva de frenado
+                        newVelMag = THREE.MathUtils.lerp(currentVelMag, targetSpeed, dt * 15.0);
+                    } else {
+                        // Aceleración lineal cinemática (Fuerza G constante)
+                        // Calculamos la aceleración para alcanzar la velocidad crucero en aprox 3.5 segundos
+                        const accelRate = Math.max(1000, targetSpeed / 3.5);
+                        newVelMag = currentVelMag + (accelRate * dt);
+                        if (newVelMag > targetSpeed) newVelMag = targetSpeed;
+                    }
+
                     this.velocity.copy(this._localDir).multiplyScalar(newVelMag);
                 }
 
@@ -213,28 +264,19 @@ export class SpaceControls {
                     EventManager.emit(EVENTS.OSD_MESSAGE, { message: 'Piloto automático cancelado', type: 'warning', duration: 2000 });
                 }
             } else {
-                // Solo autoLook: acoplar nuestra posición a la órbita del planeta y girar lentamente
+                // Solo autoLook: orbitar el planeta aplicando VELOCIDAD REAL a la cámara
                 if (this.lastAutoLookPos) {
-                    // 1. Compensar el desplazamiento orbital del planeta
-                    const dx = this._targetPos.x - this.lastAutoLookPos.x;
-                    const dy = this._targetPos.y - this.lastAutoLookPos.y;
-                    const dz = this._targetPos.z - this.lastAutoLookPos.z;
+                    // 1. Vector desde el objetivo anterior a nuestra cámara
+                    this._offset.subVectors(this.camera.position, this.lastAutoLookPos);
 
-                    this.camera.position.x += dx;
-                    this.camera.position.y += dy;
-                    this.camera.position.z += dz;
-
-                    // 2. Girar alrededor del planeta independientemente de las interacciones
-                    this._offset.subVectors(this.camera.position, this._targetPos);
-
-                    // 3. Ajustar suavemente a la distancia orbital óptima (multiplicador * radio) con límite máximo
-                    const optimalDistance = Math.min(tgt.radius * Config.AUTOPILOT_ARRIVAL_MULT, tgt.radius + Config.AUTOPILOT_MAX_ARRIVAL_DISTANCE); // Distancia fija óptima
+                    // 2. Ajustar suavemente a la distancia orbital óptima
+                    const optimalDistance = tgt.radius * Config.AUTOPILOT_ARRIVAL_MULT;
                     const currentDistance = this._offset.length();
+
                     if (Math.abs(optimalDistance - currentDistance) > 1.0) {
-                        const adjustSpeed = Math.max(10, currentDistance * 0.5); // Velocidad de ajuste
+                        const adjustSpeed = Math.max(10, currentDistance * 0.5);
                         const step = (optimalDistance - currentDistance > 0 ? 1 : -1) * adjustSpeed * dt;
 
-                        // Evitar pasarnos del objetivo
                         if (Math.abs(step) > Math.abs(optimalDistance - currentDistance)) {
                             this._offset.setLength(optimalDistance);
                         } else {
@@ -242,10 +284,23 @@ export class SpaceControls {
                         }
                     }
 
-                    const orbitSpeed = Config.CINEMATIC_ORBIT_SPEED * dt;
-                    this._offset.applyAxisAngle(this._yAxis, orbitSpeed);
+                    // 3. Rotación angular limitada
+                    let orbitAngularSpeed = Config.CINEMATIC_ORBIT_SPEED;
+                    const maxLinearSpeed = Config.PLAYER_SPEED_MAX; // Limitado a la velocidad top de la nave
+                    if (orbitAngularSpeed * currentDistance > maxLinearSpeed) {
+                        orbitAngularSpeed = maxLinearSpeed / currentDistance;
+                    }
+                    this._offset.applyAxisAngle(this._yAxis, orbitAngularSpeed * dt);
 
-                    this.camera.position.copy(this._targetPos).add(this._offset);
+                    // 4. Posición deseada global (Centro actual del planeta + nuestro offset orbital)
+                    const desiredGlobalPos = this._targetPos.clone().add(this._offset);
+
+                    // 5. Convertir a un vector de velocidad local para inyectarlo en las físicas
+                    if (dt > 0) {
+                        const requiredGlobalVelocity = desiredGlobalPos.sub(this.camera.position).divideScalar(dt);
+                        this._camInverseQuat.copy(this.camera.quaternion).invert();
+                        this.velocity.copy(requiredGlobalVelocity).applyQuaternion(this._camInverseQuat);
+                    }
                 }
                 if (!this.lastAutoLookPos) this.lastAutoLookPos = new THREE.Vector3();
                 this.lastAutoLookPos.copy(this._targetPos);
@@ -268,9 +323,16 @@ export class SpaceControls {
                 this._direction.x = Number(this.keys.d) - Number(this.keys.a);
                 this._direction.normalize();
 
-                if (this.keys.w || this.keys.s) this.velocity.z -= this._direction.z * currentSpeed * dt;
-                if (this.keys.a || this.keys.d) this.velocity.x += this._direction.x * currentSpeed * dt;
-                
+                const targetVelZ = this._direction.z * currentSpeed;
+                const targetVelX = this._direction.x * currentSpeed;
+
+                // Aceleración independiente del framerate usando decaimiento exponencial
+                const accelRate = 5.0; // Velocidad de aceleración/desaceleración
+                const t = 1.0 - Math.exp(-accelRate * dt);
+
+                this.velocity.z = THREE.MathUtils.lerp(this.velocity.z, targetVelZ === 0 ? 0 : -targetVelZ, t);
+                this.velocity.x = THREE.MathUtils.lerp(this.velocity.x, targetVelX, t);
+
                 const targetRoll = (Number(this.keys.q) - Number(this.keys.e)) * Config.ROLL_SPEED;
                 this.currentRollSpeed += (targetRoll - this.currentRollSpeed) * dt * 5.0; // Lerp suave
 
@@ -279,10 +341,13 @@ export class SpaceControls {
                 }
 
                 if (this.keys.space) {
-                    this.velocity.multiplyScalar(Config.PLAYER_BRAKE_FRICTION);
-                } else {
-                    this.velocity.multiplyScalar(this.friction);
+                    this.velocity.multiplyScalar(Math.pow(Config.PLAYER_BRAKE_FRICTION, dt * 60));
                 }
+
+                // Fricción solo aplica si no estamos acelerando en ese eje
+                if (!this.keys.w && !this.keys.s) this.velocity.z *= Math.pow(this.friction, dt * 60);
+                if (!this.keys.a && !this.keys.d) this.velocity.x *= Math.pow(this.friction, dt * 60);
+                this.velocity.y *= Math.pow(this.friction, dt * 60);
             }
         }
 

@@ -150,7 +150,7 @@ export class TerrainState extends GameState {
 
                 // Calcular Termómetro (Física local)
                 const currentSunHeight = Math.sin(engine.terrainManager.timeOfDay); // 1 = Mediodía, -1 = Medianoche
-                const distToSunMultiplier = 5000 / (engine.lastLandedPlanet.orbitRadius || 5000); 
+                const distToSunMultiplier = Config.REFERENCE_HABITABLE_ZONE_U / (engine.lastLandedPlanet.orbitRadius || Config.REFERENCE_HABITABLE_ZONE_U); 
                 
                 const pType = engine.lastLandedPlanet.type;
                 let baseTemp = Config.PLANET_BASE_TEMPS[pType] !== undefined ? Config.PLANET_BASE_TEMPS[pType] : 15;
@@ -165,6 +165,9 @@ export class TerrainState extends GameState {
                 // Calcular Jetpack Fuel
                 const fuelPct = (engine.terrainControls.jetpackFuel / engine.terrainControls.maxJetpackFuel) * 100;
 
+                // Velocidad relativa local del jugador (m/s convertidos a U/s para el MeasurementSystem)
+                const relativeWalkSpeedU = engine.terrainControls.velocity.length() / (Config.SCALE_U_TO_KM * 1000);
+
                 // Emitir evento HUD Terrain Updated
                 EventManager.emit(EVENTS.HUD_TERRAIN_UPDATED, {
                     heading,
@@ -173,7 +176,7 @@ export class TerrainState extends GameState {
                     finalTemp,
                     tempColor,
                     fuelPct,
-                    speed: engine.terrainControls.velocity.length(),
+                    speed: relativeWalkSpeedU,
                     pos: engine.camera.position,
                     latDeg,
                     lonDeg

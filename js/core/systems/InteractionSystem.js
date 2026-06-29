@@ -17,24 +17,95 @@ export class InteractionSystem {
         this._normal = new THREE.Vector3();
         this._zAxis = new THREE.Vector3(0, 0, 1);
         this._sphere = new THREE.Sphere();
+        this._screenPos = new THREE.Vector3();
     }
 
     attemptTargeting() {
         this.raycaster.setFromCamera(this._centerVec, this.engine.camera);
         let closest = null;
-        let closestDist = Infinity;
+        let closestIntersectionDistSq = Infinity;
 
         for (let body of this.engine.nearbyBodies || []) {
             this._bodyPos.set(body.x, body.y, body.z);
             this._toBody.subVectors(this._bodyPos, this.engine.camera.position);
-            if (this._toBody.dot(this.raycaster.ray.direction) > 0) {
-                const distToRay = this.raycaster.ray.distanceSqToPoint(this._bodyPos);
-                const hitThreshold = Math.max(body.radius * Config.TARGET_HITBOX_MULT, 200) ** 2;
-                const maxTargetDist = Math.max(Config.UI_LABEL_MAX_DISTANCE, body.radius * Config.UI_LABEL_DISTANCE_MULT);
-                if (distToRay < hitThreshold && body.distSq < closestDist && body.distSq <= (maxTargetDist * maxTargetDist)) {
-                    closestDist = body.distSq;
-                    closest = body;
+            
+            // Si está detrás de la cámara, ignorar
+            if (this._toBody.dot(this.raycaster.ray.direction) <= 0) continue;
+
+            const maxTargetDist = Math.max(Config.UI_LABEL_MAX_DISTANCE, body.radius * Config.UI_LABEL_DISTANCE_MULT);
+            if (body.distSq > (maxTargetDist * maxTargetDist)) continue;
+
+            // En lugar de una hitbox enorme, usamos un láser casi perfecto (con el pequeño multiplicador)
+            // Además, para objetos extremadamente lejanos garantizamos al menos un pixel de perdón
+            const distToCamera = Math.sqrt(body.distSq);
+            const angularForgiveness = distToCamera * 0.001; // ~0.05 grados de cono de perdón mínimo
+            const hitRadius = Math.max(body.radius * Config.TARGET_HITBOX_MULT, angularForgiveness);
+            
+            this._sphere.set(this._bodyPos, hitRadius);
+            
+            let hitDistSq = Infinity;
+            // Encontrar el punto de intersección exacto del rayo con la hitbox esférica 3D
+            const intersectPoint = this.raycaster.ray.intersectSphere(this._sphere, this._hitPoint);
+            
+            if (intersectPoint) {
+                // Medimos la distancia al punto EXACTO de impacto, no al centro del planeta
+                hitDistSq = intersectPoint.distanceToSquared(this.engine.camera.position);
+            } else {
+                // Si el láser 3D falló, verificamos si apuntamos a su Etiqueta de UI
+                const dist = Math.sqrt(body.distSq);
+                const maxDist = Config.UI_LABEL_MAX_DISTANCE;
+                const specificMaxDist = Math.max(maxDist, body.radius * Config.UI_LABEL_DISTANCE_MULT);
+
+                // Solo calculamos si la etiqueta realmente es visible
+                if (dist <= specificMaxDist) {
+                    this._screenPos.copy(this._bodyPos).project(this.engine.camera);
+                    
+                    if (this._screenPos.z <= 1.0) { // Objeto frente a cámara
+                        // Coordenadas CSS en la pantalla (0,0 es arriba izquierda)
+                        const pxX = (this._screenPos.x * 0.5 + 0.5) * window.innerWidth;
+                        const pxY = (this._screenPos.y * -0.5 + 0.5) * window.innerHeight;
+                        
+                        // Replicar radio visual aparente
+                        const fovRad = Config.RENDER_FOV * Math.PI / 180;
+                        const fovFactor = (window.innerHeight / 2) / Math.tan(fovRad / 2);
+                        const apparentRadiusPx = Math.min((body.radius / dist) * fovFactor, window.innerHeight / 2.5);
+                        
+                        // Posición anclada base (bottom-center de la etiqueta)
+                        const labelBaseY = pxY - apparentRadiusPx - 10;
+                        
+                        // Calcular el escalado
+                        const normalizedDist = Math.max(0, dist - body.radius * 4) / maxDist;
+                        const scale = Math.max(0.5, 1.0 - normalizedDist * 0.8);
+                        
+                        // Estimación matemática precisa del tamaño del DOM de la etiqueta sin tocar el DOM
+                        const topLineWidth = 25 + (body.name.length * 8.5); // Icono + Nombre
+                        const bottomLineWidth = 20 + ((body.type ? body.type.length : 10) * 6.5) + (10 * 6.5); // Tipo + Distancia
+                        const estimatedBaseWidth = Math.max(topLineWidth, bottomLineWidth);
+                        
+                        // Dimensiones estimadas de la etiqueta
+                        const labelWidth = estimatedBaseWidth * scale;
+                        const labelHeight = 40 * scale; // Alto de dos líneas de texto
+                        
+                        // Límites visuales (Bounding Box CSS real tras transform)
+                        const left = pxX - (labelWidth / 2);
+                        const right = pxX + (labelWidth / 2);
+                        const bottom = labelBaseY;
+                        const top = labelBaseY - labelHeight;
+                        
+                        // Centro real de la pantalla (El crosshair láser)
+                        const crossX = window.innerWidth / 2;
+                        const crossY = window.innerHeight / 2;
+                        
+                        if (crossX >= left && crossX <= right && crossY >= top && crossY <= bottom) {
+                            hitDistSq = body.distSq;
+                        }
+                    }
                 }
+            }
+
+            if (hitDistSq < closestIntersectionDistSq) {
+                closestIntersectionDistSq = hitDistSq;
+                closest = body;
             }
         }
 

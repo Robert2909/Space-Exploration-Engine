@@ -127,7 +127,7 @@ export class SpaceState extends GameState {
                             // Normalizar: 0 en panicRadius, 1.0 en eventHorizon
                             panicNorm = 1 - ((dist - eventHorizon) / (panicRadius - eventHorizon));
                         }
-                        
+
                         // Curva exponencial: Empieza suave, y cuando estás muy cerca tiembla horriblemente
                         const panic = Math.pow(panicNorm, 3) * Config.BLACK_HOLE_PANIC_STRENGTH;
                         if (panic > maxPanic) maxPanic = panic;
@@ -184,19 +184,30 @@ export class SpaceState extends GameState {
             const freshBody = nearbyBodies.find(b => b.name === engine.targetBody.name);
             if (freshBody) {
                 engine.targetBody = freshBody;
+
+                // Si teníamos un target y el usuario lo cambió por otro, cancelamos el autopilot/órbita
                 if (engine.controls.autoPilotTarget) {
-                    engine.controls.setAutoPilotTarget(freshBody, true);
+                    if (engine.controls.autoPilotTarget.name !== freshBody.name) {
+                        engine.controls.setAutoPilotTarget(null);
+                    } else {
+                        engine.controls.setAutoPilotTarget(freshBody, true);
+                    }
                 }
+
                 if (engine.controls.autoLookTarget) {
-                    engine.controls.autoLookTarget = freshBody;
+                    if (engine.controls.autoLookTarget.name !== freshBody.name) {
+                        engine.controls.autoLookTarget = null;
+                        engine.controls.lastAutoLookPos = null;
+                    } else {
+                        engine.controls.autoLookTarget = freshBody;
+                    }
                 }
             }
 
             engine.updateTargetHUD(engine.targetBody);
 
             // Umbral de llegada relativo al tamaño del cuerpo (cinemático), limitado para monstruosidades
-            let idealRadius = engine.targetBody.radius * Config.AUTOPILOT_ARRIVAL_MULT;
-            idealRadius = Math.min(idealRadius, engine.targetBody.radius + Config.AUTOPILOT_MAX_ARRIVAL_DISTANCE);
+            const idealRadius = engine.targetBody.radius * Config.AUTOPILOT_ARRIVAL_MULT;
             const arrivalThreshold = Math.max(idealRadius, engine.targetBody.radius + 30);
 
             // Detección de Overshoot (Tunneling de físicas): Si nos pasamos de largo por lag o velocidad excesiva
@@ -235,10 +246,19 @@ export class SpaceState extends GameState {
             this._bodyPos.set(engine.targetBody.x, engine.targetBody.y, engine.targetBody.z);
             const dist = engine.camera.position.distanceTo(this._bodyPos);
             if (engine.controls.autoPilotTarget && (dist < arrivalThreshold || overshot)) {
+                const tgt = engine.controls.autoPilotTarget;
+
+                // Actualizar la velocidad base para igualar SIEMPRE la de traslación del planeta
+                if (tgt.orbitRadius && tgt.orbitSpeed) {
+                    const translationLinearSpeed = Math.abs(tgt.orbitSpeed * tgt.orbitRadius);
+                    engine.controls.speed = translationLinearSpeed;
+                }
+
                 engine.controls.autoLookTarget = engine.controls.autoPilotTarget;
                 engine.controls.setAutoPilotTarget(null);
-                engine.controls.velocity.set(0, 0, 0); // Freno perfecto absoluto
-                EventManager.emit(EVENTS.OSD_MESSAGE, { message: `Destination reached: ${engine.targetBody.name}. Orbital insertion complete`, type: 'success', duration: 5000 });
+                // No seteamos velocity a 0 aquí; el estado autoLook inyectará físicamente la inercia orbital y traslacional.
+
+                EventManager.emit(EVENTS.OSD_MESSAGE, { message: `Destino ${engine.targetBody.name} alcanzado. Inserción orbital completa`, type: 'success', duration: 5000 });
             }
         }
 

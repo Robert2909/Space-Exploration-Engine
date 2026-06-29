@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { Config } from '../core/Config.js';
+import { MeasurementSystem } from '../core/systems/MeasurementSystem.js';
 import { OSDManager } from './OSDManager.js';
 import { EventManager, EVENTS } from '../core/EventManager.js';
 
@@ -219,7 +220,7 @@ export class UIManager {
     updateHUD(speed, pos) {
         if (this.hud.classList.contains('hidden')) return;
 
-        document.getElementById('speed').innerText = Config.formatNumber(speed * 10);
+        document.getElementById('speed').innerHTML = MeasurementSystem.formatSpeed(speed);
         document.getElementById('pos-x').innerText = Config.formatNumber(pos.x);
         document.getElementById('pos-y').innerText = Config.formatNumber(pos.y);
         document.getElementById('pos-z').innerText = Config.formatNumber(pos.z);
@@ -335,14 +336,14 @@ export class UIManager {
                 const isBlackHole = res.group === 'BlackHole';
                 const colorClass = isStar ? 'var(--function-color)' : (isBlackHole ? '#8a2be2' : 'var(--variable-color)');
                 const icon = isStar ? '❖' : (isBlackHole ? '🌀' : '○');
-                const calculatedDist = (res.distSq >= 0) ? (Config.formatNumber(Math.sqrt(res.distSq)) + 'u') : '???u';
+                const calculatedDist = (res.distSq >= 0) ? MeasurementSystem.formatDistance(Math.sqrt(res.distSq)) : '???';
 
                 item.innerHTML = `
                     <div style="font-size: 0.85rem; font-weight: bold; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
                         <span style="color:${colorClass};">${icon}</span> ${res.name}
                     </div>
                     <div style="font-size: 0.7rem; color: #888;">
-                        <span style="color: var(--number-color);">${calculatedDist}</span> | R: ${Config.formatNumber(res.radiusVal)}
+                        <span style="color: var(--number-color);">${calculatedDist}</span> | R: ${MeasurementSystem.formatSize(res.radiusVal)}
                     </div>
                 `;
 
@@ -437,7 +438,7 @@ export class UIManager {
                 if (!el) continue;
                 el._usedThisFrame = true;
 
-                const distText = Config.formatNumber(Math.max(0, dist - body.radius)) + 'u';
+                const distText = MeasurementSystem.formatDistance(Math.max(0, dist - body.radius));
 
                 if (el._lastName !== body.name) {
                     const isStar = body.group === 'Estrella';
@@ -457,7 +458,7 @@ export class UIManager {
                     el._distSpan = el.querySelector('.dist-val');
                     el._lastDistText = distText;
                 } else if (el._distSpan && el._lastDistText !== distText) {
-                    el._distSpan.textContent = distText;
+                    el._distSpan.innerHTML = distText;
                     el._lastDistText = distText;
                 }
 
@@ -520,7 +521,7 @@ export class UIManager {
         document.getElementById('target-panel').style.display = 'block';
         document.getElementById('target-name').innerText = "'" + target.name + "'";
         document.getElementById('target-type').innerText = "'" + target.type + "'";
-        document.getElementById('target-radius').innerText = Config.formatNumber(target.radius);
+        document.getElementById('target-radius').innerHTML = MeasurementSystem.formatSize(target.radius);
 
         const targetAtmo = document.getElementById('target-atmo');
         const targetGravity = document.getElementById('target-gravity');
@@ -552,7 +553,8 @@ export class UIManager {
 
         if (targetGravity) {
             let baseGravity = target.type === 'Gigante gaseoso' ? 2.5 : 1.0;
-            let radiusFactor = target.radius / 2000;
+            // La Tierra tiene ~6371 km de radio (637 U). Ese será el estándar para 1 G.
+            let radiusFactor = target.radius / Config.REFERENCE_EARTH_RADIUS_U;
             let calculatedG = baseGravity * radiusFactor;
             targetGravity.innerText = Config.formatNumber(calculatedG, 2) + ' G';
 
@@ -562,13 +564,14 @@ export class UIManager {
         }
 
         if (targetOrbit) {
-            if (target.orbitSpeed) targetOrbit.innerText = `'${Config.formatNumber(Math.abs(target.orbitSpeed) * 1000, 1)} km/s'`;
-            else targetOrbit.innerText = "'N/A'";
+            if (target.orbitSpeed) targetOrbit.innerHTML = `'${MeasurementSystem.formatPlanetarySpeed(target.orbitSpeed, target.orbitRadius)}'`;
+            else targetOrbit.innerHTML = "'N/A'";
         }
 
         if (targetRot) {
-            if (target.rotationSpeed) targetRot.innerText = `'${Config.formatNumber(target.rotationSpeed * 1000, 1)} km/h'`;
-            else targetRot.innerText = "'N/A'";
+            // For rotation, the relevant radius for linear surface speed is the planet's radius
+            if (target.rotationSpeed) targetRot.innerHTML = `'${MeasurementSystem.formatPlanetarySpeed(target.rotationSpeed, target.radius || target.radiusVal)}'`;
+            else targetRot.innerHTML = "'N/A'";
         }
 
         if (targetTime) {
@@ -616,8 +619,11 @@ export class UIManager {
             } else {
                 this._planetPos.set(target.x, target.y, target.z);
                 this._relativePos.subVectors(payload.cameraPos, this._planetPos);
+                
                 const dist = this._relativePos.length();
-                targetDist.innerText = Config.formatNumber(dist) + 'u';
+                // HUD displays distance to surface, just like labels
+                const distToSurface = Math.max(0, dist - target.radius);
+                targetDist.innerHTML = MeasurementSystem.formatDistance(distToSurface);
 
                 if (targetLat && targetLon) {
                     if (payload.landingMarker && payload.landingMarker.planetName === target.name) {
@@ -659,7 +665,7 @@ export class UIManager {
             else fuelBar.style.backgroundColor = 'var(--string-color)';
         }
 
-        if (payload.speed !== undefined) document.getElementById('speed').innerText = Config.formatNumber(payload.speed) + ' u/s';
+        if (payload.speed !== undefined) document.getElementById('speed').innerHTML = MeasurementSystem.formatSpeed(payload.speed);
         if (payload.pos) {
             document.getElementById('pos-x').innerText = Config.formatNumber(payload.pos.x);
             document.getElementById('pos-y').innerText = Config.formatNumber(payload.pos.y);
