@@ -107,13 +107,12 @@ Con la experiencia y los rangos definidos, esta es la ruta de implementación t�
 
 ### 7.1. Nuevo Estado de Vuelo (`GasDiveState.js`)
 
-- **Heredará de `State`**: Se creará un nuevo estado paralelo a `SpaceState` y `TerrainState`.
-
-- **Controles Clónicos al Espacio**: Reutilizaremos la lógica exacta de control en primera persona y ejes infinitos del vuelo espacial, pero el motor de físicas inyectará **inercia, arrastre atmosférico y fuerzas externas**.
+- **Heredará de `GameState`**: Se creará un nuevo estado paralelo a `SpaceState` y `TerrainState` (usando la clase base `GameState.js`).
+- **Controles Clónicos al Espacio**: Reutilizaremos la lógica exacta de `SpaceControls` o crearemos un derivado (`GasDiveControls.js`) adaptado para inyectar la **inercia, arrastre atmosférico y fuerzas externas**.
 - **Renderizado Volumétrico**:
   - Sustituiremos la generación de chunks de terreno por un sistema dominado por `THREE.FogExp2` sincronizado proceduralmente con el bioma del gigante.
-  - Sistema masivo de partículas (viento, polvo de cristales, gases) que choca físicamente contra la visión de la cabina.
-  - Relámpagos procedurales basados en eventos de audio y luces puntuales (PointLights) de alto brillo.
+  - Sistema masivo de partículas instanciadas (viento, polvo, gases) que choca físicamente contra la visión de la cabina.
+  - Relámpagos procedurales basados en eventos de audio y luces puntuales (PointLights).
 
 ### 7.2. Físicas Dinámicas, Velocidad y Turbulencia
 
@@ -135,14 +134,13 @@ Cada gigante gaseoso calculará dinámicamente el grosor y límite de sus 5 zona
 
 ### 7.4. Interfaz de Usuario (HUD GasDive)
 
-- **Reemplazo del Panel**: El EventManager ocultará el panel del escáner y levantará un nuevo panel táctico exclusivo.
-
+- **Modificación en `index.html` y `UIManager.js`**: Se añadirá la maqueta en HTML del nuevo panel y se gestionará mediante `UIManager` o `OSDManager`, respetando que el DOM centralice la interfaz.
 - **Métricas en Tiempo Real**: Se enviarán por evento `EVENTS.HUD_GASDIVE_UPDATE` las lecturas de *Altitud, Presión Barométrica, Temp. Externa, Vel. de Viento, Dirección del viento, Nivel de Tóxico, y Dirección local de la nave*.
-- **Barra de Altitud Procedural**: Un elemento visual (barra vertical CSS/Canvas) coloreado dinámicamente que grafica el tamaño y los umbrales de las 5 capas del planeta actual, mostrando un indicador claro de qué tan profundo está sumergido el jugador respecto a la zona de muerte.
+- **Barra de Altitud Procedural**: Un elemento visual (barra vertical CSS/Canvas) en el HUD, coloreado dinámicamente que grafica el tamaño y los umbrales de las 5 capas del planeta actual, mostrando un indicador claro de qué tan profundo está sumergido el jugador respecto a la zona de muerte.
 
 ### 7.5. Transición (Espacio <-> GasDive)
 
-- **Entrada**: Exactamente igual al modo Terreno. El jugador hace *lock-on* en el gigante gaseoso e invoca el aterrizaje (tecla `F`). El estado `SpaceState` despacha el objetivo al `Engine` y cambia al estado `GasDiveState`.
+- **Entrada**: Exactamente igual al modo Terreno. El jugador hace *lock-on* en el gigante gaseoso e invoca el aterrizaje (tecla `F`). El `SpaceState` ejecuta el proceso de inserción y llama a `engine.switchState(new GasDiveState(engine, payload))`.
 
 - **Salida**: Se rige por la misma filosofía del modo terreno. Al entrar a cualquier rango de altitud dentro de la **Termosfera** (la capa superior), se habilitará la opción manual de despegue (clic derecho) para invocar el evento de salida a órbita. Sin embargo, si el jugador no hace clic pero continúa volando en línea recta hacia arriba y rebasa el límite superior de la capa, la salida automática se activará forzando el evento de transición hacia `SpaceState` sin pantallas de carga.
 
@@ -151,19 +149,19 @@ Cada gigante gaseoso calculará dinámicamente el grosor y límite de sus 5 zona
 Para asegurar que el desarrollo se adhiera estrictamente a la **Arquitectura Event-Driven State Machine** sin romper los modos existentes, la implementación se dividirá en 4 fases secuenciales:
 
 - **Fase 1: Transición y Core del Estado**
-  - Creación del archivo `GasDiveState.js` heredando de la clase base.
-  - Modificación del manejador de aterrizaje (en `SpaceState.js` y `Engine.js`) para despachar la transición hacia `GasDiveState` cuando el objetivo sea un planeta con el flag `isGasGiant` (en lugar de bloquearlo).
+  - Creación del archivo `GasDiveState.js` heredando de `GameState.js`.
+  - Modificación del manejador de aterrizaje (en `SpaceState.js` y `Engine.js`) para despachar la transición hacia `GasDiveState` usando `switchState` cuando el objetivo sea un planeta con el flag `isGasGiant`.
   - Soporte de salida al espacio manual (clic derecho) y automática (por límite de altura).
 
 - **Fase 2: Interfaz Táctica (HUD)**
-  - Creación de `GasDivePanel.js` o integración dentro del `OSDManager.js`.
-  - Escuchar el evento `EVENTS.HUD_GASDIVE_UPDATE` para renderizar en tiempo real: Altitud, Presión, Temperatura, Dirección de viento y Toxicidad.
-  - Implementar la barra procedural que renderiza las 5 capas atmosféricas según el radio del planeta.
+  - Agregar la estructura del panel en `index.html` y sus estilos en `styles.css`.
+  - Incorporar lógica de visibilidad en `UIManager.js` o `OSDManager.js`.
+  - Escuchar el evento `EVENTS.HUD_GASDIVE_UPDATE` para renderizar en tiempo real las variables ambientales y la barra procedural de las 5 capas atmosféricas.
 
 - **Fase 3: Rendering Volumétrico**
-  - Desactivar el generador de *chunks* de terreno en este estado.
+  - Desactivar la lógica de *chunks* de terreno en este estado.
   - Instanciar `THREE.FogExp2` basándose en el bioma (color principal y densidad).
-  - Crear el sistema de partículas (viento visible/cenizas/nubes) que chocan contra la cámara.
+  - Crear el sistema de partículas (viento visible/cenizas/nubes) que choca contra la cámara.
 
 - **Fase 4: Físicas, Turbulencia y Peligro**
   - Implementar el generador de ruido Simplex para calcular el vector de viento direccional y bolsas caóticas.
