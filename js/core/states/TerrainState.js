@@ -153,7 +153,11 @@ export class TerrainState extends GameState {
                 const distToSunMultiplier = Config.REFERENCE_HABITABLE_ZONE_U / (engine.lastLandedPlanet.orbitRadius || Config.REFERENCE_HABITABLE_ZONE_U); 
                 
                 const pType = engine.lastLandedPlanet.type;
-                let baseTemp = Config.PLANET_BASE_TEMPS[pType] !== undefined ? Config.PLANET_BASE_TEMPS[pType] : 15;
+                let baseTemp = 15;
+                const biome = Config.PLANET_BIOMES[pType];
+                if (biome && biome.baseTemp !== undefined) {
+                    baseTemp = biome.baseTemp;
+                }
                 
                 const latMultiplier = Math.cos(latDeg * (Math.PI / 180));
                 let timeTempOffset = (currentSunHeight * 20);

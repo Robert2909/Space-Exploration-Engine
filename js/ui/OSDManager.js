@@ -10,6 +10,8 @@ export class OSDManager {
         if (!this.isListening) {
             EventManager.on(EVENTS.OSD_MESSAGE, (payload) => this.show(payload.message, payload.type, payload.duration));
             EventManager.on(EVENTS.OSD_HIDE, () => this.hide());
+            EventManager.on(EVENTS.SYSTEM_ENTERED, (payload) => this.show(`Entrando al sistema estelar: ${payload.name}`, 'info', 4000));
+            EventManager.on(EVENTS.SYSTEM_EXITED, () => this.show(`Saliendo hacia el espacio profundo...`, 'error', 4000));
             this.isListening = true;
         }
 
@@ -55,7 +57,7 @@ export class OSDManager {
         if (type === 'success') color = 'var(--number-color)';
         if (type === 'warning') color = '#ffcc00';
         if (type === 'error') color = '#ff5555';
-        
+
         el.innerHTML = `<span style="color: var(--keyword-color);">log</span>(<span style="color: ${color};">'${message}'</span>)<span style="color: #ccc;">;</span>`;
         el.style.background = 'rgba(37, 37, 38, 0.95)';
         el.style.padding = '8px 16px';
@@ -68,16 +70,16 @@ export class OSDManager {
         el.style.transition = 'opacity 0.2s, transform 0.2s';
         el.style.transform = 'translateY(10px)';
         el.style.whiteSpace = 'nowrap';
-        
+
         this.container.appendChild(el);
         this.currentEl = el;
-        
+
         // Forzar reflow para garantizar que el navegador aplique la transición
         void el.offsetWidth;
-        
+
         el.style.opacity = '1';
         el.style.transform = 'translateY(0)';
-        
+
         if (duration > 0) {
             this.timeoutId = setTimeout(() => {
                 this.hide();

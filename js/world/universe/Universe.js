@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { Chunk } from './Chunk.js';
+import { Chunk, SHARED_SPHERE_GEO, SHARED_HIGH_POLY_GEO, SHARED_HIGH_RES_MAT } from './Chunk.js';
 import { Config } from '../../core/Config.js';
 
 export class Universe {
@@ -9,8 +9,67 @@ export class Universe {
         this.chunkQueue = []; 
         this.renderDistance = 1; 
         this.chunkSize = Config.UNIVERSE_CHUNK_SIZE;
+        this.currentHighLODPlanet = null;
     }
     
+    setHighLODPlanet(planet) {
+        if (this.currentHighLODPlanet === planet) {
+            // Already set. Since we use a native MeshLambertMaterial now, lighting is automatic.
+            // If the shader is ready, we can ensure uSeed is correct.
+            if (planet && SHARED_HIGH_RES_MAT.userData.shader) {
+                let s = SHARED_HIGH_RES_MAT.userData.shader.uniforms;
+                s.uSeed.value = (planet.orbitRadius || 0.0) % 1000.0;
+                if (planet.shaderParams) {
+                    s.uColorLow.value.copy(planet.shaderParams.colorLow);
+                    s.uColorHigh.value.copy(planet.shaderParams.colorHigh);
+                    s.uCloudColor.value.copy(planet.shaderParams.cloudColor);
+                    s.uNoiseFreq.value = planet.shaderParams.noiseFreq;
+                    s.uCloudDensity.value = planet.shaderParams.cloudDensity;
+                    s.uAtmosphere.value = planet.shaderParams.atmosphere;
+                }
+            }
+            return;
+        }
+        
+        // Downgrade old planet if it exists and still has the high-poly geometry
+        if (this.currentHighLODPlanet) {
+            if (this.currentHighLODPlanet.mesh && this.currentHighLODPlanet.mesh.geometry === SHARED_HIGH_POLY_GEO) {
+                this.currentHighLODPlanet.mesh.geometry = SHARED_SPHERE_GEO;
+                // Revert material to the simple one from the chunk manager
+                this.currentHighLODPlanet.mesh.material = new THREE.MeshLambertMaterial({ color: this.currentHighLODPlanet.color });
+            }
+        }
+
+        this.currentHighLODPlanet = planet;
+
+        // Upgrade new planet
+        if (this.currentHighLODPlanet && this.currentHighLODPlanet.mesh) {
+            this.currentHighLODPlanet.mesh.geometry = SHARED_HIGH_POLY_GEO;
+            
+            // Set the high-res shader material
+            this.currentHighLODPlanet.mesh.material = SHARED_HIGH_RES_MAT;
+            
+            // Update color for the new planet natively
+            SHARED_HIGH_RES_MAT.color.copy(this.currentHighLODPlanet.color);
+            
+            // Update custom uniforms if compiled
+            if (SHARED_HIGH_RES_MAT.userData.shader) {
+                let s = SHARED_HIGH_RES_MAT.userData.shader.uniforms;
+                s.uSeed.value = (this.currentHighLODPlanet.orbitRadius || 0.0) % 1000.0;
+                if (this.currentHighLODPlanet.shaderParams) {
+                    s.uColorLow.value.copy(this.currentHighLODPlanet.shaderParams.colorLow);
+                    s.uColorHigh.value.copy(this.currentHighLODPlanet.shaderParams.colorHigh);
+                    s.uCloudColor.value.copy(this.currentHighLODPlanet.shaderParams.cloudColor);
+                    s.uNoiseFreq.value = this.currentHighLODPlanet.shaderParams.noiseFreq;
+                    s.uCloudDensity.value = this.currentHighLODPlanet.shaderParams.cloudDensity;
+                    s.uAtmosphere.value = this.currentHighLODPlanet.shaderParams.atmosphere;
+                    s.uWarpStrength.value = this.currentHighLODPlanet.shaderParams.warpStrength;
+                    s.uStretchY.value = this.currentHighLODPlanet.shaderParams.stretchY;
+                }
+            }
+        }
+    }
+
     getChunkKey(cx, cy, cz) {
         return `${cx},${cy},${cz}`;
     }
@@ -37,6 +96,40 @@ export class Universe {
             }
         }
         return closestStar;
+    }
+
+    getClosestBody(cameraPos) {
+        let closestBody = null;
+        let minDistSq = Infinity;
+        for (let [key, chunk] of this.chunks.entries()) {
+            if (chunk !== 'pending') {
+                for (let sys of chunk.systems) {
+                    // Check star/blackhole
+                    const sdx = sys.x - cameraPos.x;
+                    const sdy = sys.y - cameraPos.y;
+                    const sdz = sys.z - cameraPos.z;
+                    const sDistSq = sdx*sdx + sdy*sdy + sdz*sdz;
+                    if (sDistSq < minDistSq) {
+                        minDistSq = sDistSq;
+                        closestBody = sys;
+                    }
+                    // Check planets
+                    if (sys.planets) {
+                        for (let p of sys.planets) {
+                            const pdx = p.x - cameraPos.x;
+                            const pdy = p.y - cameraPos.y;
+                            const pdz = p.z - cameraPos.z;
+                            const pDistSq = pdx*pdx + pdy*pdy + pdz*pdz;
+                            if (pDistSq < minDistSq) {
+                                minDistSq = pDistSq;
+                                closestBody = p;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        return closestBody;
     }
     
     update(playerX, playerY, playerZ, dt) {
@@ -78,7 +171,10 @@ export class Universe {
                 const queueIndex = this.chunkQueue.indexOf(key);
                 if (queueIndex > -1) this.chunkQueue.splice(queueIndex, 1);
             } else if (chunk !== 'pending') {
-                chunk.update(dt);
+                const playerLx = playerX - chunk.group.position.x;
+                const playerLy = playerY - chunk.group.position.y;
+                const playerLz = playerZ - chunk.group.position.z;
+                chunk.update(dt, playerLx, playerLy, playerLz);
             }
         }
     }

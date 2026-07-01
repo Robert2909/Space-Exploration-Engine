@@ -7,7 +7,7 @@ export class RenderSystem {
         this.scene.fog = new THREE.FogExp2(0x000000, 0.00005);
         this.scene.background = new THREE.Color(0x000000);
 
-        this.camera = new THREE.PerspectiveCamera(Config.RENDER_FOV, window.innerWidth / window.innerHeight, 100, Config.RENDER_FAR_PLANE);
+        this.camera = new THREE.PerspectiveCamera(Config.RENDER_FOV, window.innerWidth / window.innerHeight, Config.RENDER_NEAR_PLANE, Config.RENDER_FAR_PLANE);
 
         // TRUCO 2: Apagar el Antialiasing. El antialias multiplica por 4 el trabajo de la GPU.
         this.renderer = new THREE.WebGLRenderer({ 

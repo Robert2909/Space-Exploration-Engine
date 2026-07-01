@@ -50,18 +50,25 @@ export function generateStarName(seedBase, cx, cy, cz) {
     }
 }
 
-export function generatePlanetName(starName, planetIndex, seedBase, cx, cy, cz) {
-    const formatType = seededRandom(cx, cy, cz, seedBase + 200);
-    if (formatType < 0.4) {
-        const letter = PLANET_LETTERS[planetIndex % PLANET_LETTERS.length];
-        return `${starName} ${letter}`;
-    } else if (formatType < 0.7) {
-        const roman = ROMAN_NUMERALS[planetIndex % ROMAN_NUMERALS.length];
-        return `${starName} ${roman}`;
-    } else {
-        const suffix = SCI_FI_SUFFIXES[Math.floor(seededRandom(cx, cy, cz, seedBase + 201) * SCI_FI_SUFFIXES.length)];
-        return `${starName} ${suffix}`;
-    }
+export function generatePlanetName(starName, planetIndex, seedBase, cx, cy, cz, existingNames = []) {
+    let name = '';
+    let attempts = 0;
+    do {
+        const formatType = seededRandom(cx, cy, cz, seedBase + 200 + attempts);
+        if (formatType < 0.4) {
+            const letter = PLANET_LETTERS[(planetIndex + attempts) % PLANET_LETTERS.length];
+            name = `${starName} ${letter}`;
+        } else if (formatType < 0.7) {
+            const roman = ROMAN_NUMERALS[(planetIndex + attempts) % ROMAN_NUMERALS.length];
+            name = `${starName} ${roman}`;
+        } else {
+            const suffix = SCI_FI_SUFFIXES[Math.floor(seededRandom(cx, cy, cz, seedBase + 201 + attempts) * SCI_FI_SUFFIXES.length)];
+            name = `${starName} ${suffix}`;
+        }
+        attempts++;
+    } while (existingNames.includes(name));
+    
+    return name;
 }
 
 export function generateBlackHoleName(seedBase, cx, cy, cz, isUltraMassive) {

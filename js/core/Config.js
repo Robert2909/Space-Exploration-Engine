@@ -53,8 +53,15 @@ export const Config = {
     // ==========================================
     STAR_RADIUS_MIN: 20000, // Radio mínimo de estrella principal (200,000 km)
     STAR_RADIUS_MAX: 100000, // Radio máximo de estrella (1,000,000 km)
-    PLANETS_MAX_PER_SYSTEM: 10, // Número máximo de planetas girando alrededor de una estrella
-    GAS_GIANT_CHANCE: 0.15, // Probabilidad de que un planeta sea gigante gaseoso (0.0 - 1.0)
+    PLANETS_MAX_PER_SYSTEM: 6, // 1 a 6 planetas por estrella
+
+    // ANILLOS PLANETARIOS
+    PLANET_RING_MIN_RADIUS_MULT: 1.5, // Empieza a 1.5x el radio del planeta
+    PLANET_RING_MAX_RADIUS_MULT: 3.5, // Puede iniciar hasta a 3.5x
+    PLANET_RING_MIN_WIDTH_MULT: 0.1,  // Ancho mínimo del anillo (0.1x radio)
+    PLANET_RING_MAX_WIDTH_MULT: 2.5,  // Ancho máximo del anillo (2.5x radio)
+    PLANET_RING_OPACITY_MIN: 0.4,
+    PLANET_RING_OPACITY_MAX: 0.9,
     PLANET_ROCKY_RADIUS_MIN: 400, // Radio mínimo planeta rocoso (~4,000 km, similar a Marte/Tierra)
     PLANET_ROCKY_RADIUS_MAX: 1000, // Radio máximo planeta rocoso (~10,000 km, Súper-Tierras)
     PLANET_GAS_RADIUS_MIN: 3000, // Radio mínimo planeta gaseoso (~30,000 km)
@@ -63,11 +70,18 @@ export const Config = {
     PLANET_ORBIT_SPEED_MAX: 0.00002, // Velocidad orbital máxima (Equivalente a Mercurio x20)
     PLANET_ROTATION_SPEED_MIN: 0.00001, // Velocidad de rotación mínima (Planetas rocosos lentos x20)
     PLANET_ROTATION_SPEED_MAX: 0.004, // Velocidad de rotación máxima (Gigantes gaseosos ultrarrápidos x20)
+
+    // VISUALES PLANETARIOS
+    PLANET_TEXTURE_RESOLUTION_MULT: 2.0, // Multiplicador para aumentar la resolución/frecuencia del shader del terreno
+
     ORBIT_DISTANCE_START: 1500000, // Distancia inicial (15 millones de km del Sol)
     ORBIT_DISTANCE_SPACING: 800000, // Espacio mínimo entre las órbitas (8 millones de km)
     ORBIT_DISTANCE_VAR: 500000, // Variación aleatoria del espacio entre órbitas
+    HELIOPAUSE_PADDING: 20000000, // Frontera del sistema solar después del último planeta
 
-
+    // ASTEROIDES
+    ASTEROID_MIN_ORBIT: 4000000,
+    ASTEROID_MAX_ORBIT: 12000000,
 
     // ==========================================
     // TIPOS DE ESTRELLAS (DICCIONARIO MAESTRO)
@@ -178,27 +192,72 @@ export const Config = {
     // ==========================================
     // BIOMAS PLANETARIOS (DICCIONARIO DE DATOS MAESTRO)
     // ==========================================
-    // Este registro reemplaza miles de if/else. Define las propiedades generativas de todos los tipos de planeta.
     PLANET_BIOMES: {
-        'Planeta oceánico': { chance: 0.10, atmoBase: 0.0003, atmoVar: 0.0002, hueBase: 0.55, hueVar: 0.10, sat: 0.8, lit: 0.30, terrainMods: { octavesAdd: -1, exponentMult: 0.8, heightMult: 0.4 }, aesthetics: { waterLevel: 0, waterColor: 0x1144aa, beachColor: 0xddccaa, beachBlend: 0.6 } },
-        'Planeta de lava': { chance: 0.10, atmoBase: 0.0004, atmoVar: 0.0000, hueBase: 0.00, hueVar: 0.10, sat: 0.9, lit: 0.40, terrainMods: { octavesAdd: 1, exponentMult: 1.3, heightMult: 1.5 }, aesthetics: { crackLevel: -100, crackColor: 0xff3300, baseLerpColor: 0x1a1a1a, baseLerp: 0.9 } },
-        'Planeta helado': { chance: 0.10, atmoBase: 0.0001, atmoVar: 0.0002, hueBase: 0.50, hueVar: 0.10, sat: 0.4, lit: 0.80, terrainMods: { octavesAdd: -1, exponentMult: 0.7, heightMult: 0.6 }, aesthetics: { globalLerpColor: 0xffffff, globalLerpBase: 0.5, globalLerpLat: 0.5 } },
-        'Planeta de cristal': { chance: 0.05, atmoBase: 0.0000, atmoVar: 0.0000, useSystemHue: true, sat: 0.9, lit: 0.60, terrainMods: { octavesAdd: 0, exponentMult: 2.0, heightMult: 1.8 }, aesthetics: { invertLighting: true } },
-        'Planeta desértico': { chance: 0.15, atmoBase: 0.0002, atmoVar: 0.0001, hueBase: 0.10, hueVar: 0.05, sat: 0.6, lit: 0.60, terrainMods: { octavesAdd: -1, exponentMult: 0.9, heightMult: 0.7 }, aesthetics: { hasSand: true, sandColor: 0xddbb55, hasSnow: false } },
-        'Planeta tóxico': { chance: 0.05, atmoBase: 0.0005, atmoVar: 0.0003, hueBase: 0.30, hueVar: 0.10, sat: 0.8, lit: 0.40, terrainMods: { octavesAdd: 1, exponentMult: 1.5, heightMult: 0.8 }, aesthetics: { hasSand: true, sandColor: 0xddbb55, hasSnow: false } },
-        'Planeta tropical': { chance: 0.05, atmoBase: 0.0002, atmoVar: 0.0002, hueBase: 0.35, hueVar: 0.10, sat: 0.7, lit: 0.25, terrainMods: { octavesAdd: 1, exponentMult: 1.1, heightMult: 1.2 }, aesthetics: { hasSand: true, sandColor: 0xddbb55, hasSnow: true } },
-        'Planeta yermo': { chance: 0.20, atmoBase: 0.0000, atmoVar: 0.0000, hueBase: 0.05, hueVar: 0.05, sat: 0.1, lit: 0.40, terrainMods: { octavesAdd: -2, exponentMult: 0.6, heightMult: 0.3 }, aesthetics: { hasSand: false, hasSnow: false } },
-        // 'Planeta rocoso' es el comodín si no cae en ninguno de los anteriores
-        'Planeta rocoso': { chance: 0.00, atmoChance: 0.3, atmoBase: 0.00005, atmoVar: 0.00045, useSystemHue: true, satRandomBase: 0.2, satRandomMult: 0.4, litRandomBase: 0.2, litRandomMult: 0.5, terrainMods: { octavesAdd: 0, exponentMult: 1.0, heightMult: 1.0 }, aesthetics: { hasSand: true, sandColor: 0xddbb55, hasSnow: true } }
+        // === GIGANTES GASEOSOS ===
+        'Gigante gaseoso': { chance: 0.06, isGasGiant: true, hueBase: 0.05, hueVar: 0.10, sat: 0.7, lit: 0.5, warpBase: 4.0, warpVar: 3.0, stretchBase: 3.0, stretchVar: 5.0, radiusMult: 1.0, ringChance: 0.80, baseTemp: -150 },
+        'Gigante helado': { chance: 0.03, isGasGiant: true, hueBase: 0.55, hueVar: 0.10, sat: 0.6, lit: 0.6, warpBase: 2.0, warpVar: 2.0, stretchBase: 1.5, stretchVar: 2.0, radiusMult: 0.8, ringChance: 0.90, baseTemp: -200 },
+        'Gigante de amoníaco': { chance: 0.04, isGasGiant: true, hueBase: 0.15, hueVar: 0.05, sat: 0.8, lit: 0.60, warpBase: 3.0, warpVar: 2.0, stretchBase: 4.0, stretchVar: 4.0, radiusMult: 1.2, ringChance: 0.40, baseTemp: -100 },
+        'Gigante de silicato': { chance: 0.04, isGasGiant: true, hueBase: 0.05, hueVar: 0.02, sat: 0.1, lit: 0.70, warpBase: 5.0, warpVar: 3.0, stretchBase: 5.0, stretchVar: 6.0, radiusMult: 1.1, ringChance: 0.60, baseTemp: 900 },
+        'Enana marrón': { chance: 0.02, isGasGiant: true, hueBase: 0.02, hueVar: 0.05, sat: 0.8, lit: 0.3, warpBase: 6.0, warpVar: 4.0, stretchBase: 2.0, stretchVar: 2.0, radiusMult: 1.5, ringChance: 0.10, baseTemp: 800 },
+        
+        // === MUNDOS CON OCÉANOS / HABITABLES ===
+        'Planeta oceánico': { chance: 0.03, atmoBase: 0.0003, atmoVar: 0.0002, hueBase: 0.55, hueVar: 0.10, sat: 0.8, lit: 0.30, terrainMods: { octavesAdd: -1, exponentMult: 0.8, heightMult: 0.4 }, aesthetics: { waterLevel: 0, waterColor: 0x1144aa, beachColor: 0xddccaa, beachBlend: 0.6 }, warpBase: 1.0, warpVar: 1.5, radiusMult: 1.05, ringChance: 0.05, baseTemp: 10 },
+        'Planeta tropical': { chance: 0.03, atmoBase: 0.0002, atmoVar: 0.0002, hueBase: 0.35, hueVar: 0.10, sat: 0.7, lit: 0.25, terrainMods: { octavesAdd: 1, exponentMult: 1.1, heightMult: 1.2 }, aesthetics: { hasSand: true, sandColor: 0xddbb55, hasSnow: true }, warpBase: 1.2, warpVar: 1.2, radiusMult: 1.0, ringChance: 0.02, baseTemp: 30 },
+        'Planeta prístino': { chance: 0.02, atmoBase: 0.0002, atmoVar: 0.0001, hueBase: 0.30, hueVar: 0.05, sat: 0.8, lit: 0.40, terrainMods: { octavesAdd: 0, exponentMult: 1.0, heightMult: 1.0 }, aesthetics: { hasSand: true, sandColor: 0xffeeaa, hasSnow: true, waterLevel: 0, waterColor: 0x2288ff }, warpBase: 1.0, warpVar: 1.0, radiusMult: 1.0, ringChance: 0.0, baseTemp: 22 },
+        'Planeta abisal': { chance: 0.02, atmoBase: 0.0003, atmoVar: 0.0001, hueBase: 0.60, hueVar: 0.10, sat: 0.2, lit: 0.10, terrainMods: { octavesAdd: -1, exponentMult: 0.9, heightMult: 0.5 }, aesthetics: { waterLevel: 100, waterColor: 0x050510 }, warpBase: 1.5, warpVar: 1.0, radiusMult: 1.1, ringChance: 0.02, baseTemp: -2 },
+        
+        // === MUNDOS CALIENTES / INFERNALES ===
+        'Planeta de lava': { chance: 0.03, atmoBase: 0.0004, atmoVar: 0.0000, hueBase: 0.00, hueVar: 0.10, sat: 0.9, lit: 0.40, terrainMods: { octavesAdd: 1, exponentMult: 1.3, heightMult: 1.5 }, aesthetics: { crackLevel: -100, crackColor: 0xff3300, baseLerpColor: 0x1a1a1a, baseLerp: 0.9 }, warpBase: 2.0, warpVar: 2.0, radiusMult: 0.95, ringChance: 0.10, baseTemp: 400 },
+        'Planeta carbonizado': { chance: 0.02, atmoBase: 0.0001, atmoVar: 0.0000, hueBase: 0.00, hueVar: 0.00, sat: 0.0, lit: 0.15, terrainMods: { octavesAdd: 1, exponentMult: 0.8, heightMult: 0.5 }, aesthetics: { hasSand: false, hasSnow: false }, warpBase: 1.0, warpVar: 0.5, radiusMult: 0.9, ringChance: 0.08, baseTemp: 150 },
+        'Planeta fragmentado': { chance: 0.04, atmoBase: 0.0000, atmoVar: 0.0000, hueBase: 0.05, hueVar: 0.10, sat: 0.2, lit: 0.30, terrainMods: { octavesAdd: 1, exponentMult: 2.5, heightMult: 2.5 }, aesthetics: { hasSand: false, hasSnow: false, crackLevel: -20, crackColor: 0xffaa00, baseLerpColor: 0x111111, baseLerp: 0.9 }, warpBase: 2.0, warpVar: 2.0, radiusMult: 0.85, ringChance: 0.15, baseTemp: 250 },
+        
+        // === MUNDOS HELADOS / CRISTALINOS ===
+        'Planeta helado': { chance: 0.03, atmoBase: 0.0001, atmoVar: 0.0002, hueBase: 0.50, hueVar: 0.10, sat: 0.4, lit: 0.80, terrainMods: { octavesAdd: -1, exponentMult: 0.7, heightMult: 0.6 }, aesthetics: { globalLerpColor: 0xffffff, globalLerpBase: 0.5, globalLerpLat: 0.5 }, warpBase: 0.5, warpVar: 1.0, radiusMult: 0.9, ringChance: 0.05, baseTemp: -60 },
+        'Planeta de sal': { chance: 0.03, atmoBase: 0.0001, atmoVar: 0.0000, hueBase: 0.0, hueVar: 0.0, sat: 0.0, lit: 0.90, terrainMods: { octavesAdd: -1, exponentMult: 0.6, heightMult: 0.2 }, aesthetics: { hasSand: true, sandColor: 0xffffff, hasSnow: false }, warpBase: 1.0, warpVar: 1.0, radiusMult: 1.0, ringChance: 0.0, baseTemp: 50 },
+        'Planeta de cristal': { chance: 0.02, atmoBase: 0.0000, atmoVar: 0.0000, useSystemHue: true, sat: 0.9, lit: 0.60, terrainMods: { octavesAdd: 0, exponentMult: 2.0, heightMult: 1.8 }, aesthetics: { invertLighting: true }, warpBase: 3.0, warpVar: 1.0, radiusMult: 0.85, ringChance: 0.20, baseTemp: -20 },
+        'Planeta de cuarzo': { chance: 0.03, atmoBase: 0.0001, atmoVar: 0.0000, hueBase: 0.85, hueVar: 0.05, sat: 0.7, lit: 0.70, terrainMods: { octavesAdd: -1, exponentMult: 2.2, heightMult: 1.2 }, aesthetics: { globalLerpColor: 0xffccff, globalLerpBase: 0.8, globalLerpLat: 0.2 }, warpBase: 2.0, warpVar: 1.0, radiusMult: 0.8, ringChance: 0.10, baseTemp: -10 },
+        
+        // === MUNDOS SECOS Y DESÉRTICOS ===
+        'Planeta desértico': { chance: 0.03, atmoBase: 0.0002, atmoVar: 0.0001, hueBase: 0.10, hueVar: 0.05, sat: 0.6, lit: 0.60, terrainMods: { octavesAdd: -1, exponentMult: 0.9, heightMult: 0.7 }, aesthetics: { hasSand: true, sandColor: 0xddbb55, hasSnow: false }, warpBase: 1.5, warpVar: 1.5, radiusMult: 1.0, ringChance: 0.05, baseTemp: 45 },
+        'Mundo de polvo': { chance: 0.03, atmoBase: 0.0006, atmoVar: 0.0002, hueBase: 0.08, hueVar: 0.02, sat: 0.8, lit: 0.40, terrainMods: { octavesAdd: -2, exponentMult: 0.4, heightMult: 0.1 }, aesthetics: { hasSand: true, sandColor: 0xcc8833, hasSnow: false }, warpBase: 0.5, warpVar: 0.5, radiusMult: 1.05, ringChance: 0.15, baseTemp: 80 },
+        'Planeta yermo': { chance: 0.03, atmoBase: 0.0000, atmoVar: 0.0000, hueBase: 0.05, hueVar: 0.05, sat: 0.1, lit: 0.40, terrainMods: { octavesAdd: -2, exponentMult: 0.6, heightMult: 0.3 }, aesthetics: { hasSand: false, hasSnow: false }, warpBase: 0.5, warpVar: 0.5, radiusMult: 0.8, ringChance: 0.05, baseTemp: -10 },
+        'Planeta metálico': { chance: 0.02, atmoBase: 0.0000, atmoVar: 0.0000, hueBase: 0.10, hueVar: 0.05, sat: 0.1, lit: 0.60, terrainMods: { octavesAdd: 0, exponentMult: 2.0, heightMult: 1.5 }, aesthetics: { hasSand: false, hasSnow: false }, warpBase: 0.1, warpVar: 0.1, radiusMult: 0.85, ringChance: 0.10, baseTemp: -80 },
+        'Planeta de obsidiana': { chance: 0.03, atmoBase: 0.0001, atmoVar: 0.0001, hueBase: 0.75, hueVar: 0.10, sat: 0.5, lit: 0.10, terrainMods: { octavesAdd: 1, exponentMult: 1.3, heightMult: 1.5 }, aesthetics: { hasSand: false, hasSnow: false }, warpBase: 0.5, warpVar: 1.0, radiusMult: 1.0, ringChance: 0.05, baseTemp: 60 },
+        
+        // === MUNDOS EXÓTICOS / BIOLÓGICOS / TÓXICOS ===
+        'Planeta tóxico': { chance: 0.03, atmoBase: 0.0005, atmoVar: 0.0003, hueBase: 0.30, hueVar: 0.10, sat: 0.8, lit: 0.40, terrainMods: { octavesAdd: 1, exponentMult: 1.5, heightMult: 0.8 }, aesthetics: { hasSand: true, sandColor: 0xddbb55, hasSnow: false }, warpBase: 2.0, warpVar: 2.5, radiusMult: 1.1, ringChance: 0.10, baseTemp: 70 },
+        'Planeta radiactivo': { chance: 0.04, atmoBase: 0.0005, atmoVar: 0.0002, hueBase: 0.15, hueVar: 0.05, sat: 0.3, lit: 0.30, terrainMods: { octavesAdd: 0, exponentMult: 0.9, heightMult: 0.7 }, aesthetics: { crackLevel: -50, crackColor: 0x33ff11, baseLerpColor: 0x333333, baseLerp: 0.9 }, warpBase: 1.5, warpVar: 1.5, radiusMult: 0.95, ringChance: 0.15, baseTemp: 120 },
+        'Mundo bioluminiscente': { chance: 0.02, atmoBase: 0.0002, atmoVar: 0.0001, hueBase: 0.80, hueVar: 0.15, sat: 0.9, lit: 0.30, terrainMods: { octavesAdd: 0, exponentMult: 1.2, heightMult: 1.1 }, aesthetics: { invertLighting: true, waterColor: 0xff00ff }, warpBase: 2.5, warpVar: 1.5, radiusMult: 1.0, ringChance: 0.05, baseTemp: 18 },
+        'Planeta de esporas': { chance: 0.02, atmoBase: 0.0004, atmoVar: 0.0002, hueBase: 0.25, hueVar: 0.10, sat: 0.6, lit: 0.30, terrainMods: { octavesAdd: -1, exponentMult: 0.7, heightMult: 0.8 }, aesthetics: { globalLerpColor: 0xaaff55, globalLerpBase: 0.2, globalLerpLat: 0.1 }, warpBase: 2.0, warpVar: 1.0, radiusMult: 0.95, ringChance: 0.0, baseTemp: 25 },
+        'Planeta de sangre': { chance: 0.03, atmoBase: 0.0003, atmoVar: 0.0001, hueBase: 0.02, hueVar: 0.05, sat: 0.9, lit: 0.20, terrainMods: { octavesAdd: 0, exponentMult: 1.0, heightMult: 0.8 }, aesthetics: { waterLevel: 20, waterColor: 0x880000, beachColor: 0x331111, beachBlend: 0.4 }, warpBase: 1.2, warpVar: 1.5, radiusMult: 1.0, ringChance: 0.05, baseTemp: 40 },
+        'Planeta tormentoso': { chance: 0.03, atmoBase: 0.0006, atmoVar: 0.0002, hueBase: 0.60, hueVar: 0.10, sat: 0.3, lit: 0.20, terrainMods: { octavesAdd: 1, exponentMult: 1.1, heightMult: 1.2 }, aesthetics: { hasSand: false, hasSnow: false, waterColor: 0x112233, waterLevel: -20 }, warpBase: 3.0, warpVar: 2.0, radiusMult: 1.05, ringChance: 0.10, baseTemp: 5 },
+        'Mundo crepuscular': { chance: 0.03, atmoBase: 0.0004, atmoVar: 0.0002, hueBase: 0.75, hueVar: 0.15, sat: 0.6, lit: 0.20, terrainMods: { octavesAdd: 0, exponentMult: 1.0, heightMult: 1.0 }, aesthetics: { globalLerpColor: 0x330066, globalLerpBase: 0.5, globalLerpLat: 0.5 }, warpBase: 1.5, warpVar: 1.5, radiusMult: 1.0, ringChance: 0.05, baseTemp: 10 },
+        'Planeta fractal': { chance: 0.03, atmoBase: 0.0000, atmoVar: 0.0000, hueBase: 0.70, hueVar: 0.15, sat: 0.8, lit: 0.40, terrainMods: { octavesAdd: 2, exponentMult: 1.5, heightMult: 1.8 }, aesthetics: { invertLighting: true, globalLerpColor: 0xff00ff, globalLerpBase: 0.2, globalLerpLat: 0.5 }, warpBase: 5.0, warpVar: 3.0, radiusMult: 0.9, ringChance: 0.20, baseTemp: -50 },
+        
+        // === MUNDOS ULTRA RAROS / SCI-FI (1% de chance cada uno) ===
+        'Planeta cuántico': { chance: 0.01, atmoBase: 0.0010, atmoVar: 0.0005, useSystemHue: true, sat: 1.0, lit: 0.80, terrainMods: { octavesAdd: -1, exponentMult: 0.5, heightMult: 0.2 }, aesthetics: { invertLighting: true, globalLerpColor: 0xffffff, globalLerpBase: 0.5, globalLerpLat: 0.5 }, warpBase: 10.0, warpVar: 5.0, radiusMult: 0.8, ringChance: 0.50, baseTemp: -270 },
+        'Gigante de materia oscura': { chance: 0.01, isGasGiant: true, hueBase: 0.0, hueVar: 0.0, sat: 0.0, lit: 0.02, warpBase: 1.0, warpVar: 0.5, stretchBase: 1.0, stretchVar: 1.0, radiusMult: 1.5, ringChance: 0.95, baseTemp: -273 },
+        'Mundo enjambre': { chance: 0.01, atmoBase: 0.0008, atmoVar: 0.0002, hueBase: 0.20, hueVar: 0.05, sat: 0.8, lit: 0.30, terrainMods: { octavesAdd: 3, exponentMult: 1.5, heightMult: 1.2 }, aesthetics: { globalLerpColor: 0x99aa00, globalLerpBase: 0.4, globalLerpLat: 0.0 }, warpBase: 4.0, warpVar: 4.0, radiusMult: 1.1, ringChance: 0.0, baseTemp: 60 },
+        'Planeta de ectoplasma': { chance: 0.01, atmoBase: 0.0015, atmoVar: 0.0005, hueBase: 0.45, hueVar: 0.10, sat: 0.9, lit: 0.60, terrainMods: { octavesAdd: -2, exponentMult: 0.8, heightMult: 0.3 }, aesthetics: { waterLevel: 50, waterColor: 0x00ffaa, invertLighting: true }, warpBase: 1.0, warpVar: 1.0, radiusMult: 1.05, ringChance: 0.10, baseTemp: 15 },
+        'Fragmento de estrella': { chance: 0.01, atmoBase: 0.0000, atmoVar: 0.0000, hueBase: 0.10, hueVar: 0.05, sat: 1.0, lit: 0.90, terrainMods: { octavesAdd: 1, exponentMult: 1.0, heightMult: 1.0 }, aesthetics: { crackLevel: -200, crackColor: 0xffffff, baseLerpColor: 0xffaa00, baseLerp: 0.8 }, warpBase: 5.0, warpVar: 2.0, radiusMult: 0.7, ringChance: 0.0, baseTemp: 2500 },
+        'Mundo reloj': { chance: 0.01, atmoBase: 0.0000, atmoVar: 0.0000, hueBase: 0.12, hueVar: 0.02, sat: 0.3, lit: 0.50, terrainMods: { octavesAdd: -3, exponentMult: 5.0, heightMult: 0.5 }, aesthetics: { hasSand: false, hasSnow: false }, warpBase: 0.0, warpVar: 0.0, radiusMult: 1.0, ringChance: 0.80, baseTemp: 20 },
+        'Planeta espejo': { chance: 0.01, atmoBase: 0.0000, atmoVar: 0.0000, hueBase: 0.0, hueVar: 0.0, sat: 0.0, lit: 0.80, terrainMods: { octavesAdd: -2, exponentMult: 0.5, heightMult: 0.2 }, aesthetics: { waterLevel: 20, waterColor: 0xffffff }, warpBase: 0.1, warpVar: 0.1, radiusMult: 0.9, ringChance: 0.0, baseTemp: -50 },
+        'Planeta de antimateria': { chance: 0.01, atmoBase: 0.0005, atmoVar: 0.0005, hueBase: 0.80, hueVar: 0.20, sat: 1.0, lit: 0.50, terrainMods: { octavesAdd: 1, exponentMult: 1.2, heightMult: 1.5 }, aesthetics: { invertLighting: true, globalLerpColor: 0x000000, globalLerpBase: 0.5, globalLerpLat: 0.5 }, warpBase: 3.0, warpVar: 3.0, radiusMult: 0.95, ringChance: 0.30, baseTemp: -200 },
+        'Planeta aplanado': { chance: 0.01, isGasGiant: true, hueBase: 0.08, hueVar: 0.05, sat: 0.5, lit: 0.40, warpBase: 1.0, warpVar: 1.0, stretchBase: 15.0, stretchVar: 5.0, radiusMult: 1.3, ringChance: 1.0, baseTemp: -80 },
+        'Planeta prisma': { chance: 0.01, atmoBase: 0.0, atmoVar: 0.0, useSystemHue: true, sat: 1.0, lit: 0.5, terrainMods: { octavesAdd: 0, exponentMult: 2.0, heightMult: 1.0 }, aesthetics: { globalLerpColor: 0xffffff, globalLerpLat: 1.0 }, warpBase: 10.0, warpVar: 2.0, radiusMult: 1.0, ringChance: 0.0, baseTemp: 0 },
+
+        // === COMODÍN ===
+        // Suma de los 39 planetas anteriores = 0.96. Esto deja un ~0.04 (4%) de probabilidad para el clásico planeta rocoso.
+        'Planeta rocoso': { chance: 0.04, atmoChance: 0.3, atmoBase: 0.00005, atmoVar: 0.00045, useSystemHue: true, satRandomBase: 0.2, satRandomMult: 0.4, litRandomBase: 0.2, litRandomMult: 0.5, terrainMods: { octavesAdd: 0, exponentMult: 1.0, heightMult: 1.0 }, aesthetics: { hasSand: true, sandColor: 0xddbb55, hasSnow: true }, warpBase: 1.0, warpVar: 1.5, radiusMult: 1.0, ringChance: 0.10, baseTemp: 15 }
     },
 
     // ==========================================
     // FÍSICAS DE LA NAVE (JUGADOR)
     // ==========================================
-    PLAYER_SPEED: 5000, // Velocidad base de vuelo (unidades por segundo)
-    PLAYER_SPEED_SCROLL_MULT: 1.2, // Multiplicador de velocidad por tic de la rueda del ratón (Exponencial)
-    PLAYER_SPEED_MIN_STEP: 500, // Velocidad mínima para arrancar desde cero con la rueda
-    PLAYER_SPEED_MAX: 50000, // Límite de velocidad base para evitar romper la simulación física
+    PLAYER_SPEED: 6000, // Velocidad base de vuelo (unidades por segundo)
+    PLAYER_SPEED_SCROLL_MULT: 1.15, // Multiplicador de velocidad por tic de la rueda del ratón (Exponencial)
+    PLAYER_SPEED_MIN_STEP: 600, // Velocidad mínima para arrancar desde cero con la rueda
+    PLAYER_SPEED_MAX: 60000, // Límite de velocidad base para evitar romper la simulación física
     PLAYER_BOOST_MULTIPLIER: 20, // Multiplicador de velocidad al presionar Shift (Hyperdrive)
     PLAYER_FRICTION: 0.985, // Fricción en el espacio (1.0 = patinar infinito, 0.5 = freno brusco)
     PLAYER_BRAKE_FRICTION: 0.90, // Fricción al presionar [ESPACIO] para frenar
@@ -252,8 +311,10 @@ export const Config = {
     // MOTOR GRÁFICO (RENDER & RENDIMIENTO)
     // ==========================================
     RENDER_FOV: 90, // Campo de visión de la cámara (Grados)
+    RENDER_NEAR_PLANE: 0.0001, // Distancia mínima de visión antes de recortar polígonos (clipping)
     RENDER_FAR_PLANE: 1000000000, // Límite visual de la cámara (1 billón de u para ver quásares)
     RENDER_LOGARITHMIC_DEPTH: true, // Mantiene matemáticas estables a trillones de km sin romper la textura (Z-Fighting)
+    LOD_HIGH_DISTANCE_MULT: 1000, // Multiplicador del radio a la que un planeta se actualiza a Alta Definición
     RENDER_PIXEL_RATIO_MAX: 1.0, // Límite de resolución para no quemar la gráfica (1.0 = rápido, 2.0 = nítido 4K)
     RENDER_FOG_BASE: 2, // Densidad de la niebla estelar profunda
     RENDER_STAR_POINT_SIZE: 1, // Tamaño de los puntos de luz estelares
@@ -288,6 +349,8 @@ export const Config = {
     UI_LABEL_MAX_DISTANCE: 10000000, // Distancia máxima base (u) a la que ves el nombre de un planeta/estrella
     UI_LABEL_DISTANCE_MULT: 100, // Multiplicador del radio para ver el label a mayor distancia si es un gigante
     TARGET_HITBOX_MULT: 1.2, // Multiplicador del radio del astro para hacer clic en él (1.2 = ligero perdón visual)
+    PROXIMITY_SHIELD_MULT: 1.1, // Multiplicador del radio al que empieza a funcionar el deflector de colisión
+    PROXIMITY_SHIELD_MIN_SPEED: 50, // Velocidad mínima garantizada cuando estás empotrado contra el planeta (uds/s)
 
 
 
@@ -295,16 +358,16 @@ export const Config = {
     // ==========================================
     // PILOTO AUTOMÁTICO Y CINEMÁTICAS
     // ==========================================
-    AUTOPILOT_MIN_SPEED: 100000, // Velocidad mínima de viaje (unidades por segundo)
-    AUTOPILOT_MAX_SPEED: 5000000000, // Velocidad máxima permitida (50M uds/s)
+    AUTOPILOT_MIN_SPEED: 60000, // Velocidad mínima de viaje (unidades por segundo)
+    AUTOPILOT_MAX_SPEED: 6000000000, // Velocidad máxima permitida (50M uds/s)
     AUTOPILOT_DESIRED_SECONDS: 1.0, // Segundos teóricos en los que queremos que llegue al objetivo para escalar velocidad
     AUTOPILOT_BRAKE_MULTIPLIER: 0.70, // Desaceleración violenta por frame al llegar (Salto cuántico)
     AUTOPILOT_BRAKE_ZONE_MULT: 5, // Multiplicador de radio para iniciar la frenada cuántica
-    AUTOPILOT_ARRIVAL_MULT: 3.5, // Multiplicador de radio para detenerse y orbitar (Cinemático FOV)
-    AUTOPILOT_MAX_ARRIVAL_DISTANCE: 5000000, // Límite máximo absoluto de distancia de órbita para monstruosidades
+    AUTOPILOT_ARRIVAL_MULT: 2, // Multiplicador de radio para detenerse y orbitar (Cinemático FOV)
+    AUTOPILOT_MAX_ARRIVAL_DISTANCE: 6000000, // Límite máximo absoluto de distancia de órbita para monstruosidades
     AUTOPILOT_APPROACH_LOCK_MULT: 1.5, // Multiplicador relativo a la órbita final para bloquear cámara y mostrar alerta
     AUTOPILOT_FREELOOK_TIMEOUT: 3000, // Ms de inactividad libre antes de re-alinear vista
-    AUTOPILOT_MAX_SPEED_NORMAL: 800000, // Velocidad crucero normal
+    AUTOPILOT_MAX_SPEED_NORMAL: 600000, // Velocidad crucero normal
     CINEMATIC_ORBIT_SPEED: 0.15, // Velocidad (rad/s) de la órbita de cámara alrededor del objetivo
 
 
@@ -327,19 +390,6 @@ export const Config = {
     TERRAIN_FLASHLIGHT_POWER_MAX: 15,
     TERRAIN_FOG_DIVISOR: 4500,
     TERRAIN_LIFTOFF_ATMOSPHERE_HEIGHT: 100000,
-
-    // TEMPERATURAS BASE POR TIPO DE PLANETA
-    PLANET_BASE_TEMPS: {
-        'Planeta helado': -60,
-        'Planeta de lava': 400,
-        'Planeta desértico': 45,
-        'Planeta tóxico': 70,
-        'Planeta oceánico': 10,
-        'Planeta tropical': 30,
-        'Planeta yermo': -10,
-        'Gigante gaseoso': -150,
-        'Planeta rocoso': 15
-    },
 
     // ==========================================
     // AUDIO Y SINTESIS PROCEDURAL

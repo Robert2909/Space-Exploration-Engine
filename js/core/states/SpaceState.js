@@ -21,6 +21,7 @@ export class SpaceState extends GameState {
         this._normal = new THREE.Vector3();
         this._zAxis = new THREE.Vector3(0, 0, 1);
         this._camInverseQuat = new THREE.Quaternion();
+        this.currentSystem = null;
     }
 
     enter(payload) {
@@ -31,8 +32,25 @@ export class SpaceState extends GameState {
     update(dt) {
         const engine = this.engine;
 
-        engine.controls.update(dt);
         const pos = engine.camera.position;
+        const closestBody = engine.universe.getClosestBody(pos);
+        if (engine.controls.setProximityBody) {
+            engine.controls.setProximityBody(closestBody);
+        }
+
+        // Dynamic Level of Detail (LOD) para planetas
+        if (closestBody && closestBody.group === 'Planeta') {
+            const bodyPos = new THREE.Vector3(closestBody.x, closestBody.y, closestBody.z);
+            if (pos.distanceTo(bodyPos) < closestBody.radius * Config.LOD_HIGH_DISTANCE_MULT) {
+                engine.universe.setHighLODPlanet(closestBody);
+            } else {
+                engine.universe.setHighLODPlanet(null);
+            }
+        } else {
+            engine.universe.setHighLODPlanet(null);
+        }
+
+        engine.controls.update(dt);
 
         engine.universe.update(pos.x, pos.y, pos.z, dt);
         engine.lighting.update(engine.camera.position, engine.universe);
@@ -42,6 +60,8 @@ export class SpaceState extends GameState {
         const nearbyBodies = [];
 
         let maxPanic = 0;
+        let closestStarSystem = null;
+        let minStarDistSq = Infinity;
 
         for (let [key, chunk] of engine.universe.chunks.entries()) {
             if (chunk === 'pending') continue;
@@ -61,6 +81,11 @@ export class SpaceState extends GameState {
 
                 if (distSq < allowDistSq) {
                     nearbyBodies.push({ name: sys.name, type: sys.type, group: sys.group || 'Estrella', radius: sys.radius, x: sys.lx + cx, y: sys.ly + cy, z: sys.lz + cz, distSq: distSq });
+                }
+
+                if (distSq < minStarDistSq) {
+                    minStarDistSq = distSq;
+                    closestStarSystem = sys;
                 }
 
                 // Agregar planetas a nearbyBodies
@@ -163,6 +188,21 @@ export class SpaceState extends GameState {
         }
 
         nearbyBodies.sort((a, b) => a.distSq - b.distSq);
+
+        if (closestStarSystem) {
+            const dist = Math.sqrt(minStarDistSq);
+            if (dist < closestStarSystem.systemRadius) {
+                if (this.currentSystem !== closestStarSystem.name) {
+                    this.currentSystem = closestStarSystem.name;
+                    EventManager.emit(EVENTS.SYSTEM_ENTERED, { name: closestStarSystem.name });
+                }
+            } else {
+                if (this.currentSystem !== null) {
+                    this.currentSystem = null;
+                    EventManager.emit(EVENTS.SYSTEM_EXITED);
+                }
+            }
+        }
 
         // Notificar nivel de pánico al UI
         EventManager.emit(EVENTS.BLACKHOLE_PANIC, { level: maxPanic });
@@ -279,7 +319,8 @@ export class SpaceState extends GameState {
                 if (dist < threshold && dist < minLandingDist) {
                     closestLandingBody = body;
                     minLandingDist = dist;
-                    isGasGiant = body.type === 'Gigante gaseoso';
+                    const biome = Config.PLANET_BIOMES[body.type] || Config.PLANET_BIOMES['Planeta rocoso'];
+                    isGasGiant = biome.isGasGiant === true;
                 }
             }
         }

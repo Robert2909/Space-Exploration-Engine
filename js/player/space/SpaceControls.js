@@ -53,6 +53,10 @@ export class SpaceControls {
         }
     }
 
+    setProximityBody(body) {
+        this.proximityBody = body;
+    }
+
     initEvents() {
         this._onPointerLockChange = () => {
             this.isLocked = document.pointerLockElement === this.domElement;
@@ -348,6 +352,47 @@ export class SpaceControls {
                 if (!this.keys.w && !this.keys.s) this.velocity.z *= Math.pow(this.friction, dt * 60);
                 if (!this.keys.a && !this.keys.d) this.velocity.x *= Math.pow(this.friction, dt * 60);
                 this.velocity.y *= Math.pow(this.friction, dt * 60);
+            }
+        }
+
+        // Apply Proximity Shield (Collision Avoidance Asymptote)
+        if (this.proximityBody) {
+            this._targetPos.set(this.proximityBody.x, this.proximityBody.y, this.proximityBody.z);
+            const distToCenter = this.camera.position.distanceTo(this._targetPos);
+            const distToSurface = distToCenter - this.proximityBody.radius;
+            const shieldZone = this.proximityBody.radius * (Config.PROXIMITY_SHIELD_MULT - 1.0);
+            
+            if (distToSurface < shieldZone) {
+                const globalVel = this.velocity.clone().applyQuaternion(this.camera.quaternion);
+                const normal = this.camera.position.clone().sub(this._targetPos).normalize(); // Outward from planet
+                const inwardDot = globalVel.dot(normal);
+
+                // Si inwardDot < 0, nos estamos moviendo hacia el centro del planeta
+                if (inwardDot < 0) {
+                    const inwardVel = normal.clone().multiplyScalar(inwardDot);
+                    const tangentialVel = globalVel.clone().sub(inwardVel);
+
+                    let multiplier = 0;
+                    if (distToSurface > 0) {
+                        const dampenRatio = distToSurface / shieldZone;
+                        multiplier = Math.pow(dampenRatio, 3);
+                        
+                        // Permitir una micro velocidad mínima para que no se congele 100% (evita divisiones raras)
+                        const currentInwardSpeed = inwardVel.length();
+                        const minAllowedSpeed = Config.PROXIMITY_SHIELD_MIN_SPEED;
+                        if (currentInwardSpeed * multiplier < minAllowedSpeed) {
+                            multiplier = Math.min(1.0, minAllowedSpeed / currentInwardSpeed);
+                        }
+                    }
+
+                    // Escalamos solo la velocidad de acercamiento (inwardVel), manteniendo la orbital intacta
+                    inwardVel.multiplyScalar(multiplier);
+
+                    // Reconstruimos la velocidad global y la pasamos a local
+                    const newGlobalVel = tangentialVel.add(inwardVel);
+                    this._camInverseQuat.copy(this.camera.quaternion).invert();
+                    this.velocity.copy(newGlobalVel).applyQuaternion(this._camInverseQuat);
+                }
             }
         }
 

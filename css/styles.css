@@ -343,25 +343,39 @@ input[type=range]::-webkit-slider-thumb {
 
 .hud-select {
     width: 100%;
-    background: transparent;
+    background: rgba(20, 20, 25, 0.8);
     color: var(--string-color);
-    border: none;
-    border-bottom: 1px dashed var(--border-color);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
     font-family: 'Fira Code', monospace;
     font-size: 0.9rem;
-    padding: 2px 0;
+    padding: 6px 8px;
     outline: none;
     cursor: pointer;
     -webkit-appearance: none;
     -moz-appearance: none;
     appearance: none;
     color-scheme: dark;
-    /* Fuerza tema oscuro en OS/Navegador */
+    transition: border-color 0.2s, box-shadow 0.2s, background-color 0.2s;
+    background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="%23888888" viewBox="0 0 16 16"><path d="M4 6h8l-4 5z"/></svg>');
+    background-repeat: no-repeat;
+    background-position: right 8px center;
+}
+
+.hud-select:hover {
+    border-color: var(--variable-color);
+    background: rgba(30, 30, 40, 0.9);
+}
+
+.hud-select:focus {
+    border-color: var(--string-color);
+    box-shadow: 0 0 8px rgba(100, 200, 255, 0.3);
 }
 
 .hud-select option {
-    background: var(--hud-bg);
-    color: var(--text-primary);
+    background: rgba(15, 15, 20, 1.0);
+    color: var(--string-color);
+    padding: 8px;
 }
 
 .hud-btn {

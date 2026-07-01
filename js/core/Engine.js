@@ -58,7 +58,7 @@ export class Engine {
             this.scene.fog.density = Config.RENDER_FOG_BASE / viewDistance;
             if (this.gameState === 'SPACE') {
                 this.camera.far = viewDistance * 1.5;
-                this.camera.near = 100;
+                this.camera.near = Config.RENDER_NEAR_PLANE;
                 this.camera.updateProjectionMatrix();
             }
         });
@@ -541,7 +541,7 @@ export class Engine {
                     // Restaurar cámara a modo espacio
                     const val = this.universe.renderDistance || 3;
                     this.camera.far = val * Config.UNIVERSE_CHUNK_SIZE * 1.5;
-                    this.camera.near = 100;
+                    this.camera.near = Config.RENDER_NEAR_PLANE;
                     this.camera.updateProjectionMatrix();
 
                     const viewDistance = val * Config.UNIVERSE_CHUNK_SIZE;

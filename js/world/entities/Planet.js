@@ -22,6 +22,9 @@ export class Planet extends CelestialBody {
             octavesMod: 0,
             exponentMod: 1.0
         };
+
+        this.shaderParams = config.shaderParams || null;
+        this.ringConfig = config.ringConfig || null;
         
         // Instanced rendering specific
         this.instanceId = config.instanceId !== undefined ? config.instanceId : -1;

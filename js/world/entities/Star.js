@@ -15,6 +15,9 @@ export class Star extends CelestialBody {
         this.parentLx = config.parentLx || 0;
         this.parentLy = config.parentLy || 0;
         this.parentLz = config.parentLz || 0;
+        
+        // Boundaries del sistema solar
+        this.systemRadius = config.systemRadius || this.radius * 10;
     }
 
     update(dt) {

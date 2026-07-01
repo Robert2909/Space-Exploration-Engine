@@ -3,57 +3,22 @@ import { seededRandom } from '../../utils/MathUtils.js';
 import { generateStarName, generatePlanetName, generateBlackHoleName } from '../generators/NameGenerator.js';
 import { Config } from '../../core/Config.js';
 import { Star } from '../entities/Star.js';
+import { PlanetShaderMaterial } from '../materials/PlanetShader.js';
+import { getRingShaderMaterial } from '../materials/RingShader.js';
 import { Planet } from '../entities/Planet.js';
 import { BlackHole } from '../entities/BlackHole.js';
 
-const SHARED_SPHERE_GEO = new THREE.SphereGeometry(1, 16, 16);
+export const SHARED_SPHERE_GEO = new THREE.IcosahedronGeometry(1, 1); // 80 faces, super fast
+export const SHARED_HIGH_POLY_GEO = new THREE.SphereGeometry(1, 128, 128);
+export const SHARED_HIGH_RES_MAT = PlanetShaderMaterial;
+
 const SHARED_ASTEROID_GEO = new THREE.IcosahedronGeometry(1, 0); // Low-poly para asteroides
 const SHARED_STAR_MAT = new THREE.PointsMaterial({
     size: Config.RENDER_STAR_POINT_SIZE, vertexColors: true, transparent: true, opacity: 0.9, sizeAttenuation: true
 });
 const SHARED_ASTEROID_MAT = new THREE.MeshBasicMaterial({ color: 0x888888 });
 
-function createPlanetTexture() {
-    const canvas = document.createElement('canvas');
-    canvas.width = 512; canvas.height = 256;
-    const ctx = canvas.getContext('2d');
-
-    // Base blanca
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(0, 0, 512, 256);
-
-    // Dibujar continentes y manchas difusas
-    for (let i = 0; i < 150; i++) {
-        let x = Math.random() * 512;
-        let y = Math.random() * 256;
-        let r = Math.random() * 40 + 10;
-        let alpha = Math.random() * 0.4 + 0.1;
-
-        ctx.beginPath();
-        ctx.arc(x, y, r, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(180, 180, 180, ${alpha})`;
-        ctx.fill();
-
-        // Wrap horizontal (izquierda y derecha) para que la textura sea continua (seamless)
-        ctx.beginPath(); ctx.arc(x - 512, y, r, 0, Math.PI * 2); ctx.fill();
-        ctx.beginPath(); ctx.arc(x + 512, y, r, 0, Math.PI * 2); ctx.fill();
-    }
-
-    // Dibujar algunas bandas/nubes horizontales para dar sensación planetaria
-    for (let y = 0; y < 256; y += 12) {
-        ctx.fillStyle = `rgba(140, 140, 140, ${Math.random() * 0.15})`;
-        ctx.fillRect(0, y, 512, Math.random() * 20 + 5);
-    }
-
-    const tex = new THREE.CanvasTexture(canvas);
-    tex.wrapS = THREE.RepeatWrapping;
-    tex.wrapT = THREE.ClampToEdgeWrapping;
-    // Se recomienda un poco de aniso para que no se vea feo en los bordes
-    tex.anisotropy = 4;
-    return tex;
-}
-const SHARED_PLANET_TEX = createPlanetTexture();
-const SHARED_PLANET_MAT = new THREE.MeshLambertMaterial({ color: 0xffffff, map: SHARED_PLANET_TEX });
+const SHARED_PLANET_MAT = new THREE.MeshLambertMaterial({ color: 0xffffff });
 const dummy = new THREE.Object3D();
 
 function createGlowTexture() {
@@ -143,27 +108,28 @@ export class Chunk {
                 
                 const planetsData = [];
                 const numPlanets = Math.floor(seededRandom(cx, cy, cz, seedBase + 6) * Config.PLANETS_MAX_PER_SYSTEM) + 1;
+                const systemPlanetNames = [];
                 for (let j = 0; j < numPlanets; j++) {
                     const pSeed = seedBase + 20 + j;
-                    const pName = generatePlanetName(starName, j, pSeed + 13, cx, cy, cz);
-                    const isGasGiant = seededRandom(cx, cy, cz, pSeed + 5) > (1 - Config.GAS_GIANT_CHANCE);
-                    let pType = 'Planeta rocoso';
-                    if (isGasGiant) {
-                        pType = 'Gigante gaseoso';
-                    } else {
-                        const typeRand = seededRandom(cx, cy, cz, pSeed + 20);
-                        let pCumulative = 1.0;
-                        for (const [biomeName, biomeData] of Object.entries(Config.PLANET_BIOMES)) {
-                            if (biomeName !== 'Planeta rocoso') {
-                                pCumulative -= biomeData.chance;
-                                if (typeRand > pCumulative) {
-                                    pType = biomeName;
-                                    break;
-                                }
+                    const pName = generatePlanetName(starName, j, pSeed + 13, cx, cy, cz, systemPlanetNames);
+                    systemPlanetNames.push(pName);
+                    const typeRand = seededRandom(cx, cy, cz, pSeed + 20);
+                    let pCumulative = 1.0;
+                    let pType = 'Planeta rocoso'; // Fallback
+                    for (const [biomeName, biomeData] of Object.entries(Config.PLANET_BIOMES)) {
+                        if (biomeName !== 'Planeta rocoso') {
+                            pCumulative -= biomeData.chance;
+                            if (typeRand > pCumulative) {
+                                pType = biomeName;
+                                break;
                             }
                         }
                     }
-                    const pRadius = isGasGiant ? (Config.PLANET_GAS_RADIUS_MIN + seededRandom(cx, cy, cz, pSeed + 6) * (Config.PLANET_GAS_RADIUS_MAX - Config.PLANET_GAS_RADIUS_MIN)) : (Config.PLANET_ROCKY_RADIUS_MIN + seededRandom(cx, cy, cz, pSeed + 7) * (Config.PLANET_ROCKY_RADIUS_MAX - Config.PLANET_ROCKY_RADIUS_MIN));
+                    const biome = Config.PLANET_BIOMES[pType] || Config.PLANET_BIOMES['Planeta rocoso'];
+                    const isGasGiant = biome.isGasGiant === true;
+
+                    const pRadiusBase = isGasGiant ? (Config.PLANET_GAS_RADIUS_MIN + seededRandom(cx, cy, cz, pSeed + 6) * (Config.PLANET_GAS_RADIUS_MAX - Config.PLANET_GAS_RADIUS_MIN)) : (Config.PLANET_ROCKY_RADIUS_MIN + seededRandom(cx, cy, cz, pSeed + 7) * (Config.PLANET_ROCKY_RADIUS_MAX - Config.PLANET_ROCKY_RADIUS_MIN));
+                    const pRadius = pRadiusBase * (biome.radiusMult !== undefined ? biome.radiusMult : 1.0);
                     
                     const orbitRadius = starRadius * 1.5 + Config.ORBIT_DISTANCE_START + j * (Config.ORBIT_DISTANCE_SPACING + seededRandom(cx, cy, cz, pSeed + 8) * Config.ORBIT_DISTANCE_VAR);
                     const startAngle = seededRandom(cx, cy, cz, pSeed + 11) * Math.PI * 2;
@@ -289,37 +255,58 @@ export class Chunk {
                 const sunRadius = baseRadius * (starData.radiusMultMin + seededRandom(this.cx, this.cy, this.cz, seedBase + 6) * (starData.radiusMultMax - starData.radiusMultMin));
                 const numPlanets = Math.floor(seededRandom(this.cx, this.cy, this.cz, seedBase + 6) * Config.PLANETS_MAX_PER_SYSTEM) + 1;
                 const planets = [];
+                const systemPlanetNames = [];
 
                 for (let j = 0; j < numPlanets; j++) {
                     const pSeed = seedBase + 20 + j;
-                    const pName = generatePlanetName(starName, j, pSeed + 13, this.cx, this.cy, this.cz);
+                    const pName = generatePlanetName(starName, j, pSeed + 13, this.cx, this.cy, this.cz, systemPlanetNames);
+                    systemPlanetNames.push(pName);
                     const hue = seededRandom(this.cx, this.cy, this.cz, pSeed);
-                    const isGasGiant = seededRandom(this.cx, this.cy, this.cz, pSeed + 5) > (1 - Config.GAS_GIANT_CHANCE);
-                    let pType = 'Planeta rocoso';
-                    if (isGasGiant) {
-                        pType = 'Gigante gaseoso';
-                    } else {
-                        const typeRand = seededRandom(this.cx, this.cy, this.cz, pSeed + 20);
-                        let cumulative = 1.0;
-                        pType = 'Planeta rocoso'; // Fallback
+                    const typeRand = seededRandom(this.cx, this.cy, this.cz, pSeed + 20);
+                    let pCumulative = 1.0;
+                    let pType = 'Planeta rocoso'; // Fallback
 
-                        for (const [biomeName, biomeData] of Object.entries(Config.PLANET_BIOMES)) {
-                            if (biomeName !== 'Planeta rocoso') {
-                                cumulative -= biomeData.chance;
-                                if (typeRand > cumulative) {
-                                    pType = biomeName;
-                                    break;
-                                }
+                    for (const [biomeName, biomeData] of Object.entries(Config.PLANET_BIOMES)) {
+                        if (biomeName !== 'Planeta rocoso') {
+                            pCumulative -= biomeData.chance;
+                            if (typeRand > pCumulative) {
+                                pType = biomeName;
+                                break;
                             }
                         }
                     }
 
+                    const biome = Config.PLANET_BIOMES[pType] || Config.PLANET_BIOMES['Planeta rocoso'];
+                    const isGasGiant = biome.isGasGiant === true;
+
                     let pColor = new THREE.Color();
                     let atmosphereDensity = 0;
+                    let shaderParams = {};
 
                     if (isGasGiant) {
-                        pColor.setHSL(hue, 0.7 + seededRandom(this.cx, this.cy, this.cz, pSeed + 1) * 0.3, 0.4 + seededRandom(this.cx, this.cy, this.cz, pSeed + 2) * 0.4);
+                        let targetHue = hue;
+                        let targetSat = 0.7 + seededRandom(this.cx, this.cy, this.cz, pSeed + 1) * 0.3;
+                        let targetLit = 0.4 + seededRandom(this.cx, this.cy, this.cz, pSeed + 2) * 0.4;
+                        
+                        if (biome.hueBase !== undefined) {
+                            targetHue = (biome.hueBase + (seededRandom(this.cx, this.cy, this.cz, pSeed + 10) * biome.hueVar)) % 1.0;
+                        }
+                        if (biome.sat !== undefined) targetSat = biome.sat;
+                        if (biome.lit !== undefined) targetLit = biome.lit;
+                        
+                        pColor.setHSL(targetHue, targetSat, targetLit);
                         atmosphereDensity = 0.001; // Densidad enorme para gaseosos (aunque no aterricemos)
+                        
+                        shaderParams = {
+                            colorLow: pColor.clone().offsetHSL(0, 0, -0.2),
+                            colorHigh: pColor.clone().offsetHSL(0, 0, 0.2),
+                            cloudColor: pColor.clone().offsetHSL(0.05, 0.2, 0.1),
+                            noiseFreq: (1.0 + seededRandom(this.cx, this.cy, this.cz, pSeed + 40) * 1.5) * Config.PLANET_TEXTURE_RESOLUTION_MULT, // Gigantes tienen bandas grandes
+                            cloudDensity: 0.1, // Prácticamente todo gas
+                            atmosphere: 1.5,
+                            warpStrength: (biome.warpBase || 4.0) + seededRandom(this.cx, this.cy, this.cz, pSeed + 41) * (biome.warpVar !== undefined ? biome.warpVar : 3.0),
+                            stretchY: (biome.stretchBase || 3.0) + seededRandom(this.cx, this.cy, this.cz, pSeed + 42) * (biome.stretchVar !== undefined ? biome.stretchVar : 5.0)
+                        };
                     } else {
                         // Leer datos del registro (Data-Driven Pattern)
                         const biome = Config.PLANET_BIOMES[pType] || Config.PLANET_BIOMES['Planeta rocoso'];
@@ -338,6 +325,33 @@ export class Chunk {
                         } else if (biome.atmoBase !== undefined) {
                             atmosphereDensity = biome.atmoBase + seededRandom(this.cx, this.cy, this.cz, pSeed + 14) * (biome.atmoVar || 0);
                         }
+                        
+                        let colorLow = pColor.clone().offsetHSL(0, 0, -0.3);
+                        let colorHigh = pColor.clone();
+                        let cloudColor = new THREE.Color(0xffffff); // Nubes blancas por defecto
+                        let hasClouds = atmosphereDensity > 0.0001;
+                        
+                        // Adaptar shaderParams a la estética del bioma
+                        if (biome.aesthetics) {
+                             if (biome.aesthetics.waterColor !== undefined) colorLow.setHex(biome.aesthetics.waterColor);
+                             if (biome.aesthetics.crackColor !== undefined) colorLow.setHex(biome.aesthetics.crackColor);
+                             if (biome.aesthetics.sandColor !== undefined) colorHigh.setHex(biome.aesthetics.sandColor);
+                             if (biome.aesthetics.invertLighting) {
+                                 colorLow = pColor.clone();
+                                 colorHigh = pColor.clone().offsetHSL(0, 0, -0.5);
+                             }
+                        }
+                        
+                        shaderParams = {
+                            colorLow: colorLow,
+                            colorHigh: colorHigh,
+                            cloudColor: cloudColor,
+                            noiseFreq: (3.0 + seededRandom(this.cx, this.cy, this.cz, pSeed + 40) * 4.0) * Config.PLANET_TEXTURE_RESOLUTION_MULT, // Terreno detallado
+                            cloudDensity: hasClouds ? (0.4 + seededRandom(this.cx, this.cy, this.cz, pSeed + 41) * 0.4) : 1.0, // 1.0 oculta las nubes
+                            atmosphere: hasClouds ? 1.0 : 0.0,
+                            warpStrength: (biome.warpBase || 1.0) + seededRandom(this.cx, this.cy, this.cz, pSeed + 42) * (biome.warpVar !== undefined ? biome.warpVar : 1.5),
+                            stretchY: biome.stretchBase || 1.0
+                        };
                     }
 
                     // Generar las variables de varianza únicas del planeta
@@ -348,25 +362,75 @@ export class Chunk {
                         exponentMod: Config.TERRAIN_VAR_EXPONENT_BASE + seededRandom(this.cx, this.cy, this.cz, pSeed + 33) * Config.TERRAIN_VAR_EXPONENT_RANGE
                     };
 
-                    const pRadius = isGasGiant ? (Config.PLANET_GAS_RADIUS_MIN + seededRandom(this.cx, this.cy, this.cz, pSeed + 6) * (Config.PLANET_GAS_RADIUS_MAX - Config.PLANET_GAS_RADIUS_MIN)) : (Config.PLANET_ROCKY_RADIUS_MIN + seededRandom(this.cx, this.cy, this.cz, pSeed + 7) * (Config.PLANET_ROCKY_RADIUS_MAX - Config.PLANET_ROCKY_RADIUS_MIN));
+                    const pRadiusBase = isGasGiant ? (Config.PLANET_GAS_RADIUS_MIN + seededRandom(this.cx, this.cy, this.cz, pSeed + 6) * (Config.PLANET_GAS_RADIUS_MAX - Config.PLANET_GAS_RADIUS_MIN)) : (Config.PLANET_ROCKY_RADIUS_MIN + seededRandom(this.cx, this.cy, this.cz, pSeed + 7) * (Config.PLANET_ROCKY_RADIUS_MAX - Config.PLANET_ROCKY_RADIUS_MIN));
+                    const pRadius = pRadiusBase * (biome.radiusMult !== undefined ? biome.radiusMult : 1.0);
                     const orbitRadius = sunRadius * 1.5 + Config.ORBIT_DISTANCE_START + j * (Config.ORBIT_DISTANCE_SPACING + seededRandom(this.cx, this.cy, this.cz, pSeed + 8) * Config.ORBIT_DISTANCE_VAR);
                     const baseOrbitSpeed = Config.PLANET_ORBIT_SPEED_MIN + seededRandom(this.cx, this.cy, this.cz, pSeed + 9) * (Config.PLANET_ORBIT_SPEED_MAX - Config.PLANET_ORBIT_SPEED_MIN);
                     const orbitSpeed = baseOrbitSpeed * (seededRandom(this.cx, this.cy, this.cz, pSeed + 10) > 0.5 ? 1 : -1);
                     const baseRotationSpeed = Config.PLANET_ROTATION_SPEED_MIN + seededRandom(this.cx, this.cy, this.cz, pSeed + 15) * (Config.PLANET_ROTATION_SPEED_MAX - Config.PLANET_ROTATION_SPEED_MIN);
                     const rotationSpeed = baseRotationSpeed * (seededRandom(this.cx, this.cy, this.cz, pSeed + 16) > 0.5 ? 1 : -1);
                     const startAngle = seededRandom(this.cx, this.cy, this.cz, pSeed + 11) * Math.PI * 2;
+                    
+                    // Planetary Rings
+                    const ringChance = biome.ringChance !== undefined ? biome.ringChance : 0.05;
+                    let ringConfig = null;
+                    if (seededRandom(this.cx, this.cy, this.cz, pSeed + 30) < ringChance) {
+                        const innerMult = Config.PLANET_RING_MIN_RADIUS_MULT + seededRandom(this.cx, this.cy, this.cz, pSeed + 31) * (Config.PLANET_RING_MAX_RADIUS_MULT - Config.PLANET_RING_MIN_RADIUS_MULT);
+                        const widthMult = Config.PLANET_RING_MIN_WIDTH_MULT + seededRandom(this.cx, this.cy, this.cz, pSeed + 32) * (Config.PLANET_RING_MAX_WIDTH_MULT - Config.PLANET_RING_MIN_WIDTH_MULT);
+                        const outerMult = innerMult + widthMult;
+                        
+                        let ringSat = 0.3;
+                        let ringLit = 0.8;
+                        if (!isGasGiant) {
+                            const biome = Config.PLANET_BIOMES[pType] || Config.PLANET_BIOMES['Planeta rocoso'];
+                            ringSat = biome.sat !== undefined ? biome.sat * 0.5 : 0.3;
+                            ringLit = biome.lit !== undefined ? biome.lit * 1.5 : 0.8;
+                        } else {
+                            ringSat = 0.4;
+                            ringLit = 0.6;
+                        }
+
+                        ringConfig = {
+                            innerRadius: pRadius * innerMult,
+                            outerRadius: pRadius * outerMult,
+                            opacity: Config.PLANET_RING_OPACITY_MIN + seededRandom(this.cx, this.cy, this.cz, pSeed + 33) * (Config.PLANET_RING_OPACITY_MAX - Config.PLANET_RING_OPACITY_MIN),
+                            density: 30.0 + seededRandom(this.cx, this.cy, this.cz, pSeed + 37) * 70.0, // Controla cuántas líneas tiene el anillo
+                            seed: seededRandom(this.cx, this.cy, this.cz, pSeed + 38) * 100.0,
+                            color1: new THREE.Color().setHSL(
+                                (hue + seededRandom(this.cx, this.cy, this.cz, pSeed + 34) * 0.1) % 1.0, 
+                                ringSat, ringLit
+                            ),
+                            color2: new THREE.Color().setHSL(
+                                (hue + seededRandom(this.cx, this.cy, this.cz, pSeed + 35) * 0.15) % 1.0, 
+                                ringSat * 0.8, ringLit * 1.2
+                            ),
+                            color3: new THREE.Color().setHSL(
+                                (hue + seededRandom(this.cx, this.cy, this.cz, pSeed + 36) * 0.2) % 1.0, 
+                                ringSat * 1.2, ringLit * 0.8
+                            )
+                        };
+                    }
+
                     const planetInstance = new Planet({
                         name: pName, type: pType, radius: pRadius, color: pColor,
                         atmosphereDensity: atmosphereDensity,
                         orbitRadius, orbitSpeed, rotationSpeed,
                         angle: startAngle, tiltOffset: seededRandom(this.cx, this.cy, this.cz, pSeed + 12) * Math.PI * 2,
                         rotationY: 0, lx: 0, ly: 0, lz: 0,
-                        terrainVariance: terrainVariance
+                        terrainVariance: terrainVariance,
+                        shaderParams: shaderParams,
+                        ringConfig: ringConfig
                     });
                     planets.push(planetInstance);
                 }
+                
+                let systemRadius = sunRadius * 2; // Default if no planets
+                if (planets.length > 0) {
+                    systemRadius = planets[planets.length - 1].orbitRadius + Config.HELIOPAUSE_PADDING;
+                }
+                
                 const starInstance = new Star({
-                    name: starName, type: starType, sunColor, radius: sunRadius, lx, ly, lz, planets
+                    name: starName, type: starType, sunColor, radius: sunRadius, lx, ly, lz, planets, systemRadius
                 });
                 systemsData.push(starInstance);
                 totalPlanets += numPlanets;
@@ -481,6 +545,18 @@ export class Chunk {
                     p.mesh.scale.set(p.radius, p.radius, p.radius);
                     p.mesh.frustumCulled = true; // Descartar si no se ve
                     this.group.add(p.mesh);
+
+                    if (p.ringConfig) {
+                        const ringGeo = new THREE.RingGeometry(p.ringConfig.innerRadius, p.ringConfig.outerRadius, 64);
+                        const ringMat = getRingShaderMaterial(p.ringConfig);
+                        
+                        p.ringMesh = new THREE.Mesh(ringGeo, ringMat);
+                        // Inclinamos el anillo para que quede en el ecuador (plano XZ), 
+                        // y le aplicamos un tilt aleatorio que guardamos en p.tiltOffset para órbitas
+                        p.ringMesh.rotation.x = Math.PI / 2 + p.tiltOffset;
+                        p.ringMesh.frustumCulled = false; // DESACTIVAR CULLING PARA ASEGURAR QUE SE RENDERICE
+                        this.group.add(p.ringMesh);
+                    }
                 }
                 if (sys.asteroidBelt) {
                     sys.asteroidBelt.startIndex = aIndex;
@@ -491,7 +567,7 @@ export class Chunk {
         }
     }
 
-    update(dt) {
+    update(dt, playerLx, playerLy, playerLz) {
         let matricesUpdated = false;
         let asteroidsUpdated = false;
         for (let sys of this.systems) {
@@ -507,6 +583,17 @@ export class Chunk {
                 if (p.mesh) {
                     p.mesh.position.set(p.lx, p.ly, p.lz);
                     p.mesh.rotation.y = p.rotationY;
+                }
+                
+                if (p.ringMesh) {
+                    p.ringMesh.position.set(p.lx, p.ly, p.lz);
+                    // Hacemos que el anillo gire lentamente
+                    p.ringMesh.rotation.z = -p.rotationY * 0.5;
+                    
+                    // Solo renderizar el anillo si estamos dentro de la distancia HD del planeta
+                    const distSq = (p.lx - playerLx)**2 + (p.ly - playerLy)**2 + (p.lz - playerLz)**2;
+                    const hdDist = p.radius * Config.LOD_HIGH_DISTANCE_MULT;
+                    p.ringMesh.visible = distSq < hdDist * hdDist;
                 }
             }
 
@@ -537,8 +624,8 @@ export class Chunk {
 
     dispose() {
         this.group.traverse((child) => {
-            if (child.geometry && child.geometry !== SHARED_SPHERE_GEO && child.geometry !== SHARED_ASTEROID_GEO) child.geometry.dispose();
-            if (child.material && child.material !== SHARED_STAR_MAT && child.material !== SHARED_PLANET_MAT && child.material !== SHARED_ASTEROID_MAT && !child.isSprite) {
+            if (child.geometry && child.geometry !== SHARED_SPHERE_GEO && child.geometry !== SHARED_HIGH_POLY_GEO && child.geometry !== SHARED_ASTEROID_GEO) child.geometry.dispose();
+            if (child.material && child.material !== SHARED_STAR_MAT && child.material !== SHARED_PLANET_MAT && child.material !== SHARED_HIGH_RES_MAT && child.material !== SHARED_ASTEROID_MAT && !child.isSprite) {
                 if (Array.isArray(child.material)) child.material.forEach(m => m.dispose());
                 else child.material.dispose();
             }
@@ -551,6 +638,11 @@ export class Chunk {
                 if (p.mesh) {
                     if (p.mesh.material) p.mesh.material.dispose();
                     this.group.remove(p.mesh);
+                }
+                if (p.ringMesh) {
+                    if (p.ringMesh.geometry) p.ringMesh.geometry.dispose();
+                    if (p.ringMesh.material) p.ringMesh.material.dispose();
+                    this.group.remove(p.ringMesh);
                 }
             }
         }
