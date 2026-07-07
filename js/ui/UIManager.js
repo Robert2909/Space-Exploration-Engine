@@ -83,6 +83,7 @@ export class UIManager {
                 }
             }
         });
+        let lastScanUpdate = 0;
         // Telemetría ciega desde el SpaceState
         EventManager.on(EVENTS.PLAYER_TELEMETRY_UPDATED, (payload) => {
             this.updateHUD(payload.speed, payload.pos);
@@ -291,7 +292,7 @@ export class UIManager {
             EventManager.emit(EVENTS.LOCATOR_SCAN_REQUESTED, criteria);
         });
 
-        const renderResults = () => {
+        this.renderResults = () => {
             const resultsDiv = document.getElementById('locator-results');
 
             const sortContainer = document.getElementById('locator-sort-container');
@@ -325,12 +326,81 @@ export class UIManager {
                 if (sortDistBtn) { sortDistBtn.classList.remove('active-sort', 'active-sort-desc'); sortDistBtn.innerText = 'dist'; }
             }
 
-            resultsDiv.innerHTML = `<div style="font-size: 0.7rem; color: var(--keyword-color); margin-bottom: 5px;">// Mostrando ${Math.min(100, this.latestScanResults.length)} de ${this.latestScanTotal || this.latestScanResults.length} coincidencias</div>`;
+            // OPTIMIZACIÓN: Evitar innerHTML por completo para no colapsar el Garbage Collector cada segundo.
+            if (!this._locatorHeader) {
+                this._locatorHeader = document.createElement('div');
+                this._locatorHeader.style.cssText = "font-size: 0.7rem; color: var(--keyword-color); margin-bottom: 5px;";
+            }
+            this._locatorHeader.textContent = `// Mostrando ${Math.min(100, this.latestScanResults.length)} de ${this.latestScanTotal || this.latestScanResults.length} coincidencias`;
+
+            // Vaciar el contenedor rápido sin innerHTML
+            while (resultsDiv.firstChild) {
+                resultsDiv.removeChild(resultsDiv.firstChild);
+            }
+            resultsDiv.appendChild(this._locatorHeader);
+
+            if (!this._locatorItemPool) this._locatorItemPool = [];
+
             const displayResults = this.latestScanResults.slice(0, 100);
-            displayResults.forEach(res => {
-                const item = document.createElement('div');
-                item.className = 'locator-result-item';
-                item.style.marginBottom = '5px';
+            for (let i = 0; i < displayResults.length; i++) {
+                const res = displayResults[i];
+                let item = this._locatorItemPool[i];
+
+                if (!item) {
+                    item = document.createElement('div');
+                    item.className = 'locator-result-item';
+                    item.style.marginBottom = '5px';
+
+                    const titleDiv = document.createElement('div');
+                    titleDiv.style.cssText = "font-size: 0.85rem; font-weight: bold; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;";
+                    const iconSpan = document.createElement('span');
+                    const nameText = document.createTextNode('');
+                    titleDiv.appendChild(iconSpan);
+                    titleDiv.appendChild(nameText);
+
+                    const distDiv = document.createElement('div');
+                    distDiv.style.cssText = "font-size: 0.7rem; color: #888;";
+                    const distSpan = document.createElement('span');
+                    distSpan.style.color = "var(--number-color)";
+                    const radSpan = document.createElement('span'); // <--- AHORA ES UN SPAN PARA SOPORTAR HTML
+                    distDiv.appendChild(distSpan);
+                    distDiv.appendChild(radSpan);
+
+                    item.appendChild(titleDiv);
+                    item.appendChild(distDiv);
+
+                    // QoL: Select visualmente y apuntar
+                    item.addEventListener('click', () => {
+                        const allItems = resultsDiv.querySelectorAll('.locator-result-item');
+                        allItems.forEach(el => el.classList.remove('selected'));
+                        item.classList.add('selected');
+
+                        const travelBtn = document.getElementById('locator-travel-btn');
+                        const body = item._bodyRef;
+
+                        if (travelBtn && body) {
+                            travelBtn.disabled = false;
+                            travelBtn.style.opacity = '1';
+                            travelBtn.style.cursor = 'pointer';
+                            travelBtn.innerText = `viajar('${body.name}')`;
+                        }
+
+                        if (body) {
+                            this.selectedLocatorBody = body;
+                            EventManager.emit(EVENTS.TARGET_CHANGED, body);
+                        }
+                    });
+
+                    item._iconSpan = iconSpan;
+                    item._nameText = nameText;
+                    item._distSpan = distSpan;
+                    item._radSpan = radSpan;
+
+                    this._locatorItemPool[i] = item;
+                }
+
+                // Actualizar los datos
+                item._bodyRef = res.bodyRef;
 
                 const isStar = res.group === 'Star';
                 const isBlackHole = res.group === 'BlackHole';
@@ -338,39 +408,25 @@ export class UIManager {
                 const icon = isStar ? '❖' : (isBlackHole ? '🌀' : '○');
                 const calculatedDist = (res.distSq >= 0) ? MeasurementSystem.formatDistance(Math.sqrt(res.distSq)) : '???';
 
-                item.innerHTML = `
-                    <div style="font-size: 0.85rem; font-weight: bold; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
-                        <span style="color:${colorClass};">${icon}</span> ${res.name}
-                    </div>
-                    <div style="font-size: 0.7rem; color: #888;">
-                        <span style="color: var(--number-color);">${calculatedDist}</span> | R: ${MeasurementSystem.formatSize(res.radiusVal)}
-                    </div>
-                `;
+                item._iconSpan.style.color = colorClass;
+                item._iconSpan.textContent = icon;
+                item._nameText.textContent = ' ' + res.name;
+                
+                // USAR innerHTML PARA PROCESAR LOS <span> QUE REGRESAN LOS FORMATEADORES DE MEDIDAS
+                item._distSpan.innerHTML = calculatedDist;
+                item._radSpan.innerHTML = ' | R: ' + MeasurementSystem.formatSize(res.radiusVal);
 
-                // QoL: Select visualmente
-                item.addEventListener('click', () => {
-                    const allItems = resultsDiv.querySelectorAll('.locator-result-item');
-                    allItems.forEach(el => el.classList.remove('selected'));
+                // Conservar clase selected si este es el actual target
+                if (window.engine && window.engine.controls && window.engine.controls.target === res.bodyRef) {
                     item.classList.add('selected');
-
-                    const travelBtn = document.getElementById('locator-travel-btn');
-                    const body = res.bodyRef;
-
-                    if (travelBtn) {
-                        travelBtn.disabled = false;
-                        travelBtn.style.opacity = '1';
-                        travelBtn.style.cursor = 'pointer';
-                        travelBtn.innerText = `viajar('${body.name}')`;
-                    }
-
                     body.distSq = res.distSq;
                     this.selectedLocatorBody = body; // Guarda el body seleccionado
                     EventManager.emit(EVENTS.TARGET_CHANGED, body);
                     EventManager.emit(EVENTS.OSD_MESSAGE, { message: 'Objetivo remoto fijado: ' + body.name, type: 'success' });
-                });
+                }
 
                 resultsDiv.appendChild(item);
-            });
+            }
         };
 
         const travelBtn = document.getElementById('locator-travel-btn');
@@ -384,11 +440,11 @@ export class UIManager {
 
         if (sortDistBtn) sortDistBtn.addEventListener('click', () => {
             this.currentSortMode = (this.currentSortMode === 'dist_asc') ? 'dist_desc' : 'dist_asc';
-            renderResults();
+            this.renderResults();
         });
         if (sortRadBtn) sortRadBtn.addEventListener('click', () => {
             this.currentSortMode = (this.currentSortMode === 'rad_desc') ? 'rad_asc' : 'rad_desc';
-            renderResults();
+            this.renderResults();
         });
 
         EventManager.on(EVENTS.LOCATOR_RESULTS_READY, (payload) => {
@@ -396,7 +452,7 @@ export class UIManager {
             payload.results.forEach(r => r.radiusVal = r.bodyRef.radius);
             this.latestScanResults = payload.results;
             this.latestScanTotal = payload.total;
-            renderResults();
+            this.renderResults();
         });
     }
 
@@ -619,7 +675,7 @@ export class UIManager {
             } else {
                 this._planetPos.set(target.x, target.y, target.z);
                 this._relativePos.subVectors(payload.cameraPos, this._planetPos);
-                
+
                 const dist = this._relativePos.length();
                 // HUD displays distance to surface, just like labels
                 const distToSurface = Math.max(0, dist - target.radius);

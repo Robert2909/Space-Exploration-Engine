@@ -98,9 +98,12 @@ export class Universe {
         return closestStar;
     }
 
-    getClosestBody(cameraPos) {
-        let closestBody = null;
-        let minDistSq = Infinity;
+    getClosestEntities(cameraPos) {
+        let closestSystem = null;
+        let closestPlanet = null;
+        let minSysDistSq = Infinity;
+        let minPlanetDistSq = Infinity;
+
         for (let [key, chunk] of this.chunks.entries()) {
             if (chunk !== 'pending') {
                 for (let sys of chunk.systems) {
@@ -109,9 +112,9 @@ export class Universe {
                     const sdy = sys.y - cameraPos.y;
                     const sdz = sys.z - cameraPos.z;
                     const sDistSq = sdx*sdx + sdy*sdy + sdz*sdz;
-                    if (sDistSq < minDistSq) {
-                        minDistSq = sDistSq;
-                        closestBody = sys;
+                    if (sDistSq < minSysDistSq) {
+                        minSysDistSq = sDistSq;
+                        closestSystem = sys;
                     }
                     // Check planets
                     if (sys.planets) {
@@ -120,16 +123,33 @@ export class Universe {
                             const pdy = p.y - cameraPos.y;
                             const pdz = p.z - cameraPos.z;
                             const pDistSq = pdx*pdx + pdy*pdy + pdz*pdz;
-                            if (pDistSq < minDistSq) {
-                                minDistSq = pDistSq;
-                                closestBody = p;
+                            if (pDistSq < minPlanetDistSq) {
+                                minPlanetDistSq = pDistSq;
+                                closestPlanet = p;
                             }
                         }
                     }
                 }
             }
         }
-        return closestBody;
+        return { closestSystem, closestPlanet };
+    }
+    
+    getClosestBody(cameraPos) {
+        const ents = this.getClosestEntities(cameraPos);
+        // Fallback backward compatibility for other files that use getClosestBody
+        if (!ents.closestPlanet) return ents.closestSystem;
+        if (!ents.closestSystem) return ents.closestPlanet;
+        
+        const pdx = ents.closestPlanet.x - cameraPos.x;
+        const pdy = ents.closestPlanet.y - cameraPos.y;
+        const pdz = ents.closestPlanet.z - cameraPos.z;
+        
+        const sdx = ents.closestSystem.x - cameraPos.x;
+        const sdy = ents.closestSystem.y - cameraPos.y;
+        const sdz = ents.closestSystem.z - cameraPos.z;
+        
+        return (pdx*pdx + pdy*pdy + pdz*pdz < sdx*sdx + sdy*sdy + sdz*sdz) ? ents.closestPlanet : ents.closestSystem;
     }
     
     update(playerX, playerY, playerZ, dt) {
@@ -159,22 +179,20 @@ export class Universe {
                 const [bx, by, bz] = keyToBuild.split(',').map(Number);
                 const newChunk = new Chunk(bx, by, bz, this.scene, this.chunkSize);
                 this.chunks.set(keyToBuild, newChunk);
-            } else {
-                this.chunks.delete(keyToBuild);
             }
         }
         
+        const ents = this.getClosestEntities({x: playerX, y: playerY, z: playerZ});
+
         for(let [key, chunk] of this.chunks.entries()) {
             if(!activeKeys.has(key)) {
-                if (chunk !== 'pending') chunk.dispose();
+                if(chunk !== 'pending' && chunk.dispose) chunk.dispose();
                 this.chunks.delete(key);
-                const queueIndex = this.chunkQueue.indexOf(key);
-                if (queueIndex > -1) this.chunkQueue.splice(queueIndex, 1);
             } else if (chunk !== 'pending') {
                 const playerLx = playerX - chunk.group.position.x;
                 const playerLy = playerY - chunk.group.position.y;
                 const playerLz = playerZ - chunk.group.position.z;
-                chunk.update(dt, playerLx, playerLy, playerLz);
+                chunk.update(dt, playerLx, playerLy, playerLz, ents.closestSystem, ents.closestPlanet);
             }
         }
     }

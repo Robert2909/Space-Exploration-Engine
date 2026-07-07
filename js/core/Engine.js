@@ -9,6 +9,7 @@ import { TerrainControls } from '../player/terrain/TerrainControls.js';
 import { EventManager, EVENTS } from './EventManager.js';
 import { SpaceState } from './states/SpaceState.js';
 import { TerrainState } from './states/TerrainState.js';
+import { GasDiveState } from './states/GasDiveState.js';
 import { RenderSystem } from './systems/RenderSystem.js';
 import { InteractionSystem } from './systems/InteractionSystem.js';
 import { AudioManager } from '../audio/AudioManager.js';
@@ -31,10 +32,11 @@ export class Engine {
 
         this.states = {
             SPACE: new SpaceState(this),
-            TERRAIN: new TerrainState(this)
+            TERRAIN: new TerrainState(this),
+            GAS_DIVE: new GasDiveState(this)
         };
         this.currentState = this.states.SPACE;
-        this.gameState = 'SPACE'; // 'SPACE' or 'TERRAIN' for legacy checks
+        this.gameState = 'SPACE'; // 'SPACE', 'TERRAIN' or 'GAS_DIVE'
         this.landingTarget = null; // Planeta en el que estamos actualmente
         this.currentOrbitBody = null;
         this.isTransitioning = false;
@@ -326,10 +328,8 @@ export class Engine {
     // onWindowResize moved to RenderSystem.js
 
     triggerLanding(planet, fixedLat, fixedLon) {
-        if (planet.type.includes('Gas')) {
-            EventManager.emit(EVENTS.OSD_MESSAGE, { message: 'Planeta no explorable (Superficie no sólida)', type: 'error', duration: 3000 });
-            return;
-        }
+        const biome = Config.PLANET_BIOMES[planet.type] || Config.PLANET_BIOMES['Planeta rocoso'];
+        const isGasGiant = biome.isGasGiant === true;
 
         if (this.isTransitioning) return;
         this.isTransitioning = true;
@@ -368,14 +368,24 @@ export class Engine {
 
         setTimeout(() => {
             if (this.currentState) this.currentState.exit();
-            this.gameState = 'TERRAIN';
-            EventManager.emit(EVENTS.STATE_CHANGED, this.gameState);
-
-            this.currentState = this.states.TERRAIN;
-            this.currentState.enter({ planet, startX, startZ });
 
             // Destruir Universo (Congelar el espacio)
             this.universe.dispose();
+            this.controls.dispose(); // Quita listeners del espacio
+            
+            if (isGasGiant) {
+                this.gameState = 'GAS_DIVE';
+                EventManager.emit(EVENTS.STATE_CHANGED, this.gameState);
+
+                this.currentState = this.states.GAS_DIVE;
+                this.currentState.enter({ body: planet, biome: biome });
+            } else {
+                this.gameState = 'TERRAIN';
+                EventManager.emit(EVENTS.STATE_CHANGED, this.gameState);
+
+                this.currentState = this.states.TERRAIN;
+                this.currentState.enter({ planet, startX, startZ });
+            }
 
             // Guardar planeta aterrizado para enfocarlo al despegar
             this.lastLandedPlanet = {
@@ -395,43 +405,42 @@ export class Engine {
 
             EventManager.emit(EVENTS.OSD_MESSAGE, { message: `Aterrizaje exitoso en ${planet.name}`, type: 'success', duration: 3000 });
 
-            // Inicializar la escena de terreno
-            this.controls.dispose(); // Quita listeners del espacio
+            if (!isGasGiant) {
+                // Inicializar la escena de terreno
+                // Instanciar el gestor de terreno primero para tener acceso al generador de alturas
+                const starAngle = Math.atan2(planet.starZ - planet.z, planet.starX - planet.x);
+                const currentWorldLon = fixedLon - (planet.rotationY || 0);
+                this.landingTimeOfDay = (starAngle - currentWorldLon) + Math.PI / 2;
 
-            // Instanciar el gestor de terreno primero para tener acceso al generador de alturas
-            const starAngle = Math.atan2(planet.starZ - planet.z, planet.starX - planet.x);
-            const currentWorldLon = fixedLon - (planet.rotationY || 0);
-            this.landingTimeOfDay = (starAngle - currentWorldLon) + Math.PI / 2;
+                this.terrainManager = new TerrainManager(this.scene, planet, startX, startZ, this.landingTimeOfDay, fixedLat);
 
-            this.terrainManager = new TerrainManager(this.scene, planet, startX, startZ, this.landingTimeOfDay, fixedLat);
+                this.terrainControls = new TerrainControls(this.camera, document.body, (x, z) => {
+                    return this.terrainManager.generator.getVisualHeightAt(x, z);
+                });
 
-            this.terrainControls = new TerrainControls(this.camera, document.body, (x, z) => {
-                return this.terrainManager.generator.getVisualHeightAt(x, z);
-            });
+                // Apagar luces espaciales
+                this.lighting.systemLight.visible = false;
+                this.lighting.ambientLight.visible = false;
 
-            // Apagar luces espaciales
-            this.lighting.systemLight.visible = false;
-            this.lighting.ambientLight.visible = false;
+                // Gravedad Planetaria Dinámica
+                const earthRadius = 2000;
+                const gravityScale = Math.max(0.1, planet.radius / earthRadius); 
+                this.terrainControls.setGravityScale(gravityScale);
+                // Heredar estado de lock
+                if (document.pointerLockElement === document.body) this.terrainControls.isLocked = true;
 
-            // Gravedad Planetaria Dinámica
-            // Asumiendo que 2000 es la gravedad "normal" de la Tierra para efectos de juego
-            const earthRadius = 2000;
-            const gravityScale = Math.max(0.1, planet.radius / earthRadius); // Planeta pequeño = 0.1 G mínimo
-            this.terrainControls.setGravityScale(gravityScale);
-            // Heredar estado de lock
-            if (document.pointerLockElement === document.body) this.terrainControls.isLocked = true;
+                // Ajustar planos y niebla para la escala del terreno humano
+                this.camera.near = 0.1;
+                this.camera.far = 40000;
+                this.camera.updateProjectionMatrix();
+                this.scene.fog.density = 2.5 / Config.TERRAIN_FOG_DIVISOR; 
 
-            // Ajustar planos y niebla para la escala del terreno humano
-            this.camera.near = 0.1;
-            this.camera.far = 40000;
-            this.camera.updateProjectionMatrix();
-            this.scene.fog.density = 2.5 / Config.TERRAIN_FOG_DIVISOR; // Ocultar el pop-in de los chunks a los lados
-
-            // Posicionar jugador en el punto exacto del terreno, garantizando que esté sobre el suelo
-            const spawnY = this.terrainManager.generator.getVisualHeightAt(startX, startZ) + 10;
-            this.camera.position.set(startX, spawnY, startZ);
-            this.camera.rotation.set(0, 0, 0);
-            this.camera.quaternion.identity();
+                // Posicionar jugador en el punto exacto del terreno, garantizando que esté sobre el suelo
+                const spawnY = this.terrainManager.generator.getVisualHeightAt(startX, startZ) + 10;
+                this.camera.position.set(startX, spawnY, startZ);
+                this.camera.rotation.set(0, 0, 0);
+                this.camera.quaternion.identity();
+            }
 
             // Quitar el flash
             setTimeout(() => {
@@ -476,7 +485,11 @@ export class Engine {
 
                     // Restaurar fondo y niebla espacial
                     this.scene.background = new THREE.Color(0x000000);
-                    this.scene.fog.color.setHex(0x000000);
+                    if (!this.scene.fog) {
+                        this.scene.fog = new THREE.FogExp2(0x000000, Config.RENDER_FOG_BASE);
+                    } else {
+                        this.scene.fog.color.setHex(0x000000);
+                    }
 
                     // Restaurar controles del espacio
                     const savedSpeed = this.controls ? this.controls.speed : null;

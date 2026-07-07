@@ -162,24 +162,38 @@ export class SpaceState extends GameState {
                 // Efecto de escombros/polvo al atravesar cinturones de asteroides
                 if (sys.asteroidBelt) {
                     this._sysPos.set(sys.lx + cx, sys.ly + cy, sys.lz + cz);
-                    const distToSys = pos.distanceTo(this._sysPos);
-                    const inBelt = distToSys > sys.asteroidBelt.innerRadius && distToSys < (sys.asteroidBelt.innerRadius + sys.asteroidBelt.width);
+                    
+                    // Posición local de la nave relativa al sistema
+                    this._localDir.subVectors(pos, this._sysPos);
+                    
+                    // Revertir la inclinación del cinturón (rotación inversa en X) para obtener coordenadas "planas"
+                    const tilt = sys.asteroidBelt.beltTilt || 0;
+                    const flatY = this._localDir.y * Math.cos(-tilt) - this._localDir.z * Math.sin(-tilt);
+                    const flatZ = this._localDir.y * Math.sin(-tilt) + this._localDir.z * Math.cos(-tilt);
+                    
+                    // Distancia horizontal plana desde el sol
+                    const radialDist = Math.sqrt(this._localDir.x * this._localDir.x + flatZ * flatZ);
+                    
+                    // Verificar colisiones con la geometría exacta (un disco o toroide inclinado)
+                    const isInsideRadius = radialDist > sys.asteroidBelt.innerRadius && radialDist < (sys.asteroidBelt.innerRadius + sys.asteroidBelt.width);
+                    
+                    // El grosor del cinturón determina qué tan lejos podemos estar en el eje Y (con margen para el tamaño del asteroide)
+                    const maxVerticalDist = (sys.asteroidBelt.thickness / 2) + Config.ASTEROID_SIZE_MAX;
+                    const isInsideThickness = Math.abs(flatY) < maxVerticalDist;
+
+                    const inBelt = isInsideRadius && isInsideThickness;
 
                     if (inBelt) {
-                        // Calcular qué tan profundo estamos en el cinturón (0 en los bordes, 1 en el centro)
+                        // Calcular qué tan profundo estamos horizontalmente
                         const beltCenter = sys.asteroidBelt.innerRadius + (sys.asteroidBelt.width / 2);
-                        const depth = 1.0 - (Math.abs(distToSys - beltCenter) / (sys.asteroidBelt.width / 2));
+                        const depth = 1.0 - (Math.abs(radialDist - beltCenter) / (sys.asteroidBelt.width / 2));
 
                         // Si vamos rápido relativo a nuestra velocidad máxima, la nave tiembla levemente
                         const speed = engine.controls.velocity.length();
                         if (speed > Config.PLAYER_SPEED_MAX * 0.2) {
-                            // Reducimos drásticamente la intensidad (de 0.05 a 0.005) para que no maree
-                            const shakeLevel = depth * (speed / Config.PLAYER_SPEED_MAX) * 0.005;
-                            engine.cameraBlurLevel += shakeLevel;
-
-                            // Avisar al jugador con mucha menor frecuencia (de 0.02 a 0.001)
-                            if (speed > Config.PLAYER_SPEED_MAX * 0.6 && Math.random() < 0.001) {
-                                EventManager.emit(EVENTS.OSD_MESSAGE, { message: 'Alerta: Micro-impactos detectados en el exterior', type: 'warning', duration: 2000 });
+                            if (speed > Config.PLAYER_SPEED_MAX * 0.6 && Math.random() < 0.05) {
+                                EventManager.emit(EVENTS.OSD_MESSAGE, { message: 'Impactos leves detectados en el exterior', type: 'warning', duration: 1000 });
+                                EventManager.emit(EVENTS.PLAYER_IMPACT, {});
                             }
                         }
                     }
@@ -352,12 +366,12 @@ export class SpaceState extends GameState {
             if (!engine.currentOrbitBody || engine.currentOrbitBody.name !== closestLandingBody.name) {
                 engine.currentOrbitBody = closestLandingBody;
                 if (isGasGiant) {
-                    EventManager.emit(EVENTS.OSD_MESSAGE, { message: `Órbita inestable en ${closestLandingBody.name}: Superficie no sólida`, type: 'error', duration: 0 });
+                    EventManager.emit(EVENTS.OSD_MESSAGE, { message: `Órbita atmosférica en ${closestLandingBody.name}`, type: 'warning', duration: 0 });
                 } else {
                     EventManager.emit(EVENTS.OSD_MESSAGE, { message: `Órbita estable en ${closestLandingBody.name}`, type: 'info', duration: 0 });
                 }
             }
-            if (!isGasGiant) engine.landingTarget = closestLandingBody;
+            engine.landingTarget = closestLandingBody;
         } else {
             if (engine.currentOrbitBody) {
                 EventManager.emit(EVENTS.OSD_HIDE);

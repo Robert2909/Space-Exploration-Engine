@@ -205,33 +205,52 @@ export class InteractionSystem {
 
     setLandingMarker(planet, worldDir, lat, lon) {
         if (!this.landingMarkerMesh) {
-            // Crear mesh del marcador (un aro iluminado)
-            const geometry = new THREE.TorusGeometry(planet.radius * 0.05, planet.radius * 0.005, 16, 32);
+            // Crear mesh del marcador normalizado a tamaño 1
+            const geometry = new THREE.TorusGeometry(1, 0.1, 16, 32);
             const material = new THREE.MeshBasicMaterial({ color: 0x00ffcc, transparent: true, opacity: 0.8 });
             this.landingMarkerMesh = new THREE.Mesh(geometry, material);
 
-            const light = new THREE.PointLight(0x00ffcc, 2, planet.radius * 0.2);
-            this.landingMarkerMesh.add(light);
+            // Luz de apoyo
+            this.landingMarkerLight = new THREE.PointLight(0x00ffcc, 2, 100);
+            this.landingMarkerMesh.add(this.landingMarkerLight);
         }
 
         if (this.landingMarkerMesh.parent !== this.engine.scene) {
             this.engine.scene.add(this.landingMarkerMesh);
         }
 
-        // Para posicionar el marcador correctamente en el frame 1, usamos la longitud mundial
+        // Calcular coordenadas en la superficie
         const currentWorldLon = lon - (planet.rotationY || 0);
         const localX = Math.cos(lat) * Math.cos(currentWorldLon) * planet.radius;
         const localY = Math.sin(lat) * planet.radius;
         const localZ = Math.cos(lat) * Math.sin(currentWorldLon) * planet.radius;
         this._localPoint.set(localX, localY, localZ);
 
-        // Orientar el marcador hacia la normal de la superficie
+        // Orientar
         this._normal.copy(this._localPoint).normalize();
-
-        // Convertir la posición local a posición mundial sumando el centro del planeta
         this._bodyPos.set(planet.x, planet.y, planet.z);
         this.landingMarkerMesh.position.copy(this._localPoint).add(this._bodyPos);
         this.landingMarkerMesh.quaternion.setFromUnitVectors(this._zAxis, this._normal);
+
+        // Enrobustecer el tamaño: Escalar basándonos en la distancia a la cámara
+        // para que siempre se vea bien proporcionado independientemente del tamaño del planeta
+        const distToCamera = this.engine.camera.position.distanceTo(this.landingMarkerMesh.position);
+        
+        // Multiplicador base. Un 2% de la distancia visual produce un aro muy cómodo para el crosshair.
+        let dynamicScale = distToCamera * 0.02;
+        
+        // Pero evitamos que el aro sea absurdamente grande comparado con el propio planeta
+        const maxScale = planet.radius * 0.15;
+        if (dynamicScale > maxScale) dynamicScale = maxScale;
+
+        // Limitar mínimo para que no desaparezca de cerca
+        const minScale = 5; 
+        if (dynamicScale < minScale) dynamicScale = minScale;
+
+        this.landingMarkerMesh.scale.setScalar(dynamicScale);
+        
+        // Ajustar el alcance de la luz también dinámicamente
+        this.landingMarkerLight.distance = dynamicScale * 4;
 
         this.engine.landingMarker = {
             planetName: planet.name,

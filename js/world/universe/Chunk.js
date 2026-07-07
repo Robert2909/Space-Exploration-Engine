@@ -489,21 +489,40 @@ export class Chunk {
                 // --- ASTEROID BELT CHECK ---
                 const hasAsteroids = seededRandom(this.cx, this.cy, this.cz, seedBase + 60) > (1 - Config.ASTEROID_BELT_CHANCE);
                 if (hasAsteroids) {
+                    // --- GENERACIÓN PROCEDURAL DE PROPIEDADES ÚNICAS DEL CINTURÓN ---
+                    // Con esto, cada sistema solar tendrá un cinturón radicalmente distinto.
+                    const beltCount = Config.ASTEROID_BELT_COUNT_MIN + seededRandom(this.cx, this.cy, this.cz, seedBase + 61) * (Config.ASTEROID_BELT_COUNT_MAX - Config.ASTEROID_BELT_COUNT_MIN);
+                    const beltInnerRadius = sunRadius * (Config.ASTEROID_BELT_RADIUS_MULT_MIN + seededRandom(this.cx, this.cy, this.cz, seedBase + 62) * (Config.ASTEROID_BELT_RADIUS_MULT_MAX - Config.ASTEROID_BELT_RADIUS_MULT_MIN));
+                    const beltWidth = sunRadius * (Config.ASTEROID_BELT_WIDTH_MULT_MIN + Math.pow(seededRandom(this.cx, this.cy, this.cz, seedBase + 63), 2) * (Config.ASTEROID_BELT_WIDTH_MULT_MAX - Config.ASTEROID_BELT_WIDTH_MULT_MIN));
+                    const beltTiltRange = Config.ASTEROID_BELT_TILT_MIN + seededRandom(this.cx, this.cy, this.cz, seedBase + 64) * (Config.ASTEROID_BELT_TILT_MAX - Config.ASTEROID_BELT_TILT_MIN);
+
                     starInstance.asteroidBelt = {
-                        count: Config.ASTEROID_BELT_COUNT_BASE + Math.floor(seededRandom(this.cx, this.cy, this.cz, seedBase + 61) * Config.ASTEROID_BELT_COUNT_VAR),
-                        innerRadius: sunRadius * Config.ASTEROID_BELT_RADIUS_MULT_BASE + seededRandom(this.cx, this.cy, this.cz, seedBase + 62) * sunRadius * Config.ASTEROID_BELT_RADIUS_MULT_VAR,
-                        width: sunRadius * Config.ASTEROID_BELT_WIDTH_MULT,
+                        count: Math.floor(beltCount),
+                        innerRadius: beltInnerRadius,
+                        width: beltWidth,
                         speed: (seededRandom(this.cx, this.cy, this.cz, seedBase + 63) * Config.ASTEROID_BELT_SPEED_VAR + Config.ASTEROID_BELT_SPEED_BASE) * (seededRandom(this.cx, this.cy, this.cz, seedBase + 64) > 0.5 ? 1 : -1),
                         angle: 0,
-                        asteroids: [] // { radius, dist, angleOffset, rotSpeed, rotAxis, tilt }
+                        beltTilt: (seededRandom(this.cx, this.cy, this.cz, seedBase + 60) - 0.5) * beltTiltRange, // Inclinación global del disco
+                        thickness: beltWidth * (beltTiltRange / 10), // Cinturones muy caóticos (tilt 10) tendrán un grosor enorme (Nubes de Oort)
+                        asteroids: [] // { radius, dist, angleOffset, rotSpeed, rotAxis, yOffset }
                     };
+                    
                     for (let i = 0; i < starInstance.asteroidBelt.count; i++) {
+                        // Usar una curva exponencial para el tamaño (la mayoría serán muy pequeños, pocos serán gigantescos)
+                        const sizeRand = Math.pow(seededRandom(this.cx, this.cy, this.cz, seedBase + 65 + i), 4);
+                        
+                        // Dispersión radial (ancho)
+                        const radialDispersion = seededRandom(this.cx, this.cy, this.cz, seedBase + 66 + i);
+                        
+                        // Dispersión vertical caótica (grosor individual)
+                        const verticalDispersion = (seededRandom(this.cx, this.cy, this.cz, seedBase + 68 + i) - 0.5) * starInstance.asteroidBelt.thickness;
+
                         starInstance.asteroidBelt.asteroids.push({
-                            radius: Config.ASTEROID_SIZE_MIN + seededRandom(this.cx, this.cy, this.cz, seedBase + 65 + i) * (Config.ASTEROID_SIZE_MAX - Config.ASTEROID_SIZE_MIN),
-                            dist: starInstance.asteroidBelt.innerRadius + seededRandom(this.cx, this.cy, this.cz, seedBase + 66 + i) * starInstance.asteroidBelt.width,
+                            radius: Config.ASTEROID_SIZE_MIN + sizeRand * (Config.ASTEROID_SIZE_MAX - Config.ASTEROID_SIZE_MIN),
+                            dist: starInstance.asteroidBelt.innerRadius + radialDispersion * starInstance.asteroidBelt.width,
                             angleOffset: seededRandom(this.cx, this.cy, this.cz, seedBase + 67 + i) * Math.PI * 2,
-                            tilt: (seededRandom(this.cx, this.cy, this.cz, seedBase + 68 + i) - 0.5) * 0.4, // Ligera variación en Y
-                            rotSpeed: (seededRandom(this.cx, this.cy, this.cz, seedBase + 69 + i) - 0.5) * 2,
+                            yOffset: verticalDispersion,
+                            rotSpeed: (seededRandom(this.cx, this.cy, this.cz, seedBase + 69 + i) - 0.5) * 3,
                             rotAxis: new THREE.Vector3(
                                 seededRandom(this.cx, this.cy, this.cz, seedBase + 70 + i),
                                 seededRandom(this.cx, this.cy, this.cz, seedBase + 71 + i),
@@ -517,9 +536,11 @@ export class Chunk {
             }
 
             // Planetas ahora usan Meshes individuales para evitar jitter de Float32 en WebGL
-            // (El InstancedMesh sumaba posiciones masivas en la GPU, arruinando la precisión)
             if (totalAsteroids > 0) {
-                this.asteroidMesh = new THREE.InstancedMesh(SHARED_ASTEROID_GEO, SHARED_ASTEROID_MAT, totalAsteroids);
+                // OPTIMIZACIÓN EXTREMA: El buffer solo será del tamaño del cinturón máximo.
+                // Como solo dibujamos el cinturón del sistema activo a la vez, no necesitamos alojar
+                // espacio para TODOS los asteroides del chunk, ahorrando MBs masivos de RAM y GPU Bandwidth por frame.
+                this.asteroidMesh = new THREE.InstancedMesh(SHARED_ASTEROID_GEO, SHARED_ASTEROID_MAT, Config.ASTEROID_BELT_COUNT_MAX);
                 this.asteroidMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
                 this.asteroidMesh.frustumCulled = false;
                 this.group.add(this.asteroidMesh);
@@ -567,46 +588,79 @@ export class Chunk {
         }
     }
 
-    update(dt, playerLx, playerLy, playerLz) {
-        let matricesUpdated = false;
+    update(dt, playerLx, playerLy, playerLz, closestSystem, closestPlanet) {
         let asteroidsUpdated = false;
+        let aIdx = 0;
+
+        if (this.asteroidMesh) {
+            this.asteroidMesh.visible = false;
+        }
+
         for (let sys of this.systems) {
             sys.update(dt);
             sys.updateAbsolutePosition(this.group.position.x, this.group.position.y, this.group.position.z);
-            if (sys.sprite && sys.isCompanion) {
-                sys.sprite.position.set(sys.lx, sys.ly, sys.lz);
+            
+            if (sys.sprite) {
+                // OPTIMIZACIÓN EXTREMA: Solo mostrar la estrella si pertenece al sistema actual
+                // (incluyendo compañeras binarias si estamos en la principal, o viceversa)
+                const isCurrentSystem = (sys === closestSystem) || (sys.primary === closestSystem) || (sys === closestSystem?.primary);
+                sys.sprite.visible = isCurrentSystem;
+
+                if (sys.isCompanion && sys.sprite.visible) {
+                    sys.sprite.position.set(sys.lx, sys.ly, sys.lz);
+                }
             }
 
             for (let p of sys.planets) {
                 p.updateAbsolutePosition(this.group.position.x, this.group.position.y, this.group.position.z);
 
                 if (p.mesh) {
-                    p.mesh.position.set(p.lx, p.ly, p.lz);
-                    p.mesh.rotation.y = p.rotationY;
+                    p.mesh.visible = (p === closestPlanet);
+                    if (p.mesh.visible) {
+                        p.mesh.position.set(p.lx, p.ly, p.lz);
+                        p.mesh.rotation.y = p.rotationY;
+                    }
                 }
                 
                 if (p.ringMesh) {
-                    p.ringMesh.position.set(p.lx, p.ly, p.lz);
-                    // Hacemos que el anillo gire lentamente
-                    p.ringMesh.rotation.z = -p.rotationY * 0.5;
-                    
-                    // Solo renderizar el anillo si estamos dentro de la distancia HD del planeta
-                    const distSq = (p.lx - playerLx)**2 + (p.ly - playerLy)**2 + (p.lz - playerLz)**2;
-                    const hdDist = p.radius * Config.LOD_HIGH_DISTANCE_MULT;
-                    p.ringMesh.visible = distSq < hdDist * hdDist;
+                    p.ringMesh.visible = (p === closestPlanet);
+                    if (p.ringMesh.visible) {
+                        p.ringMesh.position.set(p.lx, p.ly, p.lz);
+                        p.ringMesh.rotation.z = -p.rotationY * 0.5;
+                        const distSq = (p.lx - playerLx)**2 + (p.ly - playerLy)**2 + (p.lz - playerLz)**2;
+                        const hdDist = p.radius * Config.LOD_HIGH_DISTANCE_MULT;
+                        p.ringMesh.visible = distSq < hdDist * hdDist;
+                    }
                 }
             }
 
-            if (sys.asteroidBelt) {
+            if (sys.asteroidBelt && sys === closestSystem) {
+                this.asteroidMesh.visible = true;
+                
+                // Centrar el mesh instanciado exactamente en el sistema solar actual.
+                // Esto elimina el jitter de Float32 en la GPU porque las matrices
+                // instanciadas ahora solo guardan desplazamientos locales pequeños,
+                // no las coordenadas gigantescas del universo.
+                this.asteroidMesh.position.set(sys.lx, sys.ly, sys.lz);
+
                 sys.asteroidBelt.angle += sys.asteroidBelt.speed * dt;
-                let aIdx = sys.asteroidBelt.startIndex;
+                
+                const totalAngle = sys.asteroidBelt.angle;
                 for (let a of sys.asteroidBelt.asteroids) {
                     a.currentRot += a.rotSpeed * dt;
-                    const totalAngle = sys.asteroidBelt.angle + a.angleOffset;
-
-                    const ax = sys.lx + Math.cos(totalAngle) * a.dist;
-                    const az = sys.lz + Math.sin(totalAngle) * a.dist;
-                    const ay = sys.ly + Math.sin(totalAngle + a.tilt) * (a.dist * a.tilt);
+                    
+                    // Solo calculamos el offset local
+                    // a.dist representa la distancia del asteroide al centro de la estrella.
+                    const angle = totalAngle + a.angleOffset;
+                    
+                    // Aplicar inclinación (tilt) global del cinturón y el grosor (yOffset) individual
+                    const ax = Math.cos(angle) * a.dist;
+                    
+                    // Tilt rotando el disco en el eje X: Z y Y se ajustan basados en beltTilt
+                    const flatZ = Math.sin(angle) * a.dist;
+                    
+                    const az = flatZ * Math.cos(sys.asteroidBelt.beltTilt) - a.yOffset * Math.sin(sys.asteroidBelt.beltTilt);
+                    const ay = flatZ * Math.sin(sys.asteroidBelt.beltTilt) + a.yOffset * Math.cos(sys.asteroidBelt.beltTilt);
 
                     dummy.position.set(ax, ay, az);
                     dummy.quaternion.setFromAxisAngle(a.rotAxis, a.currentRot);
@@ -616,10 +670,13 @@ export class Chunk {
                     aIdx++;
                     asteroidsUpdated = true;
                 }
+                this.asteroidMesh.count = aIdx;
             }
         }
-        // Planetas se actualizan solos mediante pos/rot. Asteroides si ocupan update.
-        if (asteroidsUpdated && this.asteroidMesh) this.asteroidMesh.instanceMatrix.needsUpdate = true;
+        
+        if (asteroidsUpdated && this.asteroidMesh) {
+            this.asteroidMesh.instanceMatrix.needsUpdate = true;
+        }
     }
 
     dispose() {
