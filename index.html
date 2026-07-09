@@ -10,7 +10,8 @@
     <script type="importmap">
         {
             "imports": {
-                "three": "https://unpkg.com/three@0.160.0/build/three.module.js"
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
             }
         }
     </script>
@@ -59,19 +60,27 @@
 
             <div class="hud-panel" id="gasdive-panel" style="display: none;">
                 <h3>telemetría (inmersión)</h3>
-                
-                <div class="altitude-bar-container" style="width: 100%; height: 10px; background: #222; margin-bottom: 10px; border: 1px solid #444; position: relative;">
-                    <div id="gas-alt-bar" style="width: 100%; height: 100%; background: linear-gradient(to right, #ff5555, #ffaa00, #55aaff, #ffffff);"></div>
-                    <div id="gas-alt-marker" style="position: absolute; top: -2px; bottom: -2px; width: 4px; background: white; border: 1px solid black; right: 0%;"></div>
+
+                <div class="altitude-bar-container"
+                    style="width: 100%; height: 10px; background: #222; margin-bottom: 10px; border: 1px solid #444; position: relative;">
+                    <div id="gas-alt-bar"
+                        style="width: 100%; height: 100%; background: linear-gradient(to right, #ff5555, #ffaa00, #55aaff, #ffffff);">
+                    </div>
+                    <div id="gas-alt-marker"
+                        style="position: absolute; top: -2px; bottom: -2px; width: 4px; background: white; border: 1px solid black; right: 0%;">
+                    </div>
                 </div>
 
                 <p><span class="prop-name">altitudActual</span> <span class="prop-value" id="gas-alt">0</span></p>
-                <p><span class="prop-name">capaAtmosferica</span> <span class="prop-value string" id="gas-layer">'Desconocida'</span></p>
+                <p><span class="prop-name">capaAtmosferica</span> <span class="prop-value string"
+                        id="gas-layer">'Desconocida'</span></p>
                 <p><span class="prop-name">velocidadNave</span> <span class="prop-value" id="gas-vterm">0</span></p>
                 <p><span class="prop-name">direccionNave</span> <span class="prop-value" id="gas-shipdir">0</span></p>
-                <p><span class="prop-name">velocidadViento</span> <span class="prop-value" id="gas-windspeed">0</span></p>
+                <p><span class="prop-name">velocidadViento</span> <span class="prop-value" id="gas-windspeed">0</span>
+                </p>
                 <p><span class="prop-name">temperaturaExterna</span> <span class="prop-value" id="gas-temp">0</span></p>
-                <p><span class="prop-name">presionAtmosferica</span> <span class="prop-value" id="gas-press">0</span></p>
+                <p><span class="prop-name">presionAtmosferica</span> <span class="prop-value" id="gas-press">0</span>
+                </p>
                 <p><span class="prop-name">nivelToxicidad</span> <span class="prop-value" id="gas-toxic">0</span></p>
             </div>
 
@@ -86,6 +95,8 @@
                 <p><span class="prop-name">lonOrbital</span> <span class="prop-value" id="target-lon">0</span></p>
                 <p><span class="prop-name">horaLocal</span> <span class="prop-value string"
                         id="target-time">'Desc'</span></p>
+                <p><span class="prop-name">temperatura</span> <span class="prop-value string"
+                        id="target-temp">'Desc'</span></p>
 
                 <p><span class="prop-name">gravedad</span> <span class="prop-value" id="target-gravity">0</span></p>
                 <p><span class="prop-name">atmosfera</span> <span class="prop-value string"
@@ -116,47 +127,57 @@
                         <div>
                             <span class="prop-name">objetivo.tipoPrincipal</span>
                             <select id="locator-main-type" class="hud-select">
-                                <option value="ALL">'TODOS'</option>
+                                <option value="ALL">'Todos'</option>
                                 <option value="Star">'Estrellas'</option>
                                 <option value="Planet">'Planetas'</option>
                                 <option value="BlackHole">'Agujeros Negros'</option>
                             </select>
                         </div>
 
-                        <div id="locator-sub-type-container" style="display: none;">
+                        <div id="locator-sub-type-container">
                             <span class="prop-name">objetivo.tipoSecundario</span>
-                            <select id="locator-sub-type" class="hud-select">
-                                <option value="ALL">'TODOS'</option>
+                            <select id="locator-sub-type" class="hud-select" disabled style="opacity: 0.5; cursor: not-allowed;">
+                                <option value="ALL">'Todos'</option>
                             </select>
                         </div>
 
-                        <div>
+                        <div style="display: flex; align-items: center; justify-content: space-between;">
                             <span class="prop-name">escaneo.chunksExtra</span>
                             <input type="number" id="locator-extra-range" class="hud-select" value="0" min="0" max="100"
-                                step="1" style="width: 60px;">
+                                step="1" style="width: 60px; margin: 0; padding: 2px;">
+                        </div>
+
+                        <div style="display: flex; align-items: center; justify-content: space-between;">
+                            <span class="prop-name">escaneo.automatico</span>
+                            <label class="hud-switch">
+                                <input type="checkbox" id="locator-auto-scan" checked>
+                                <span class="hud-slider"></span>
+                            </label>
                         </div>
 
                         <button id="locator-scan-btn" class="hud-btn">ejecutar_escaneo()</button>
 
-                        <div id="locator-action-container"
-                            style="display: block; margin-top: 5px; pointer-events: auto; min-width: 0;">
+                        <div style="pointer-events: auto;">
                             <button id="locator-travel-btn" class="hud-btn" disabled
                                 style="width: 100%; display: block; color: var(--keyword-color); opacity: 0.5; cursor: not-allowed; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">viajar(null)</button>
                         </div>
 
-                        <div id="locator-sort-container" style="display: none; gap: 5px; margin-top: 5px;">
-                            <span class="prop-name" style="align-self: center;">ordenar_por</span>
-                            <button id="sort-dist-btn" class="hud-btn"
-                                style="flex: 1; text-align: center; font-size: 0.75rem;">dist</button>
-                            <button id="sort-rad-btn" class="hud-btn"
-                                style="flex: 1; text-align: center; font-size: 0.75rem;">radio</button>
+                        <div id="locator-sort-container"
+                            style="display: none; flex-direction: column; margin-top: 5px; margin-bottom: 5px;">
+                            <span class="prop-name" style="margin-bottom: 5px;">ordenar_por</span>
+                            <div style="display: flex; gap: 5px;">
+                                <button id="sort-dist-btn" class="hud-btn"
+                                    style="flex: 1; text-align: center; font-size: 0.75rem;">dist</button>
+                                <button id="sort-rad-btn" class="hud-btn"
+                                    style="flex: 1; text-align: center; font-size: 0.75rem;">radio</button>
+                                <button id="sort-temp-btn" class="hud-btn"
+                                    style="flex: 1; text-align: center; font-size: 0.75rem; display: none;">temp</button>
+                            </div>
                         </div>
                     </div>
                 </div>
 
-                <div id="locator-results"
-                    style="max-height: calc(50vh - 180px); overflow-y: auto; pointer-events: auto; padding-right: 5px; margin-top: 10px; border-top: 1px dashed var(--hud-border); padding-top: 10px; display: block;">
-                    <span class="small-text" style="color: #666;">// Esperando instrucción...</span>
+                <div id="locator-results" style="pointer-events: auto;">
                 </div>
             </div>
         </div>

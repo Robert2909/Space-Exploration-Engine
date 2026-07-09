@@ -72,7 +72,7 @@ canvas {
     left: 20px;
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 10px;
     transition: opacity 0.3s ease;
 }
 
@@ -85,11 +85,11 @@ canvas {
     position: absolute;
     top: 20px;
     right: 20px;
-    max-height: 50vh;
+    max-height: calc(100vh - 40px);
     display: flex;
     flex-direction: column;
     align-items: flex-end;
-    gap: 8px;
+    gap: 10px;
     width: 260px;
     transition: opacity 0.3s ease;
     pointer-events: none;
@@ -116,6 +116,30 @@ canvas {
 
 #locator-results::-webkit-scrollbar-thumb:hover {
     background: rgba(255, 255, 255, 0.4);
+}
+
+#locator-results {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding-right: 5px;
+    margin-top: 0;
+    border-top: none;
+    padding-top: 0;
+    display: block;
+    transition: max-height 0.6s cubic-bezier(0.16, 1, 0.3, 1), margin-top 0.4s ease, padding-top 0.4s ease, opacity 0.4s ease;
+    max-height: 100vh;
+    opacity: 1;
+}
+
+#locator-results.collapsed {
+    max-height: 0 !important;
+    margin-top: 0 !important;
+    padding-top: 0 !important;
+    border-top: none !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+    overflow: hidden;
 }
 
 #labels-container {
@@ -342,40 +366,105 @@ input[type=range]::-webkit-slider-thumb {
 
 
 .hud-select {
+    display: none; /* Ocultamos el nativo */
+}
+
+.custom-select-wrapper {
+    position: relative;
     width: 100%;
-    background: rgba(20, 20, 25, 0.8);
-    color: var(--string-color);
-    border: 1px solid var(--border-color);
-    border-radius: 4px;
     font-family: 'Fira Code', monospace;
-    font-size: 0.9rem;
-    padding: 6px 8px;
-    outline: none;
+    font-size: 0.85rem;
+    color: var(--text-primary);
+}
+
+.custom-select-selected {
+    background: rgba(0, 0, 0, 0.4);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 8px;
+    padding: 6px 10px;
     cursor: pointer;
-    -webkit-appearance: none;
-    -moz-appearance: none;
-    appearance: none;
-    color-scheme: dark;
-    transition: border-color 0.2s, box-shadow 0.2s, background-color 0.2s;
-    background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="%23888888" viewBox="0 0 16 16"><path d="M4 6h8l-4 5z"/></svg>');
-    background-repeat: no-repeat;
-    background-position: right 8px center;
+    user-select: none;
+    transition: all 0.2s ease;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
 }
 
-.hud-select:hover {
-    border-color: var(--variable-color);
-    background: rgba(30, 30, 40, 0.9);
+.custom-select-selected:after {
+    content: '';
+    display: block;
+    width: 0;
+    height: 0;
+    border-left: 5px solid transparent;
+    border-right: 5px solid transparent;
+    border-top: 5px solid #aaaaaa;
+    transition: transform 0.2s;
 }
 
-.hud-select:focus {
-    border-color: var(--string-color);
-    box-shadow: 0 0 8px rgba(100, 200, 255, 0.3);
+.custom-select-selected.select-arrow-active {
+    background: rgba(0, 0, 0, 0.6);
+    border-color: rgba(255, 255, 255, 0.3);
 }
 
-.hud-select option {
-    background: rgba(15, 15, 20, 1.0);
+.custom-select-selected.select-arrow-active:after {
+    transform: rotate(180deg);
+}
+
+.custom-select-selected:hover {
+    background: rgba(0, 0, 0, 0.6);
+    border-color: rgba(255, 255, 255, 0.3);
+}
+
+.custom-select-items {
+    position: absolute;
+    background: rgba(18, 18, 22, 0.95);
+    top: 100%;
+    left: 0;
+    right: 0;
+    z-index: 99;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    margin-top: 4px;
+    max-height: 200px;
+    overflow-y: auto;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+}
+
+.custom-select-hide {
+    display: none;
+}
+
+.custom-select-items div {
+    padding: 8px 10px;
+    cursor: pointer;
+    user-select: none;
+    transition: background 0.1s;
     color: var(--string-color);
-    padding: 8px;
+}
+
+.custom-select-items div:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: #ffffff;
+}
+
+.custom-select-items div.same-as-selected {
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--keyword-color);
+}
+
+.custom-select-items::-webkit-scrollbar {
+    width: 6px;
+}
+.custom-select-items::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 4px;
+}
+.custom-select-items::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 4px;
+}
+.custom-select-items::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.4);
 }
 
 .hud-btn {
@@ -472,4 +561,52 @@ input[type=range]::-webkit-slider-thumb {
     background: transparent;
     color: #ff3366;
     border: 1px solid #ff3366;
+}
+
+/* Toggle Switch */
+.hud-switch {
+    position: relative;
+    display: inline-block;
+    width: 32px;
+    height: 18px;
+}
+
+.hud-switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.hud-slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: var(--panel-bg);
+    border: 1px solid var(--border-color);
+    transition: .2s;
+    border-radius: 18px;
+}
+
+.hud-slider:before {
+    position: absolute;
+    content: "";
+    height: 12px;
+    width: 12px;
+    left: 2px;
+    bottom: 2px;
+    background-color: #888;
+    transition: .2s;
+    border-radius: 50%;
+}
+
+input:checked+.hud-slider {
+    border-color: var(--keyword-color);
+}
+
+input:checked+.hud-slider:before {
+    transform: translateX(14px);
+    background-color: var(--keyword-color);
 }

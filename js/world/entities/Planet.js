@@ -6,6 +6,7 @@ export class Planet extends CelestialBody {
         this.group = 'Planeta';
         this.color = config.color; // THREE.Color
         this.atmosphereDensity = config.atmosphereDensity || 0;
+        this.temperature = config.temperature || 250; // Temp in Kelvin
         
         // Orbital mechanics parameters
         this.orbitRadius = config.orbitRadius || 0;

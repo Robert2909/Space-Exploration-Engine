@@ -308,6 +308,21 @@ export class Engine {
             }
         });
 
+        document.addEventListener('dblclick', (e) => {
+            if (this.isTransitioning) return;
+            if (document.pointerLockElement !== document.body) return; // Solo actuar si ya estamos lockeados
+
+            if (this.gameState === 'SPACE' && e.button === 0 && this.targetBody) {
+                if (!this.controls.autoPilotTarget) {
+                    this.controls.setAutoPilotTarget(this.targetBody);
+                    EventManager.emit(EVENTS.OSD_MESSAGE, { message: 'Piloto automático Activado', type: 'info', duration: 2000 });
+                } else {
+                    this.controls.setAutoPilotTarget(null);
+                    EventManager.emit(EVENTS.OSD_MESSAGE, { message: 'Piloto automático Desactivado', type: 'warning', duration: 2000 });
+                }
+            }
+        });
+
         this.animate = this.animate.bind(this);
         requestAnimationFrame(this.animate);
     }

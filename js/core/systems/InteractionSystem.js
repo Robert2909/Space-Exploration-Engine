@@ -110,17 +110,8 @@ export class InteractionSystem {
         }
 
         if (closest) {
-            // Si el nuevo target es igual al actual, lo deseleccionamos
-            if (this.engine.targetBody && this.engine.targetBody.name === closest.name) {
-                this.engine.targetBody = null;
-                if (this.engine.controls) {
-                    this.engine.controls.autoPilotTarget = null;
-                    this.engine.controls.autoLookTarget = null;
-                    this.engine.controls.lastAutoLookPos = null;
-                }
-                EventManager.emit(EVENTS.TARGET_CLEARED);
-                EventManager.emit(EVENTS.OSD_MESSAGE, { message: 'Sistema de fijación desactivado', type: 'info' });
-            } else {
+            // Si hay algo enfrente, lo fijamos (o lo mantenemos si ya es el objetivo actual)
+            if (!this.engine.targetBody || this.engine.targetBody.name !== closest.name) {
                 this.engine.targetBody = closest;
                 this.engine.updateTargetHUD(closest);
                 EventManager.emit(EVENTS.TARGET_CHANGED, closest);

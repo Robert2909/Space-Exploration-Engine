@@ -26,6 +26,10 @@ export class Universe {
                     s.uNoiseFreq.value = planet.shaderParams.noiseFreq;
                     s.uCloudDensity.value = planet.shaderParams.cloudDensity;
                     s.uAtmosphere.value = planet.shaderParams.atmosphere;
+                    if (planet.shaderParams.warpStrength !== undefined) {
+                        s.uWarpStrength.value = planet.shaderParams.warpStrength;
+                        s.uStretchY.value = planet.shaderParams.stretchY;
+                    }
                 }
             }
             return;
@@ -152,7 +156,7 @@ export class Universe {
         return (pdx*pdx + pdy*pdy + pdz*pdz < sdx*sdx + sdy*sdy + sdz*sdz) ? ents.closestPlanet : ents.closestSystem;
     }
     
-    update(playerX, playerY, playerZ, dt) {
+    update(playerX, playerY, playerZ, dt, camera) {
         const cx = Math.floor(playerX / this.chunkSize);
         const cy = Math.floor(playerY / this.chunkSize);
         const cz = Math.floor(playerZ / this.chunkSize);
@@ -192,7 +196,7 @@ export class Universe {
                 const playerLx = playerX - chunk.group.position.x;
                 const playerLy = playerY - chunk.group.position.y;
                 const playerLz = playerZ - chunk.group.position.z;
-                chunk.update(dt, playerLx, playerLy, playerLz, ents.closestSystem, ents.closestPlanet);
+                chunk.update(dt, playerLx, playerLy, playerLz, ents.closestSystem, ents.closestPlanet, camera);
             }
         }
     }

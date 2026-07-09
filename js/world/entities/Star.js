@@ -7,6 +7,11 @@ export class Star extends CelestialBody {
         this.sunColor = config.sunColor; // Hex color
         this.planets = config.planets || []; // Array of Planet instances
         
+        // Procedural specific properties
+        this.temperature = config.temperature || 5000;
+        this.activity = config.activity || 1.0;
+        this.luminosity = config.luminosity || 1.0;
+        
         // Propiedades para Sistemas Binarios
         this.isCompanion = config.isCompanion || false;
         this.orbitRadius = config.orbitRadius || 0;
@@ -18,6 +23,9 @@ export class Star extends CelestialBody {
         
         // Boundaries del sistema solar
         this.systemRadius = config.systemRadius || this.radius * 10;
+        
+        // Offset temporal determinista para animación de coronas/plasma
+        this.timeOffset = Math.abs(this.lx + this.ly + this.lz) % 10000;
     }
 
     update(dt) {

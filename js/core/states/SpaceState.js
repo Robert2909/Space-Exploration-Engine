@@ -51,8 +51,9 @@ export class SpaceState extends GameState {
         }
 
         engine.controls.update(dt);
+        engine.camera.updateMatrixWorld();
 
-        engine.universe.update(pos.x, pos.y, pos.z, dt);
+        engine.universe.update(pos.x, pos.y, pos.z, dt, engine.camera);
         engine.lighting.update(engine.camera.position, engine.universe);
 
         const maxDist = Config.UI_LABEL_MAX_DISTANCE;
@@ -80,7 +81,11 @@ export class SpaceState extends GameState {
                 let allowDistSq = specificMaxDist * specificMaxDist;
 
                 if (distSq < allowDistSq) {
-                    nearbyBodies.push({ name: sys.name, type: sys.type, group: sys.group || 'Estrella', radius: sys.radius, x: sys.lx + cx, y: sys.ly + cy, z: sys.lz + cz, distSq: distSq });
+                    nearbyBodies.push({ 
+                        name: sys.name, type: sys.type, group: sys.group || 'Estrella', 
+                        radius: sys.radius, x: sys.lx + cx, y: sys.ly + cy, z: sys.lz + cz, 
+                        distSq: distSq, temperature: sys.temperature, sunColor: sys.sunColor 
+                    });
                 }
 
                 if (distSq < minStarDistSq) {
@@ -95,20 +100,20 @@ export class SpaceState extends GameState {
                     dz = p.lz + cz - pos.z;
                     distSq = dx * dx + dy * dy + dz * dz;
                     let pMaxDist = Math.max(maxDist, p.radius * Config.UI_LABEL_DISTANCE_MULT);
-                    if (distSq < pMaxDist * pMaxDist) {
-                        nearbyBodies.push({
-                            name: p.name, type: p.type, group: 'Planeta',
-                            radius: p.radius, x: p.lx + cx, y: p.ly + cy, z: p.lz + cz,
-                            distSq: distSq, color: p.color, atmosphereDensity: p.atmosphereDensity,
-                            orbitRadius: p.orbitRadius, orbitSpeed: p.orbitSpeed, rotationSpeed: p.rotationSpeed, rotationY: p.rotationY,
-                            mesh: p.mesh, terrainVariance: p.terrainVariance,
-                            starX: sys.lx + cx, starY: sys.ly + cy, starZ: sys.lz + cz,
-                            parentSystem: {
-                                sunColor: sys.sunColor,
-                                companion: sys.companion ? { sunColor: sys.companion.sunColor } : null
-                            }
-                        });
-                    }
+                      if (distSq < pMaxDist * pMaxDist) {
+                          nearbyBodies.push({
+                              name: p.name, type: p.type, group: 'Planeta',
+                              radius: p.radius, x: p.lx + cx, y: p.ly + cy, z: p.lz + cz,
+                              distSq: distSq, color: p.color, atmosphereDensity: p.atmosphereDensity,
+                              temperature: p.temperature, orbitRadius: p.orbitRadius, orbitSpeed: p.orbitSpeed, rotationSpeed: p.rotationSpeed, rotationY: p.rotationY,
+                              mesh: p.mesh, terrainVariance: p.terrainVariance,
+                              starX: sys.lx + cx, starY: sys.ly + cy, starZ: sys.lz + cz,
+                              parentSystem: {
+                                  sunColor: sys.sunColor,
+                                  companion: sys.companion ? { sunColor: sys.companion.sunColor } : null
+                              }
+                          });
+                      }
                 }
 
                 if (sys.group === 'BlackHole') {

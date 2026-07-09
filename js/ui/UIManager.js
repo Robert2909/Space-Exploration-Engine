@@ -164,6 +164,20 @@ export class UIManager {
 
         this.setupLocator();
 
+        const mainSelect = document.getElementById('locator-main-type');
+        const subSelect = document.getElementById('locator-sub-type');
+        if (mainSelect) this._upgradeSelectToCustom(mainSelect);
+        if (subSelect) this._upgradeSelectToCustom(subSelect);
+
+        // Close custom selects when clicking outside
+        document.addEventListener('click', () => {
+            const selects = document.querySelectorAll('.custom-select-selected');
+            for (let i = 0; i < selects.length; i++) {
+                selects[i].classList.remove('select-arrow-active');
+                if (selects[i].nextSibling) selects[i].nextSibling.classList.add('custom-select-hide');
+            }
+        });
+
         // Selección de objetivo
         EventManager.on(EVENTS.TARGET_CHANGED, (target) => {
             if (target) {
@@ -242,15 +256,61 @@ export class UIManager {
         this.latestScanResults = [];
         this.currentSortMode = 'dist'; // 'dist' or 'rad'
 
+        // Lógica de inactividad del panel
+        const locatorPanel = document.getElementById('locator-panel');
+        this.locatorCollapseTimer = null;
+
+        const resetCollapseTimer = (isHovering = false) => {
+            if (this.locatorCollapseTimer) clearTimeout(this.locatorCollapseTimer);
+
+            // Expandir el panel si estaba colapsado
+            if (resultsDiv.classList.contains('collapsed')) {
+                resultsDiv.classList.remove('collapsed');
+            }
+
+            // Si el mouse está dentro, no colapsa
+            if (isHovering) return;
+
+            // Si el mouse no está dentro, cuenta 10 segundos de inactividad
+            this.locatorCollapseTimer = setTimeout(() => {
+                resultsDiv.classList.add('collapsed');
+
+                // Retraer también los menús desplegables si estuvieran abiertos
+                const selects = document.querySelectorAll('.custom-select-selected');
+                for (let i = 0; i < selects.length; i++) {
+                    selects[i].classList.remove('select-arrow-active');
+                    if (selects[i].nextSibling) selects[i].nextSibling.classList.add('custom-select-hide');
+                }
+            }, 1500);
+        };
+
+        if (locatorPanel) {
+            locatorPanel.addEventListener('mouseenter', () => resetCollapseTimer(true));
+            locatorPanel.addEventListener('mousemove', () => resetCollapseTimer(true));
+            locatorPanel.addEventListener('mouseleave', () => resetCollapseTimer(false));
+            locatorPanel.addEventListener('click', () => resetCollapseTimer(true));
+        }
+
+        // Iniciar el temporizador por defecto
+        resetCollapseTimer(false);
+
         // Populate sub types based on main type
         mainSelect.addEventListener('change', () => {
             const val = mainSelect.value;
-            subSelect.innerHTML = '<option value="ALL">\'TODOS\'</option>';
+            subSelect.innerHTML = '<option value="ALL">\'Todos\'</option>';
 
             if (val === 'ALL' || val === 'BlackHole') {
-                subContainer.style.display = 'none';
+                subSelect.disabled = true;
+                if (subSelect._customWrapper) {
+                    subSelect._customWrapper.style.opacity = '0.5';
+                    subSelect._customWrapper.style.pointerEvents = 'none';
+                }
             } else {
-                subContainer.style.display = 'block';
+                subSelect.disabled = false;
+                if (subSelect._customWrapper) {
+                    subSelect._customWrapper.style.opacity = '1';
+                    subSelect._customWrapper.style.pointerEvents = 'auto';
+                }
                 if (val === 'Star') {
                     for (let key in Config.STAR_TYPES) {
                         subSelect.innerHTML += `<option value="${key}">'${key}'</option>`;
@@ -260,6 +320,20 @@ export class UIManager {
                         subSelect.innerHTML += `<option value="${key}">'${key}'</option>`;
                     }
                 }
+            }
+
+            this._upgradeSelectToCustom(subSelect);
+
+            const autoScan = document.getElementById('locator-auto-scan');
+            if (autoScan && autoScan.checked) {
+                scanBtn.click();
+            }
+        });
+
+        subSelect.addEventListener('change', () => {
+            const autoScan = document.getElementById('locator-auto-scan');
+            if (autoScan && autoScan.checked) {
+                scanBtn.click();
             }
         });
 
@@ -294,7 +368,6 @@ export class UIManager {
 
         this.renderResults = () => {
             const resultsDiv = document.getElementById('locator-results');
-
             const sortContainer = document.getElementById('locator-sort-container');
 
             if (this.latestScanResults.length === 0) {
@@ -312,121 +385,381 @@ export class UIManager {
                 this.latestScanResults.sort((a, b) => a.distSq - b.distSq);
                 if (sortDistBtn) { sortDistBtn.classList.add('active-sort'); sortDistBtn.classList.remove('active-sort-desc'); sortDistBtn.innerText = 'dist ▲'; }
                 if (sortRadBtn) { sortRadBtn.classList.remove('active-sort', 'active-sort-desc'); sortRadBtn.innerText = 'radio'; }
+                if (sortTempBtn) { sortTempBtn.classList.remove('active-sort', 'active-sort-desc'); sortTempBtn.innerText = 'temp'; }
             } else if (this.currentSortMode === 'dist_desc') {
                 this.latestScanResults.sort((a, b) => b.distSq - a.distSq);
                 if (sortDistBtn) { sortDistBtn.classList.add('active-sort', 'active-sort-desc'); sortDistBtn.innerText = 'dist ▼'; }
                 if (sortRadBtn) { sortRadBtn.classList.remove('active-sort', 'active-sort-desc'); sortRadBtn.innerText = 'radio'; }
+                if (sortTempBtn) { sortTempBtn.classList.remove('active-sort', 'active-sort-desc'); sortTempBtn.innerText = 'temp'; }
             } else if (this.currentSortMode === 'rad_asc') {
                 this.latestScanResults.sort((a, b) => a.radiusVal - b.radiusVal);
                 if (sortRadBtn) { sortRadBtn.classList.add('active-sort'); sortRadBtn.classList.remove('active-sort-desc'); sortRadBtn.innerText = 'radio ▲'; }
                 if (sortDistBtn) { sortDistBtn.classList.remove('active-sort', 'active-sort-desc'); sortDistBtn.innerText = 'dist'; }
+                if (sortTempBtn) { sortTempBtn.classList.remove('active-sort', 'active-sort-desc'); sortTempBtn.innerText = 'temp'; }
             } else if (this.currentSortMode === 'rad_desc') {
                 this.latestScanResults.sort((a, b) => b.radiusVal - a.radiusVal);
                 if (sortRadBtn) { sortRadBtn.classList.add('active-sort', 'active-sort-desc'); sortRadBtn.innerText = 'radio ▼'; }
                 if (sortDistBtn) { sortDistBtn.classList.remove('active-sort', 'active-sort-desc'); sortDistBtn.innerText = 'dist'; }
+                if (sortTempBtn) { sortTempBtn.classList.remove('active-sort', 'active-sort-desc'); sortTempBtn.innerText = 'temp'; }
+            } else if (this.currentSortMode === 'temp_asc') {
+                this.latestScanResults.sort((a, b) => a.tempVal - b.tempVal);
+                if (sortTempBtn) { sortTempBtn.classList.add('active-sort'); sortTempBtn.classList.remove('active-sort-desc'); sortTempBtn.innerText = 'temp ▲'; }
+                if (sortDistBtn) { sortDistBtn.classList.remove('active-sort', 'active-sort-desc'); sortDistBtn.innerText = 'dist'; }
+                if (sortRadBtn) { sortRadBtn.classList.remove('active-sort', 'active-sort-desc'); sortRadBtn.innerText = 'radio'; }
+            } else if (this.currentSortMode === 'temp_desc') {
+                this.latestScanResults.sort((a, b) => b.tempVal - a.tempVal);
+                if (sortTempBtn) { sortTempBtn.classList.add('active-sort', 'active-sort-desc'); sortTempBtn.innerText = 'temp ▼'; }
+                if (sortDistBtn) { sortDistBtn.classList.remove('active-sort', 'active-sort-desc'); sortDistBtn.innerText = 'dist'; }
+                if (sortRadBtn) { sortRadBtn.classList.remove('active-sort', 'active-sort-desc'); sortRadBtn.innerText = 'radio'; }
             }
 
-            // OPTIMIZACIÓN: Evitar innerHTML por completo para no colapsar el Garbage Collector cada segundo.
-            if (!this._locatorHeader) {
-                this._locatorHeader = document.createElement('div');
-                this._locatorHeader.style.cssText = "font-size: 0.7rem; color: var(--keyword-color); margin-bottom: 5px;";
-            }
-            this._locatorHeader.textContent = `// Mostrando ${Math.min(100, this.latestScanResults.length)} de ${this.latestScanTotal || this.latestScanResults.length} coincidencias`;
+            // VIRTUAL SCROLL INIT
+            if (!this._locatorScrollerInit) {
+                this._locatorScrollerInit = true;
+                resultsDiv.style.position = 'relative';
 
-            // Vaciar el contenedor rápido sin innerHTML
+                this._locatorSpacer = document.createElement('div');
+                this._locatorSpacer.style.width = '1px';
+
+                this._locatorItemsContainer = document.createElement('div');
+                this._locatorItemsContainer.style.position = 'absolute';
+                this._locatorItemsContainer.style.top = '0px'; // No offset
+                this._locatorItemsContainer.style.left = '0';
+                this._locatorItemsContainer.style.right = '0';
+
+                resultsDiv.addEventListener('scroll', () => {
+                    if (this._updateVirtualScroll) this._updateVirtualScroll();
+                });
+            }
+
+            // Remove all children safely
             while (resultsDiv.firstChild) {
                 resultsDiv.removeChild(resultsDiv.firstChild);
             }
-            resultsDiv.appendChild(this._locatorHeader);
+            resultsDiv.appendChild(this._locatorSpacer);
+            resultsDiv.appendChild(this._locatorItemsContainer);
+
+            this._locatorHeights = new Int32Array(this.latestScanResults.length);
+            let totalHeight = 0;
+            for (let i = 0; i < this.latestScanResults.length; i++) {
+                const isStar = this.latestScanResults[i].group === 'Star' || this.latestScanResults[i].group === 'Estrella';
+                const h = isStar ? 63 : 50; // Approximated accurate heights
+                this._locatorHeights[i] = totalHeight;
+                totalHeight += h;
+            }
+
+            this._locatorSpacer.style.height = totalHeight + 'px';
 
             if (!this._locatorItemPool) this._locatorItemPool = [];
 
-            const displayResults = this.latestScanResults.slice(0, 100);
-            for (let i = 0; i < displayResults.length; i++) {
-                const res = displayResults[i];
-                let item = this._locatorItemPool[i];
-
-                if (!item) {
-                    item = document.createElement('div');
-                    item.className = 'locator-result-item';
-                    item.style.marginBottom = '5px';
-
-                    const titleDiv = document.createElement('div');
-                    titleDiv.style.cssText = "font-size: 0.85rem; font-weight: bold; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;";
-                    const iconSpan = document.createElement('span');
-                    const nameText = document.createTextNode('');
-                    titleDiv.appendChild(iconSpan);
-                    titleDiv.appendChild(nameText);
-
-                    const distDiv = document.createElement('div');
-                    distDiv.style.cssText = "font-size: 0.7rem; color: #888;";
-                    const distSpan = document.createElement('span');
-                    distSpan.style.color = "var(--number-color)";
-                    const radSpan = document.createElement('span'); // <--- AHORA ES UN SPAN PARA SOPORTAR HTML
-                    distDiv.appendChild(distSpan);
-                    distDiv.appendChild(radSpan);
-
-                    item.appendChild(titleDiv);
-                    item.appendChild(distDiv);
-
-                    // QoL: Select visualmente y apuntar
-                    item.addEventListener('click', () => {
-                        const allItems = resultsDiv.querySelectorAll('.locator-result-item');
-                        allItems.forEach(el => el.classList.remove('selected'));
-                        item.classList.add('selected');
-
-                        const travelBtn = document.getElementById('locator-travel-btn');
-                        const body = item._bodyRef;
-
-                        if (travelBtn && body) {
-                            travelBtn.disabled = false;
-                            travelBtn.style.opacity = '1';
-                            travelBtn.style.cursor = 'pointer';
-                            travelBtn.innerText = `viajar('${body.name}')`;
-                        }
-
-                        if (body) {
-                            this.selectedLocatorBody = body;
-                            EventManager.emit(EVENTS.TARGET_CHANGED, body);
-                        }
-                    });
-
-                    item._iconSpan = iconSpan;
-                    item._nameText = nameText;
-                    item._distSpan = distSpan;
-                    item._radSpan = radSpan;
-
-                    this._locatorItemPool[i] = item;
-                }
-
-                // Actualizar los datos
-                item._bodyRef = res.bodyRef;
-
-                const isStar = res.group === 'Star';
-                const isBlackHole = res.group === 'BlackHole';
-                const colorClass = isStar ? 'var(--function-color)' : (isBlackHole ? '#8a2be2' : 'var(--variable-color)');
-                const icon = isStar ? '❖' : (isBlackHole ? '🌀' : '○');
-                const calculatedDist = (res.distSq >= 0) ? MeasurementSystem.formatDistance(Math.sqrt(res.distSq)) : '???';
-
-                item._iconSpan.style.color = colorClass;
-                item._iconSpan.textContent = icon;
-                item._nameText.textContent = ' ' + res.name;
-                
-                // USAR innerHTML PARA PROCESAR LOS <span> QUE REGRESAN LOS FORMATEADORES DE MEDIDAS
-                item._distSpan.innerHTML = calculatedDist;
-                item._radSpan.innerHTML = ' | R: ' + MeasurementSystem.formatSize(res.radiusVal);
-
-                // Conservar clase selected si este es el actual target
-                if (window.engine && window.engine.controls && window.engine.controls.target === res.bodyRef) {
-                    item.classList.add('selected');
-                    body.distSq = res.distSq;
-                    this.selectedLocatorBody = body; // Guarda el body seleccionado
-                    EventManager.emit(EVENTS.TARGET_CHANGED, body);
-                    EventManager.emit(EVENTS.OSD_MESSAGE, { message: 'Objetivo remoto fijado: ' + body.name, type: 'success' });
-                }
-
-                resultsDiv.appendChild(item);
+            // Clean selected states
+            for (let item of this._locatorItemPool) {
+                if (item) item.classList.remove('selected');
             }
+            this.selectedLocatorBody = null;
+
+            this._updateVirtualScroll = () => {
+                if (!this.latestScanResults || this.latestScanResults.length === 0) return;
+
+                const scrollTop = resultsDiv.scrollTop;
+                const buffer = 3;
+                const visibleItems = 15;
+
+                // Find startIndex via search through prefix sums
+                let startIndex = 0;
+                let low = 0;
+                let high = this._locatorHeights.length - 1;
+                while (low <= high) {
+                    const mid = Math.floor((low + high) / 2);
+                    if (this._locatorHeights[mid] <= scrollTop) {
+                        startIndex = mid;
+                        low = mid + 1;
+                    } else {
+                        high = mid - 1;
+                    }
+                }
+
+                startIndex = Math.max(0, startIndex - buffer);
+                const endIndex = Math.min(this.latestScanResults.length, startIndex + visibleItems + (buffer * 2));
+
+                const yOffset = this._locatorHeights[startIndex] || 0;
+                this._locatorItemsContainer.style.transform = `translateY(${yOffset}px)`;
+
+                // Clear current items from DOM container
+                while (this._locatorItemsContainer.firstChild) {
+                    this._locatorItemsContainer.removeChild(this._locatorItemsContainer.firstChild);
+                }
+
+                const neededItems = endIndex - startIndex;
+
+                for (let i = 0; i < neededItems; i++) {
+                    const resIndex = startIndex + i;
+                    const res = this.latestScanResults[resIndex];
+                    if (!res) continue;
+
+                    let item = this._locatorItemPool[i];
+
+                    if (!item) {
+                        item = document.createElement('div');
+                        item.className = 'locator-result-item';
+                        item.style.marginBottom = '5px';
+                        item.style.overflow = 'hidden';
+
+                        const titleDiv = document.createElement('div');
+                        titleDiv.style.cssText = "font-size: 0.8rem; font-weight: bold; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 2px;";
+                        const iconSpan = document.createElement('span');
+                        const nameText = document.createTextNode('');
+                        titleDiv.appendChild(iconSpan);
+                        titleDiv.appendChild(nameText);
+
+                        const distDiv = document.createElement('div');
+                        distDiv.style.cssText = "font-size: 0.65rem; color: #888; line-height: 1.2;";
+                        const distSpan = document.createElement('span');
+                        const radSpan = document.createElement('span');
+                        const tempSpan = document.createElement('span');
+                        distDiv.appendChild(distSpan);
+                        distDiv.appendChild(radSpan);
+                        distDiv.appendChild(tempSpan);
+
+                        item.appendChild(titleDiv);
+                        item.appendChild(distDiv);
+
+                        item.addEventListener('click', (e) => {
+                            const now = Date.now();
+                            if (this._lastGhostAnimTime && now - this._lastGhostAnimTime < 600) return;
+                            this._lastGhostAnimTime = now;
+
+                            const allItems = this._locatorItemsContainer.querySelectorAll('.locator-result-item');
+                            allItems.forEach(el => el.classList.remove('selected'));
+                            item.classList.add('selected');
+
+                            const travelBtn = document.getElementById('locator-travel-btn');
+                            const body = item._bodyRef;
+
+                            if (travelBtn && body) {
+                                travelBtn.disabled = false;
+                                travelBtn.style.opacity = '1';
+                                travelBtn.style.cursor = 'pointer';
+                                travelBtn.innerText = `viajar('${body.name}')`;
+                            }
+
+                            if (body) {
+                                this.selectedLocatorBody = body;
+
+                                // Create animation element
+                                const itemRect = item.getBoundingClientRect();
+                                const flyingEl = document.createElement('div');
+
+                                // Copiamos las clases pero quitamos las que puedan afectar su layout base
+                                flyingEl.className = 'locator-result-item selected';
+                                flyingEl.style.position = 'fixed';
+                                flyingEl.style.left = itemRect.left + 'px';
+                                flyingEl.style.top = itemRect.top + 'px';
+                                flyingEl.style.width = itemRect.width + 'px';
+                                flyingEl.style.height = itemRect.height + 'px';
+                                flyingEl.style.pointerEvents = 'none';
+                                flyingEl.style.zIndex = '9999';
+                                flyingEl.style.margin = '0';
+                                flyingEl.style.boxSizing = 'border-box';
+                                flyingEl.style.opacity = '0.95';
+                                flyingEl.style.overflow = 'hidden';
+                                flyingEl.style.borderTop = '0px solid transparent';
+                                flyingEl.style.borderRight = '0px solid transparent';
+                                flyingEl.style.borderBottom = '0px solid transparent';
+                                flyingEl.style.borderRadius = '0px';
+                                flyingEl.style.boxShadow = '0 0px 0px rgba(0,0,0,0)';
+                                flyingEl.style.transition = 'all 0.5s cubic-bezier(0.25, 1, 0.5, 1)';
+
+                                // Envolvemos el contenido en un div para desvanecerlo
+                                const innerContent = document.createElement('div');
+                                innerContent.innerHTML = item.innerHTML;
+                                innerContent.style.width = itemRect.width + 'px';
+                                innerContent.style.height = itemRect.height + 'px';
+                                innerContent.style.transition = 'opacity 0.25s ease-out, filter 0.25s ease-out, transform 0.25s ease-out';
+                                innerContent.style.transformOrigin = 'top left';
+                                flyingEl.appendChild(innerContent);
+
+                                // Creamos una capa que aparecerá con el contenido del objetivo
+                                const targetContent = document.createElement('div');
+                                targetContent.className = 'hud-panel'; // Heredar font-size y tipografías correctas
+                                targetContent.style.position = 'absolute';
+                                targetContent.style.top = '0';
+                                targetContent.style.left = '0';
+                                targetContent.style.boxSizing = 'border-box';
+                                targetContent.style.display = 'flex';
+                                targetContent.style.flexDirection = 'column';
+                                targetContent.style.overflow = 'hidden';
+                                // Las dimensiones se asignarán exactas después de medir el destino
+                                targetContent.style.background = 'transparent'; // Evitar doble fondo
+                                targetContent.style.border = 'none';
+                                targetContent.style.boxShadow = 'none';
+                                targetContent.style.opacity = '0';
+                                targetContent.style.filter = 'blur(4px)';
+                                targetContent.style.transform = 'scale(0.95)';
+                                targetContent.style.transition = 'opacity 0.3s ease-in, filter 0.3s ease-in, transform 0.3s ease-in';
+                                targetContent.style.transitionDelay = '0.15s'; // Intersecta suavemente con el desvanecimiento del anterior
+                                targetContent.style.pointerEvents = 'none';
+                                flyingEl.appendChild(targetContent);
+
+                                document.body.appendChild(flyingEl);
+
+                                const targetPanel = document.getElementById('target-panel');
+                                const wasHidden = targetPanel.style.display === 'none';
+
+                                // Ocultar inmediatamente antes de emitir para que el usuario no vea información parpadeando
+                                targetPanel.style.transition = 'none';
+                                targetPanel.style.opacity = '0';
+
+                                // Emitimos temprano para que el sistema empiece a poblar el target-panel real
+                                EventManager.emit(EVENTS.TARGET_CHANGED, body);
+
+                                // Delay to allow layout calculation
+                                requestAnimationFrame(() => {
+                                    let tRect;
+
+                                    if (wasHidden) {
+                                        targetPanel.style.visibility = 'hidden';
+                                        targetPanel.style.display = 'block';
+                                        targetPanel.style.height = 'auto';
+                                        targetPanel.style.paddingTop = '';
+                                        targetPanel.style.paddingBottom = '';
+                                        targetPanel.style.borderWidth = '';
+
+                                        tRect = targetPanel.getBoundingClientRect();
+
+                                        targetPanel.style.height = '0px';
+                                        targetPanel.style.paddingTop = '0px';
+                                        targetPanel.style.paddingBottom = '0px';
+                                        targetPanel.style.marginTop = '0px';
+                                        targetPanel.style.marginBottom = '0px';
+                                        targetPanel.style.borderWidth = '0px';
+                                        targetPanel.style.overflow = 'hidden';
+
+                                        // Forzar reflujo
+                                        targetPanel.offsetHeight;
+
+                                        targetPanel.style.transition = 'all 0.5s cubic-bezier(0.25, 1, 0.5, 1)';
+                                        targetPanel.style.visibility = 'visible';
+                                    } else {
+                                        tRect = targetPanel.getBoundingClientRect();
+                                        targetPanel.style.transition = 'opacity 0.2s';
+                                    }
+
+                                    // Pre-fijar las dimensiones exactas del contenido final para que no sufra reflujo (wrap) mientras el recuadro crece
+                                    // Restamos 2px que corresponden a los bordes del panel real (1px por cada lado), asegurando alineación perfecta del padding-box
+                                    targetContent.style.width = (tRect.width - 2) + 'px';
+                                    targetContent.style.height = (tRect.height - 2) + 'px';
+
+                                    if (wasHidden) {
+                                        targetPanel.style.height = tRect.height + 'px';
+                                        targetPanel.style.paddingTop = '10px';
+                                        targetPanel.style.paddingBottom = '10px';
+                                        targetPanel.style.marginTop = '';
+                                        targetPanel.style.marginBottom = '';
+                                        targetPanel.style.borderWidth = '1px';
+                                    }
+
+                                    // Comenzar transición de fantasma
+                                    flyingEl.style.left = tRect.left + 'px';
+                                    flyingEl.style.top = tRect.top + 'px';
+                                    flyingEl.style.width = tRect.width + 'px';
+                                    flyingEl.style.height = tRect.height + 'px';
+                                    flyingEl.style.opacity = '1';
+                                    flyingEl.style.backgroundColor = 'rgba(30, 30, 30, 0.6)';
+                                    flyingEl.style.setProperty('border-left', '1px solid rgba(69, 69, 69, 0.6)', 'important');
+                                    flyingEl.style.borderTop = '1px solid rgba(69, 69, 69, 0.6)';
+                                    flyingEl.style.borderRight = '1px solid rgba(69, 69, 69, 0.6)';
+                                    flyingEl.style.borderBottom = '1px solid rgba(69, 69, 69, 0.6)';
+                                    flyingEl.style.borderRadius = '4px';
+                                    flyingEl.style.boxShadow = '0 4px 6px rgba(0, 0, 0, 0.2)';
+
+                                    // A medio camino, transformar el texto original y aparecer el nuevo
+                                    innerContent.style.opacity = '0';
+                                    innerContent.style.filter = 'blur(4px)';
+                                    innerContent.style.transform = 'scale(1.05)';
+
+                                    targetContent.style.opacity = '1';
+                                    targetContent.style.filter = 'blur(0px)';
+                                    targetContent.style.transform = 'scale(1)';
+
+                                    // Robamos el HTML actualizado del panel un instante después de que el motor lo actualice
+                                    setTimeout(() => {
+                                        targetContent.innerHTML = targetPanel.innerHTML;
+                                    }, 50);
+
+                                    setTimeout(() => {
+                                        // 1. Quitar transiciones para aplicar la opacidad 1 de forma instantánea
+                                        targetPanel.style.transition = 'none';
+                                        targetPanel.style.opacity = '1';
+                                        targetPanel.style.height = '';
+                                        targetPanel.style.overflow = '';
+
+                                        // Forzar reflujo para que el navegador lo dibuje inmediatamente
+                                        targetPanel.offsetHeight;
+
+                                        // 2. Restaurar la transición por defecto (CSS)
+                                        targetPanel.style.transition = '';
+
+                                        // 3. Eliminar el fantasma de forma segura cuando el real ya es visible
+                                        if (flyingEl.parentNode) flyingEl.parentNode.removeChild(flyingEl);
+                                    }, 500); // Wait for transition
+                                });
+                            }
+                        });
+
+                        item.addEventListener('dblclick', () => {
+                            const travelBtn = document.getElementById('locator-travel-btn');
+                            if (travelBtn && !travelBtn.disabled) {
+                                travelBtn.click();
+                            }
+                        });
+
+                        item._iconSpan = iconSpan;
+                        item._nameText = nameText;
+                        item._distSpan = distSpan;
+                        item._radSpan = radSpan;
+                        item._tempSpan = tempSpan;
+
+                        this._locatorItemPool[i] = item;
+                    }
+
+                    item.classList.remove('selected');
+                    item._bodyRef = res.bodyRef;
+
+                    const isStar = res.group === 'Star' || res.group === 'Estrella';
+
+                    // Asegurar matemáticamente que la altura visual coincida con el Virtual Scroll Spacer
+                    item.style.height = isStar ? '60px' : '47px';
+
+                    const isBlackHole = res.group === 'BlackHole';
+                    const colorClass = isStar ? 'var(--function-color)' : (isBlackHole ? '#8a2be2' : 'var(--variable-color)');
+                    const icon = isStar ? '❖' : (isBlackHole ? '🌀' : '○');
+                    const calculatedDist = (res.distSq >= 0) ? MeasurementSystem.formatDistance(Math.sqrt(res.distSq)) : '???';
+
+                    item._iconSpan.style.color = colorClass;
+                    item._iconSpan.textContent = icon;
+                    item._nameText.textContent = ' ' + res.name;
+
+                    item._distSpan.innerHTML = 'Distancia: <span style="color: var(--number-color);">' + calculatedDist + '</span><br/>';
+                    item._radSpan.innerHTML = 'Radio: <span style="color: var(--number-color);">' + MeasurementSystem.formatSize(res.radiusVal) + '</span><br/>';
+                    if (isStar) {
+                        item._tempSpan.innerHTML = 'Temperatura: <span style="color: var(--function-color);">' + (res.tempVal ? `${res.tempVal} K</span>` : '???');
+                    } else {
+                        item._tempSpan.innerHTML = '';
+                    }
+
+                    if (window.engine && window.engine.controls && window.engine.controls.target === res.bodyRef) {
+                        item.classList.add('selected');
+                        this.selectedLocatorBody = res.bodyRef;
+                    }
+
+                    this._locatorItemsContainer.appendChild(item);
+                }
+            };
+
+            // Primera llamada manual
+            resultsDiv.scrollTop = 0;
+            this._updateVirtualScroll();
         };
 
         const travelBtn = document.getElementById('locator-travel-btn');
@@ -438,6 +771,7 @@ export class UIManager {
             });
         }
 
+        const sortTempBtn = document.getElementById('sort-temp-btn');
         if (sortDistBtn) sortDistBtn.addEventListener('click', () => {
             this.currentSortMode = (this.currentSortMode === 'dist_asc') ? 'dist_desc' : 'dist_asc';
             this.renderResults();
@@ -446,12 +780,22 @@ export class UIManager {
             this.currentSortMode = (this.currentSortMode === 'rad_desc') ? 'rad_asc' : 'rad_desc';
             this.renderResults();
         });
+        if (sortTempBtn) sortTempBtn.addEventListener('click', () => {
+            this.currentSortMode = (this.currentSortMode === 'temp_desc') ? 'temp_asc' : 'temp_desc';
+            this.renderResults();
+        });
 
         EventManager.on(EVENTS.LOCATOR_RESULTS_READY, (payload) => {
             // Attach raw radius value for sorting
-            payload.results.forEach(r => r.radiusVal = r.bodyRef.radius);
+            payload.results.forEach(r => {
+                r.radiusVal = r.bodyRef.radius;
+                r.tempVal = r.bodyRef.temperature || 0;
+            });
             this.latestScanResults = payload.results;
             this.latestScanTotal = payload.total;
+            if (sortTempBtn) {
+                sortTempBtn.style.display = (this.latestCriteria && this.latestCriteria.mainType === 'Star') ? 'block' : 'none';
+            }
             this.renderResults();
         });
     }
@@ -584,6 +928,7 @@ export class UIManager {
         const targetOrbit = document.getElementById('target-orbit');
         const targetRot = document.getElementById('target-rot');
         const targetTime = document.getElementById('target-time');
+        const targetTemp = document.getElementById('target-temp');
         const targetDist = document.getElementById('target-dist');
         const targetLat = document.getElementById('target-lat');
         const targetLon = document.getElementById('target-lon');
@@ -630,40 +975,69 @@ export class UIManager {
             else targetRot.innerHTML = "'N/A'";
         }
 
-        if (targetTime) {
-            if (payload.gameState === 'TERRAIN' && payload.terrainManager) {
-                let rotationY = payload.terrainManager.timeOfDay;
-                let timeOfDay = rotationY % (Math.PI * 2);
-                if (target.rotationSpeed < 0) {
-                    timeOfDay = Math.PI - timeOfDay;
-                }
-                if (timeOfDay < 0) timeOfDay += Math.PI * 2;
-                let hours = (timeOfDay / (Math.PI * 2)) * 24 + 6;
-                if (hours >= 24) hours -= 24;
-                const hh = Math.floor(hours).toString().padStart(2, '0');
-                const mm = Math.floor((hours % 1) * 60).toString().padStart(2, '0');
-                targetTime.innerText = `'${hh}:${mm}'`;
-            } else if (payload.landingMarker && payload.landingMarker.planetName === target.name) {
-                // Calcular tiempo local en el marcador basado en la rotación actual del planeta
-                const rotY = target.rotationY || 0;
-                // El vector del planeta a la estrella determina dónde da el sol
-                const starAngle = Math.atan2(target.starZ - target.z, target.starX - target.x);
-                // Longitud actual rotada en el espacio = marker.lon - rotY
-                const currentWorldLon = payload.landingMarker.lon - rotY;
+        const isStar = target.sunColor !== undefined || (target.type && (target.type.includes('Enana') || target.type.includes('Gigante azul') || target.type.includes('Estrella') || target.type.includes('Star')));
 
-                let timeOfDay = (starAngle - currentWorldLon) + Math.PI / 2;
-                if (target.rotationSpeed < 0) {
-                    timeOfDay = Math.PI - timeOfDay;
-                }
-                timeOfDay = timeOfDay % (Math.PI * 2);
-                if (timeOfDay < 0) timeOfDay += Math.PI * 2;
-                let hours = (timeOfDay / (Math.PI * 2)) * 24 + 6;
-                if (hours >= 24) hours -= 24;
-                const hh = Math.floor(hours).toString().padStart(2, '0');
-                const mm = Math.floor((hours % 1) * 60).toString().padStart(2, '0');
-                targetTime.innerText = `'${hh}:${mm}'`;
+        if (targetTime) {
+            if (isStar) {
+                targetTime.parentElement.style.display = 'none';
             } else {
-                targetTime.innerText = "'N/A'";
+                targetTime.parentElement.style.display = 'flex';
+                if (payload.gameState === 'TERRAIN' && payload.terrainManager) {
+                    let rotationY = payload.terrainManager.timeOfDay;
+                    let timeOfDay = rotationY % (Math.PI * 2);
+                    if (target.rotationSpeed < 0) {
+                        timeOfDay = Math.PI - timeOfDay;
+                    }
+                    if (timeOfDay < 0) timeOfDay += Math.PI * 2;
+                    let hours = (timeOfDay / (Math.PI * 2)) * 24 + 6;
+                    if (hours >= 24) hours -= 24;
+                    const hh = Math.floor(hours).toString().padStart(2, '0');
+                    const mm = Math.floor((hours % 1) * 60).toString().padStart(2, '0');
+                    targetTime.innerText = `'${hh}:${mm}'`;
+                } else if (payload.landingMarker && payload.landingMarker.planetName === target.name) {
+                    // Calcular tiempo local en el marcador basado en la rotación actual del planeta
+                    const rotY = target.rotationY || 0;
+                    // El vector del planeta a la estrella determina dónde da el sol
+                    const starAngle = Math.atan2(target.starZ - target.z, target.starX - target.x);
+                    // Longitud actual rotada en el espacio = marker.lon - rotY
+                    const currentWorldLon = payload.landingMarker.lon - rotY;
+
+                    let timeOfDay = (starAngle - currentWorldLon) + Math.PI / 2;
+                    if (target.rotationSpeed < 0) {
+                        timeOfDay = Math.PI - timeOfDay;
+                    }
+                    timeOfDay = timeOfDay % (Math.PI * 2);
+                    if (timeOfDay < 0) timeOfDay += Math.PI * 2;
+                    let hours = (timeOfDay / (Math.PI * 2)) * 24 + 6;
+                    if (hours >= 24) hours -= 24;
+                    const hh = Math.floor(hours).toString().padStart(2, '0');
+                    const mm = Math.floor((hours % 1) * 60).toString().padStart(2, '0');
+                    targetTime.innerText = `'${hh}:${mm}'`;
+                } else {
+                    targetTime.innerText = "'N/A'";
+                }
+            }
+        }
+
+        if (targetTemp) {
+            if (!isStar) {
+                targetTemp.parentElement.style.display = 'none';
+            } else {
+                targetTemp.parentElement.style.display = 'flex';
+                if (target.temperature !== undefined) {
+                    targetTemp.innerText = `'${target.temperature} K'`;
+
+                    // Color coding for temperature
+                    if (target.temperature > 5000) targetTemp.style.color = '#88ccff'; // Muy caliente (Estrellas azules)
+                    else if (target.temperature > 2000) targetTemp.style.color = '#ffffcc'; // Caliente (Estrellas / Lavas)
+                    else if (target.temperature > 350) targetTemp.style.color = '#ffaa44'; // Muy cálido
+                    else if (target.temperature > 250) targetTemp.style.color = '#55ff55'; // Templado / Habitable
+                    else if (target.temperature > 150) targetTemp.style.color = '#aaffff'; // Frío
+                    else targetTemp.style.color = '#aaaaaa'; // Congelado
+                } else {
+                    targetTemp.innerText = "'N/A'";
+                    targetTemp.style.color = 'var(--string-color)';
+                }
             }
         }
 
@@ -731,5 +1105,72 @@ export class UIManager {
 
         if (payload.latDeg !== undefined) document.getElementById('terr-lat').innerText = Config.formatNumber(payload.latDeg, 2) + '°';
         if (payload.lonDeg !== undefined) document.getElementById('terr-lon').innerText = Config.formatNumber(payload.lonDeg, 2) + '°';
+    }
+
+    _upgradeSelectToCustom(selectElement) {
+        if (!selectElement) return;
+
+        let wrapper = selectElement._customWrapper;
+        if (!wrapper) {
+            wrapper = document.createElement('div');
+            wrapper.className = 'custom-select-wrapper';
+            selectElement.parentNode.insertBefore(wrapper, selectElement.nextSibling);
+            selectElement._customWrapper = wrapper;
+        } else {
+            wrapper.innerHTML = ''; // Clear previous items
+        }
+
+        if (selectElement.disabled) {
+            wrapper.style.opacity = '0.5';
+            wrapper.style.pointerEvents = 'none';
+        } else {
+            wrapper.style.opacity = '1';
+            wrapper.style.pointerEvents = 'auto';
+        }
+
+        const selectedDiv = document.createElement('div');
+        selectedDiv.className = 'custom-select-selected';
+        selectedDiv.innerHTML = selectElement.options.length > 0 ? selectElement.options[selectElement.selectedIndex].innerHTML : '';
+        wrapper.appendChild(selectedDiv);
+
+        const itemsDiv = document.createElement('div');
+        itemsDiv.className = 'custom-select-items custom-select-hide';
+
+        for (let i = 0; i < selectElement.options.length; i++) {
+            const opt = document.createElement('div');
+            opt.innerHTML = selectElement.options[i].innerHTML;
+            if (i === selectElement.selectedIndex) opt.classList.add('same-as-selected');
+
+            opt.addEventListener('click', (e) => {
+                e.stopPropagation();
+                selectElement.selectedIndex = i;
+                selectedDiv.innerHTML = selectElement.options[i].innerHTML;
+
+                const siblings = itemsDiv.children;
+                for (let k = 0; k < siblings.length; k++) {
+                    siblings[k].classList.remove('same-as-selected');
+                }
+                opt.classList.add('same-as-selected');
+
+                selectedDiv.click(); // to close
+                selectElement.dispatchEvent(new Event('change'));
+            });
+            itemsDiv.appendChild(opt);
+        }
+        wrapper.appendChild(itemsDiv);
+
+        selectedDiv.addEventListener('click', function (e) {
+            e.stopPropagation();
+            // Close all others
+            const others = document.querySelectorAll('.custom-select-selected');
+            for (let i = 0; i < others.length; i++) {
+                if (others[i] !== this) {
+                    others[i].classList.remove('select-arrow-active');
+                    if (others[i].nextSibling) others[i].nextSibling.classList.add('custom-select-hide');
+                }
+            }
+            this.nextSibling.classList.toggle('custom-select-hide');
+            this.classList.toggle('select-arrow-active');
+        });
     }
 }
