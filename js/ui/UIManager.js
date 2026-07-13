@@ -748,7 +748,9 @@ export class UIManager {
                         item._tempSpan.innerHTML = '';
                     }
 
-                    if (window.engine && window.engine.controls && window.engine.controls.target === res.bodyRef) {
+                    if (this.selectedLocatorBody === res.bodyRef) {
+                        item.classList.add('selected');
+                    } else if (!this.selectedLocatorBody && window.engine && window.engine.controls && window.engine.controls.target === res.bodyRef) {
                         item.classList.add('selected');
                         this.selectedLocatorBody = res.bodyRef;
                     }
@@ -933,9 +935,16 @@ export class UIManager {
         const targetLat = document.getElementById('target-lat');
         const targetLon = document.getElementById('target-lon');
 
+        let isGas = false;
+        if (Config.PLANET_BIOMES && Config.PLANET_BIOMES[target.type] && Config.PLANET_BIOMES[target.type].isGasGiant) {
+            isGas = true;
+        } else if (target.type === 'Gigante gaseoso') {
+            isGas = true;
+        }
+
         if (targetAtmo) {
             targetAtmo.style.color = 'var(--string-color)';
-            if (target.type === 'Gigante gaseoso') {
+            if (isGas) {
                 targetAtmo.innerText = "'Letal/Tóxica'";
                 targetAtmo.style.color = '#ff5555';
             } else if (target.atmosphereDensity > 0) {
@@ -953,7 +962,7 @@ export class UIManager {
         }
 
         if (targetGravity) {
-            let baseGravity = target.type === 'Gigante gaseoso' ? 2.5 : 1.0;
+            let baseGravity = isGas ? 2.5 : 1.0;
             // La Tierra tiene ~6371 km de radio (637 U). Ese será el estándar para 1 G.
             let radiusFactor = target.radius / Config.REFERENCE_EARTH_RADIUS_U;
             let calculatedG = baseGravity * radiusFactor;
@@ -977,35 +986,36 @@ export class UIManager {
 
         const isStar = target.sunColor !== undefined || (target.type && (target.type.includes('Enana') || target.type.includes('Gigante azul') || target.type.includes('Estrella') || target.type.includes('Star')));
 
+        const targetSurface = document.getElementById('target-surface');
+        if (targetSurface) {
+            if (target.type === 'Agujero Negro') targetSurface.innerText = "'Singularidad'";
+            else if (isStar) targetSurface.innerText = "'Plasma'";
+            else if (isGas) targetSurface.innerText = "'Gaseoso'";
+            else targetSurface.innerText = "'Rocoso'";
+        }
+
         if (targetTime) {
-            if (isStar) {
-                targetTime.parentElement.style.display = 'none';
+            if (isStar || target.type === 'Agujero Negro') {
+                targetTime.innerText = "'N/A'";
+                targetTime.style.color = 'var(--string-color)';
             } else {
-                targetTime.parentElement.style.display = 'flex';
                 if (payload.gameState === 'TERRAIN' && payload.terrainManager) {
                     let rotationY = payload.terrainManager.timeOfDay;
                     let timeOfDay = rotationY % (Math.PI * 2);
-                    if (target.rotationSpeed < 0) {
-                        timeOfDay = Math.PI - timeOfDay;
-                    }
+                    if (target.rotationSpeed < 0) timeOfDay = Math.PI - timeOfDay;
                     if (timeOfDay < 0) timeOfDay += Math.PI * 2;
                     let hours = (timeOfDay / (Math.PI * 2)) * 24 + 6;
                     if (hours >= 24) hours -= 24;
                     const hh = Math.floor(hours).toString().padStart(2, '0');
                     const mm = Math.floor((hours % 1) * 60).toString().padStart(2, '0');
                     targetTime.innerText = `'${hh}:${mm}'`;
+                    targetTime.style.color = 'var(--string-color)';
                 } else if (payload.landingMarker && payload.landingMarker.planetName === target.name) {
-                    // Calcular tiempo local en el marcador basado en la rotación actual del planeta
                     const rotY = target.rotationY || 0;
-                    // El vector del planeta a la estrella determina dónde da el sol
                     const starAngle = Math.atan2(target.starZ - target.z, target.starX - target.x);
-                    // Longitud actual rotada en el espacio = marker.lon - rotY
                     const currentWorldLon = payload.landingMarker.lon - rotY;
-
                     let timeOfDay = (starAngle - currentWorldLon) + Math.PI / 2;
-                    if (target.rotationSpeed < 0) {
-                        timeOfDay = Math.PI - timeOfDay;
-                    }
+                    if (target.rotationSpeed < 0) timeOfDay = Math.PI - timeOfDay;
                     timeOfDay = timeOfDay % (Math.PI * 2);
                     if (timeOfDay < 0) timeOfDay += Math.PI * 2;
                     let hours = (timeOfDay / (Math.PI * 2)) * 24 + 6;
@@ -1013,31 +1023,44 @@ export class UIManager {
                     const hh = Math.floor(hours).toString().padStart(2, '0');
                     const mm = Math.floor((hours % 1) * 60).toString().padStart(2, '0');
                     targetTime.innerText = `'${hh}:${mm}'`;
+                    targetTime.style.color = 'var(--string-color)';
                 } else {
                     targetTime.innerText = "'N/A'";
+                    targetTime.style.color = 'var(--string-color)';
                 }
             }
         }
 
         if (targetTemp) {
-            if (!isStar) {
-                targetTemp.parentElement.style.display = 'none';
-            } else {
-                targetTemp.parentElement.style.display = 'flex';
-                if (target.temperature !== undefined) {
-                    targetTemp.innerText = `'${target.temperature} K'`;
-
-                    // Color coding for temperature
-                    if (target.temperature > 5000) targetTemp.style.color = '#88ccff'; // Muy caliente (Estrellas azules)
-                    else if (target.temperature > 2000) targetTemp.style.color = '#ffffcc'; // Caliente (Estrellas / Lavas)
-                    else if (target.temperature > 350) targetTemp.style.color = '#ffaa44'; // Muy cálido
-                    else if (target.temperature > 250) targetTemp.style.color = '#55ff55'; // Templado / Habitable
-                    else if (target.temperature > 150) targetTemp.style.color = '#aaffff'; // Frío
-                    else targetTemp.style.color = '#aaaaaa'; // Congelado
-                } else {
-                    targetTemp.innerText = "'N/A'";
-                    targetTemp.style.color = 'var(--string-color)';
+            let temp = undefined;
+            if (isStar && target.temperature !== undefined) {
+                temp = target.temperature;
+            } else if (target.temperature !== undefined) {
+                // Para planetas, combinamos el cálculo físico (target.temperature) con la base del bioma
+                let baseBiomeTemp = 0;
+                if (Config.PLANET_BIOMES && Config.PLANET_BIOMES[target.type] && Config.PLANET_BIOMES[target.type].baseTemp !== undefined) {
+                    baseBiomeTemp = Config.PLANET_BIOMES[target.type].baseTemp;
                 }
+                temp = target.temperature + baseBiomeTemp;
+            } else if (Config.PLANET_BIOMES && Config.PLANET_BIOMES[target.type]) {
+                // Fallback si no tiene target.temperature precalculado (no debería ocurrir según Chunk.js)
+                temp = (Config.PLANET_BIOMES[target.type].baseTemp || 280) + (target.temperatureOffset || 0);
+            }
+
+            if (temp !== undefined) {
+                temp = Math.round(temp);
+                targetTemp.innerText = isStar ? `'${temp} K'` : `'${temp} °C'`;
+                
+                // Los rangos térmicos pueden variar, ajustamos los colores
+                if (temp > 5000) targetTemp.style.color = '#88ccff';
+                else if (temp > 2000) targetTemp.style.color = '#ffffcc';
+                else if (temp > 350) targetTemp.style.color = '#ffaa44';
+                else if (temp > 250 || (isStar && temp > 1000)) targetTemp.style.color = '#55ff55';
+                else if (temp > 150 || (isStar && temp > 500)) targetTemp.style.color = '#aaffff';
+                else targetTemp.style.color = '#aaaaaa';
+            } else {
+                targetTemp.innerText = "'N/A'";
+                targetTemp.style.color = 'var(--string-color)';
             }
         }
 

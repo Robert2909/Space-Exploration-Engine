@@ -54,7 +54,6 @@ export class SpaceState extends GameState {
         engine.camera.updateMatrixWorld();
 
         engine.universe.update(pos.x, pos.y, pos.z, dt, engine.camera);
-        engine.lighting.update(engine.camera.position, engine.universe);
 
         const maxDist = Config.UI_LABEL_MAX_DISTANCE;
         const maxDistSq = maxDist * maxDist;

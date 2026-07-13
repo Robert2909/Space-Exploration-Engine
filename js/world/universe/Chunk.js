@@ -796,9 +796,17 @@ export class Chunk {
             sys.update(dt);
             sys.updateAbsolutePosition(this.group.position.x, this.group.position.y, this.group.position.z);
 
-            // OPTIMIZACIÓN EXTREMA: Solo mostrar la estrella si pertenece al sistema actual
+            // OPTIMIZACIÓN EXTREMA: Solo mostrar la estrella si pertenece al sistema actual Y está dentro del rango visual
             // (incluyendo compañeras binarias si estamos en la principal, o viceversa)
-            const isCurrentSystem = (sys === closestSystem) || (sys.primary === closestSystem) || (sys === closestSystem?.primary);
+            const dx = playerLx - sys.lx;
+            const dy = playerLy - sys.ly;
+            const dz = playerLz - sys.lz;
+            const sysDistSq = dx*dx + dy*dy + dz*dz;
+            
+            const maxSysDist = sys.radius * Config.LOD_HIGH_DISTANCE_MULT;
+            const isInSysRange = sysDistSq < (maxSysDist * maxSysDist);
+
+            const isCurrentSystem = ((sys === closestSystem) || (sys.primary === closestSystem) || (sys === closestSystem?.primary)) && isInSysRange;
 
             // Calculamos atenuación por distancia centralmente
             let dist = 1000.0;
@@ -806,10 +814,7 @@ export class Chunk {
             let solarFilter = 0.0;
             
             if (isCurrentSystem) {
-                const dx = playerLx - sys.lx;
-                const dy = playerLy - sys.ly;
-                const dz = playerLz - sys.lz;
-                dist = Math.max(0.1, Math.sqrt(dx*dx + dy*dy + dz*dz));
+                dist = Math.max(0.1, Math.sqrt(sysDistSq));
                 distanceInRadii = dist / sys.radius;
                 
                 // Filtro Solar Automático (Telescopio H-Alpha de la nave)

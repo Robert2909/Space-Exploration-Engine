@@ -12,51 +12,25 @@ export const Config = {
     // ==========================================
     UNIVERSE_SEED_OFFSET: 3, // Cambia este número mágico (ej: 1337, 999) para generar un multiverso totalmente diferente
 
-
-
-
     // ==========================================
     // UNIVERSO Y GENERACIÓN PROCEDURAL
     // ==========================================
-    UNIVERSE_CHUNK_SIZE: 100000000000, // Tamaño de un sector del espacio (u)
-    STARS_PER_CHUNK: 200, // Cantidad de estrellas decorativas (puntos) por sector
+    UNIVERSE_CHUNK_SIZE: 1000000000000, // Tamaño de un sector del espacio (u)
+    STARS_PER_CHUNK: 600, // Cantidad de estrellas decorativas (puntos) por sector
     SYSTEM_SPAWN_CHANCE: 0.5, // Probabilidad (0.0 a 1.0) de que aparezcan planetas en un sector vacío
-    MAX_SYSTEMS_PER_CHUNK: 15, // Número máximo de sistemas solares por sector
+    MAX_SYSTEMS_PER_CHUNK: 10, // Número máximo de sistemas solares por sector
     BINARY_STAR_CHANCE: 0.05, // Probabilidad de que un sistema sea binario
     BINARY_STAR_DISTANCE_BASE_MULT: 3.0, // Multiplicador del radio del sol primario para separar la estrella binaria
     BINARY_STAR_DISTANCE_VAR_MULT: 3.0, // Variación aleatoria de la distancia de la estrella binaria
-    ASTEROID_BELT_CHANCE: 0.0, // Probabilidad de que un sistema tenga cinturón de asteroides
-
-
-
-
-    // ==========================================
-    // CINTURONES DE ASTEROIDES (Rangos Procedurales)
-    // ==========================================
-    ASTEROID_BELT_COUNT_MIN: 1000, // Sistemas limpios / vacíos
-    ASTEROID_BELT_COUNT_MAX: 3000, // Límite seguro para CPU/RAM (antes 15000 era letal)
-    ASTEROID_BELT_RADIUS_MULT_MIN: 10, // Muy cerca del sol
-    ASTEROID_BELT_RADIUS_MULT_MAX: 30, // Extremadamente lejos del sol
-    ASTEROID_BELT_WIDTH_MULT_MIN: 1, // Anillos muy finos y definidos
-    ASTEROID_BELT_WIDTH_MULT_MAX: 50, // Nubes esparcidas y gigantescas (tipo Nube de Oort)
-    ASTEROID_BELT_TILT_MIN: 0.1, // Completamente planos (como anillos de Saturno)
-    ASTEROID_BELT_TILT_MAX: 3, // Toroides hiper caóticos y dispersos verticalmente
-    ASTEROID_BELT_SPEED_BASE: 0.001, // Velocidad base de órbita del cinturón
-    ASTEROID_BELT_SPEED_VAR: 0.005, // Variación de velocidad orbital del cinturón
-    ASTEROID_SIZE_MIN: 500, // Radio mínimo de un asteroide
-    ASTEROID_SIZE_MAX: 1000, // Radio máximo de un asteroide (Algunos son auténticos planetas enanos)
-
+    ASTEROID_BELT_CHANCE: 0.1, // Probabilidad de que un sistema tenga cinturón de asteroides
     BLACK_HOLE_SPAWN_CHANCE: 0.001, // Probabilidad de que un chunk contenga un agujero negro (aislado)
-
-
-
 
     // ==========================================
     // ASTROS Y SISTEMAS SOLARES
     // ==========================================
     STAR_RADIUS_MIN: 20000, // Radio mínimo de estrella principal (200,000 km)
     STAR_RADIUS_MAX: 100000, // Radio máximo de estrella (1,000,000 km)
-    PLANETS_MAX_PER_SYSTEM: 6, // 1 a 6 planetas por estrella
+    PLANETS_MAX_PER_SYSTEM: 9, // 1 a 10 planetas por estrella
 
     // ANILLOS PLANETARIOS
     PLANET_RING_MIN_RADIUS_MULT: 1.5, // Empieza a 1.5x el radio del planeta
@@ -77,126 +51,31 @@ export const Config = {
     // VISUALES PLANETARIOS
     PLANET_TEXTURE_RESOLUTION_MULT: 2.0, // Multiplicador para aumentar la resolución/frecuencia del shader del terreno
 
-    ORBIT_DISTANCE_START: 1500000, // Distancia inicial (15 millones de km del Sol)
-    ORBIT_DISTANCE_SPACING: 800000, // Espacio mínimo entre las órbitas (8 millones de km)
-    ORBIT_DISTANCE_VAR: 500000, // Variación aleatoria del espacio entre órbitas
-    HELIOPAUSE_PADDING: 20000000, // Frontera del sistema solar después del último planeta
+    // ESCALA FÍSICA REALISTA (1 unidad = 10 km aprox)
+    // Para lograr temperaturas reales (Zonas: Caliente -> Habitable -> Fría -> Congelada)
+    ORBIT_DISTANCE_START: 3000000, // Distancia mínima (30M km, zona mercuriana)
+    ORBIT_DISTANCE_SPACING: 35000000, // Salto masivo entre órbitas (350M km, expansión real)
+    ORBIT_DISTANCE_VAR: 25000000, // Variación agresiva para órbitas caóticas
+    HELIOPAUSE_PADDING: 150000000, // Frontera enorme después del último planeta
 
     // ASTEROIDES
-    ASTEROID_MIN_ORBIT: 4000000,
-    ASTEROID_MAX_ORBIT: 12000000,
+    ASTEROID_MIN_ORBIT: 25000000, // Cinturón interior (250M km, tipo Cinturón Principal)
+    ASTEROID_MAX_ORBIT: 90000000, // Cinturón exterior (900M km, más allá de los gigantes)
 
     // ==========================================
     // TIPOS DE ESTRELLAS (DICCIONARIO MAESTRO)
     // ==========================================
     STAR_TYPES: {
-        'Gigante azul': {
-            chance: 0.10, // Probabilidad
-            hueBase: 0.55, hueVar: 0.1, sat: 0.8, litBase: 0.7, litVar: 0.2,
-            radiusMultMin: 1.5, radiusMultMax: 3.0, // Estrellas enormes
-            tempBase: 10000, tempVar: 30000
-        },
-        'Enana blanca': {
-            chance: 0.05,
-            hueBase: 0.6, hueVar: 0.1, sat: 0.1, litBase: 0.9, litVar: 0.1,
-            radiusMultMin: 0.1, radiusMultMax: 0.3, // Estrellas muy pequeñas
-            tempBase: 8000, tempVar: 30000
-        },
-        'Enana amarilla': {
-            chance: 0.35, // Muy común (como nuestro sol)
-            hueBase: 0.12, hueVar: 0.05, sat: 0.7, litBase: 0.6, litVar: 0.2,
-            radiusMultMin: 0.8, radiusMultMax: 1.2,
-            tempBase: 5000, tempVar: 1500
-        },
-        'Enana naranja': {
-            chance: 0.25, // Común
-            hueBase: 0.08, hueVar: 0.04, sat: 0.8, litBase: 0.5, litVar: 0.2,
-            radiusMultMin: 0.5, radiusMultMax: 0.9,
-            tempBase: 3500, tempVar: 1500
-        },
-        'Enana roja': {
-            chance: 0.20, // Común
-            hueBase: 0.0, hueVar: 0.05, sat: 0.8, litBase: 0.4, litVar: 0.2,
-            radiusMultMin: 0.2, radiusMultMax: 0.5, // Pequeñas
-            tempBase: 2000, tempVar: 1500
-        },
-        'Enana marrón': {
-            chance: 0.05, // Casi fallidas
-            hueBase: 0.05, hueVar: 0.02, sat: 0.6, litBase: 0.3, litVar: 0.1,
-            radiusMultMin: 0.15, radiusMultMax: 0.3,
-            tempBase: 500, tempVar: 1500
-        }
+        'Gigante azul': { chance: 0.05, hueBase: 0.55, hueVar: 0.1, sat: 0.8, litBase: 0.7, litVar: 0.2, radiusMultMin: 1.5, radiusMultMax: 3.0, tempBase: 10000, tempVar: 30000 },
+        'Supergigante roja': { chance: 0.02, hueBase: 0.02, hueVar: 0.05, sat: 0.9, litBase: 0.5, litVar: 0.2, radiusMultMin: 8.0, radiusMultMax: 20.0, tempBase: 3000, tempVar: 1000 },
+        'Enana blanca': { chance: 0.05, hueBase: 0.6, hueVar: 0.1, sat: 0.1, litBase: 0.9, litVar: 0.1, radiusMultMin: 0.05, radiusMultMax: 0.1, tempBase: 15000, tempVar: 50000 },
+        'Estrella de neutrones': { chance: 0.01, hueBase: 0.7, hueVar: 0.2, sat: 0.3, litBase: 0.9, litVar: 0.1, radiusMultMin: 0.005, radiusMultMax: 0.01, tempBase: 100000, tempVar: 500000 },
+        'Enana amarilla': { chance: 0.30, hueBase: 0.12, hueVar: 0.05, sat: 0.7, litBase: 0.6, litVar: 0.2, radiusMultMin: 0.8, radiusMultMax: 1.2, tempBase: 5000, tempVar: 1500 },
+        'Enana naranja': { chance: 0.25, hueBase: 0.08, hueVar: 0.04, sat: 0.8, litBase: 0.5, litVar: 0.2, radiusMultMin: 0.5, radiusMultMax: 0.9, tempBase: 3500, tempVar: 1500 },
+        'Enana roja': { chance: 0.20, hueBase: 0.0, hueVar: 0.05, sat: 0.8, litBase: 0.4, litVar: 0.2, radiusMultMin: 0.2, radiusMultMax: 0.5, tempBase: 2000, tempVar: 1500 },
+        'Enana marrón': { chance: 0.12, hueBase: 0.05, hueVar: 0.02, sat: 0.6, litBase: 0.2, litVar: 0.1, radiusMultMin: 0.1, radiusMultMax: 0.2, tempBase: 800, tempVar: 1000 }
     },
-    SUN_GLOW_SCALE: 4.5, // Tamaño del halo de luz visual de las estrellas (1.0 = igual al planeta)
-
-
-
-
-    // ==========================================
-    // SISTEMA DE MEDICIÓN (VISUAL)
-    // ==========================================
-    SCALE_U_TO_KM: 10, // 1 U espacial = 10 km reales (Ej: Planeta de 5,000 U = 50,000 km)
-    SCALE_U_TO_AU: 0.0000000668,
-    SCALE_U_TO_LY: 0.000000000001,
-    TIME_SCALE_ACCELERATION: 250, // Factor de "cámara rápida" del universo para que velocidades parezcan realistas (Tierra = 30km/s)
-    REFERENCE_EARTH_RADIUS_U: 637.1, // Radio real de la Tierra en unidades espaciales (Base 1G)
-    REFERENCE_HABITABLE_ZONE_U: 15000000, // Distancia de la Tierra al Sol en unidades (Zona habitable / Luz óptima)
-
-    // ==========================================
-    // AGUJEROS NEGROS
-    // ==========================================
-    BLACK_HOLE_SIZE_MULT_NORMAL: 20.0, // Variación de tamaño para agujeros negros normales (1.0 + X)
-    BLACK_HOLE_ULTRA_MASSIVE_CHANCE: 0.05, // Probabilidad de generar un ultramasivo (0.0 a 1.0)
-    BLACK_HOLE_SIZE_MULT_ULTRA: 150.0, // Tamaño extra para los ultramasivos
-    BLACK_HOLE_BASE_RADIUS_VAR: 50.0, // Variación del radio base antes de multiplicadores
-    BLACK_HOLE_DISK_SCALE: 1.0, // Escala de los discos de acreción
-    BLACK_HOLE_JET_LENGTH: 90.0, // Longitud del chorro relativista
-    BLACK_HOLE_JET_WIDTH: 6.0, // Ancho del chorro relativista
-    BLACK_HOLE_PANIC_RANGE_MULT: 100.0, // Rango de distorsión de cámara
-    BLACK_HOLE_DEATH_RANGE_MULT: 1.5, // Distancia para el evento de muerte
-    BLACK_HOLE_MAX_GRAVITY_MULT: 1.0, // Fuerza de atracción máxima
-    BLACK_HOLE_PULL_RADIUS_MULT: 100.0, // Alcance gravitatorio (n veces su tamaño)
-    BLACK_HOLE_GRAVITY_STRENGTH: 1000.0, // Fuerza del empuje gravitacional (1/r^2)
-    BLACK_HOLE_EVENT_HORIZON_MULT: 2.0, // Fricción aplastante al cruzar esto
-    BLACK_HOLE_PANIC_STRENGTH: 0.3, // Multiplicador del efecto de pánico visual
-
-
-
-
-    // ==========================================
-    // RENDERIZADO Y MEMORIA DEL TERRENO
-    // ==========================================
-    TERRAIN_CHUNK_SIZE: 5000, // Tamaño de cada bloque de terreno generado (En u métricas)
-    TERRAIN_CHUNK_RESOLUTION: 64, // Densidad de polígonos por chunk (Mayor = Terreno más suave pero más lag. 32=Bajo, 64=Normal, 128=Ultra)
-    TERRAIN_RENDER_DISTANCE: 1, // Distancia de render (1 = 3x3 chunks, 2 = 5x5 chunks)
-    TERRAIN_TARDIS_SCALE: 10, // Factor multiplicador del tamaño del planeta en tierra (Ilusión TARDIS)
-    TERRAIN_FOG_FALLBACK: 0.0002, // Niebla base en planetas sin atmósfera (Oculta el fin del mundo)
-    TERRAIN_FOG_MULTIPLIER: 0.02, // Escala el grosor de la atmósfera (0.2 = Más visibilidad a lo lejos)
-
-
-
-    // ==========================================
-    // FORMA Y RELIEVE DEL TERRENO (RUIDO FRACTAL PERLIN)
-    TERRAIN_BASE_HEIGHT: 800, // Altura máxima absoluta de montañas y valles (Recomendado: 800 a 1500)
-    TERRAIN_BASE_FREQUENCY: 0.0005, // Escala de estiramiento horizontal (Recomendado: 0.0005. Menor = colinas anchas, Mayor = picos estrechos)
-    TERRAIN_BASE_OCTAVES: 4, // Capas de detalle y rugosidad de roca (Recomendado: 4. Rango 1 a 5)
-    TERRAIN_BASE_EXPONENT: 1.5, // Aplanador de valles y alzador de picos (Recomendado: 1.5 a 2.0)
-
-    // ==========================================
-    // VARIACIÓN MUTACIONAL DEL TERRENO POR PLANETA
-    // Estas variables dictan qué tan extremo puede volverse un planeta individual respecto a las bases anteriores.
-    // ==========================================
-    TERRAIN_VAR_HEIGHT_BASE: 0.5, // Multiplicador mínimo de altura (0.5 = Mitad de montañas)
-    TERRAIN_VAR_HEIGHT_RANGE: 1.5, // Rango aleatorio a sumar (Base 0.5 + Rango 1.5 = Máximo 2.0x altura)
-    TERRAIN_VAR_FREQ_BASE: 0.5, // Multiplicador mínimo de frecuencia (0.5 = Colinas muy anchas)
-    TERRAIN_VAR_FREQ_RANGE: 1.5, // Rango aleatorio a sumar (Base 0.5 + Rango 1.5 = Máximo 2.0x estrechez)
-    TERRAIN_VAR_OCTAVES_SPREAD: 3, // Cuántas capas de detalle se pueden sumar/restar al azar (-1, 0, o +1)
-    TERRAIN_VAR_EXPONENT_BASE: 0.8, // Multiplicador base del aplanador
-    TERRAIN_VAR_EXPONENT_RANGE: 0.6, // Rango aleatorio a sumar (0.8 + 0.6 = Máximo 1.4x aplanador)
-
-
-
-
+    SUN_GLOW_SCALE: 4, // Tamaño del halo de luz visual de las estrellas (1.0 = igual al planeta)
 
     // ==========================================
     // BIOMAS PLANETARIOS (DICCIONARIO DE DATOS MAESTRO)
@@ -261,6 +140,50 @@ export const Config = {
     },
 
     // ==========================================
+    // CINTURONES DE ASTEROIDES (Rangos Procedurales)
+    // ==========================================
+    ASTEROID_BELT_COUNT_MIN: 1000, // Sistemas limpios / vacíos
+    ASTEROID_BELT_COUNT_MAX: 3000, // Límite seguro para CPU/RAM (antes 15000 era letal)
+    ASTEROID_BELT_RADIUS_MULT_MIN: 10, // Muy cerca del sol
+    ASTEROID_BELT_RADIUS_MULT_MAX: 30, // Extremadamente lejos del sol
+    ASTEROID_BELT_WIDTH_MULT_MIN: 1, // Anillos muy finos y definidos
+    ASTEROID_BELT_WIDTH_MULT_MAX: 50, // Nubes esparcidas y gigantescas (tipo Nube de Oort)
+    ASTEROID_BELT_TILT_MIN: 0.1, // Completamente planos (como anillos de Saturno)
+    ASTEROID_BELT_TILT_MAX: 3, // Toroides hiper caóticos y dispersos verticalmente
+    ASTEROID_BELT_SPEED_BASE: 0.001, // Velocidad base de órbita del cinturón
+    ASTEROID_BELT_SPEED_VAR: 0.005, // Variación de velocidad orbital del cinturón
+    ASTEROID_SIZE_MIN: 500, // Radio mínimo de un asteroide
+    ASTEROID_SIZE_MAX: 1000, // Radio máximo de un asteroide (Algunos son auténticos planetas enanos)
+
+    // ==========================================
+    // AGUJEROS NEGROS
+    // ==========================================
+    BLACK_HOLE_SIZE_MULT_NORMAL: 50.0, // Variación de tamaño para agujeros negros normales (1.0 + X)
+    BLACK_HOLE_ULTRA_MASSIVE_CHANCE: 0.01, // Probabilidad de generar un ultramasivo (0.0 a 1.0)
+    BLACK_HOLE_SIZE_MULT_ULTRA: 5000.0, // Tamaño extra para los ultramasivos
+    BLACK_HOLE_BASE_RADIUS_VAR: 100.0, // Variación del radio base antes de multiplicadores
+    BLACK_HOLE_DISK_SCALE: 1.0, // Escala de los discos de acreción
+    BLACK_HOLE_JET_LENGTH: 90.0, // Longitud del chorro relativista
+    BLACK_HOLE_JET_WIDTH: 6.0, // Ancho del chorro relativista
+    BLACK_HOLE_PANIC_RANGE_MULT: 100.0, // Rango de distorsión de cámara
+    BLACK_HOLE_DEATH_RANGE_MULT: 1.5, // Distancia para el evento de muerte
+    BLACK_HOLE_MAX_GRAVITY_MULT: 1.0, // Fuerza de atracción máxima
+    BLACK_HOLE_PULL_RADIUS_MULT: 100.0, // Alcance gravitatorio (n veces su tamaño)
+    BLACK_HOLE_GRAVITY_STRENGTH: 1000.0, // Fuerza del empuje gravitacional (1/r^2)
+    BLACK_HOLE_EVENT_HORIZON_MULT: 2.0, // Fricción aplastante al cruzar esto
+    BLACK_HOLE_PANIC_STRENGTH: 0.3, // Multiplicador del efecto de pánico visual
+
+    // ==========================================
+    // SISTEMA DE MEDICIÓN (VISUAL)
+    // ==========================================
+    SCALE_U_TO_KM: 10, // 1 U espacial = 10 km reales (Ej: Planeta de 5,000 U = 50,000 km)
+    SCALE_U_TO_AU: 0.0000000668,
+    SCALE_U_TO_LY: 0.000000000001,
+    TIME_SCALE_ACCELERATION: 250, // Factor de "cámara rápida" del universo para que velocidades parezcan realistas (Tierra = 30km/s)
+    REFERENCE_EARTH_RADIUS_U: 637.1, // Radio real de la Tierra en unidades espaciales (Base 1G)
+    REFERENCE_HABITABLE_ZONE_U: 15000000, // Distancia de la Tierra al Sol en unidades (Zona habitable / Luz óptima)
+
+    // ==========================================
     // FÍSICAS DE LA NAVE (JUGADOR)
     // ==========================================
     PLAYER_SPEED: 6000, // Velocidad base de vuelo (unidades por segundo)
@@ -270,15 +193,39 @@ export const Config = {
     PLAYER_BOOST_MULTIPLIER: 20, // Multiplicador de velocidad al presionar Shift (Hyperdrive)
     PLAYER_FRICTION: 0.985, // Fricción en el espacio (1.0 = patinar infinito, 0.5 = freno brusco)
     PLAYER_BRAKE_FRICTION: 0.90, // Fricción al presionar [ESPACIO] para frenar
-    MOUSE_SENSITIVITY: 0.0015, // Sensibilidad del giro de cámara con el ratón
+    MOUSE_SENSITIVITY: 0.0010, // Sensibilidad del giro de cámara con el ratón
     CINEMATIC_CAMERA_FRICTION: 0.97, // Conservación de inercia del ratón en modo cinemático (1.0 = infinito)
     CINEMATIC_CAMERA_SENSITIVITY: 0.0001, // Sensibilidad reducida para el modo cinemático
     ROLL_SPEED: 2.0, // Velocidad máxima de alabeo (rotar en el eje Z con Q y E)
 
+    // ==========================================
+    // RENDERIZADO Y MEMORIA DEL TERRENO
+    // ==========================================
+    TERRAIN_CHUNK_SIZE: 5000, // Tamaño de cada bloque de terreno generado (En u métricas)
+    TERRAIN_CHUNK_RESOLUTION: 64, // Densidad de polígonos por chunk (Mayor = Terreno más suave pero más lag. 32=Bajo, 64=Normal, 128=Ultra)
+    TERRAIN_RENDER_DISTANCE: 1, // Distancia de render (1 = 3x3 chunks, 2 = 5x5 chunks)
+    TERRAIN_TARDIS_SCALE: 10, // Factor multiplicador del tamaño del planeta en tierra (Ilusión TARDIS)
+    TERRAIN_FOG_FALLBACK: 0.0002, // Niebla base en planetas sin atmósfera (Oculta el fin del mundo)
+    TERRAIN_FOG_MULTIPLIER: 0.02, // Escala el grosor de la atmósfera (0.2 = Más visibilidad a lo lejos)
 
+    // ==========================================
+    // FORMA Y RELIEVE DEL TERRENO (RUIDO FRACTAL PERLIN)
+    TERRAIN_BASE_HEIGHT: 800, // Altura máxima absoluta de montañas y valles (Recomendado: 800 a 1500)
+    TERRAIN_BASE_FREQUENCY: 0.0005, // Escala de estiramiento horizontal (Recomendado: 0.0005. Menor = colinas anchas, Mayor = picos estrechos)
+    TERRAIN_BASE_OCTAVES: 4, // Capas de detalle y rugosidad de roca (Recomendado: 4. Rango 1 a 5)
+    TERRAIN_BASE_EXPONENT: 1.5, // Aplanador de valles y alzador de picos (Recomendado: 1.5 a 2.0)
 
-
-
+    // ==========================================
+    // VARIACIÓN MUTACIONAL DEL TERRENO POR PLANETA
+    // Estas variables dictan qué tan extremo puede volverse un planeta individual respecto a las bases anteriores.
+    // ==========================================
+    TERRAIN_VAR_HEIGHT_BASE: 0.5, // Multiplicador mínimo de altura (0.5 = Mitad de montañas)
+    TERRAIN_VAR_HEIGHT_RANGE: 1.5, // Rango aleatorio a sumar (Base 0.5 + Rango 1.5 = Máximo 2.0x altura)
+    TERRAIN_VAR_FREQ_BASE: 0.5, // Multiplicador mínimo de frecuencia (0.5 = Colinas muy anchas)
+    TERRAIN_VAR_FREQ_RANGE: 1.5, // Rango aleatorio a sumar (Base 0.5 + Rango 1.5 = Máximo 2.0x estrechez)
+    TERRAIN_VAR_OCTAVES_SPREAD: 3, // Cuántas capas de detalle se pueden sumar/restar al azar (-1, 0, o +1)
+    TERRAIN_VAR_EXPONENT_BASE: 0.8, // Multiplicador base del aplanador
+    TERRAIN_VAR_EXPONENT_RANGE: 0.6, // Rango aleatorio a sumar (0.8 + 0.6 = Máximo 1.4x aplanador)
 
     // ==========================================
     // ==========================================
@@ -299,8 +246,36 @@ export const Config = {
     TERRAIN_JETPACK_REFILL: 50, // Recarga de combustible por segundo
     TERRAIN_MOUSE_SENSITIVITY: 0.0015, // Sensibilidad de la vista en tierra
 
+    // ==========================================
+    // PARÁMETROS ESPECÍFICOS DE TERRENO Y CLIMA
+    // ==========================================
+    TERRAIN_SHIP_SPAWN_DISTANCE: 25,
+    TERRAIN_FLASHLIGHT_ANGLE: Math.PI / 4,
+    TERRAIN_FLASHLIGHT_PENUMBRA: 0.5,
+    TERRAIN_FLASHLIGHT_DECAY: 0.75,
+    TERRAIN_FLASHLIGHT_DISTANCE: 10000,
+    TERRAIN_FLASHLIGHT_DISTANCE_BASE: 10000,
+    TERRAIN_FLASHLIGHT_DISTANCE_STEP: 2000,
+    TERRAIN_FLASHLIGHT_POWER_DEFAULT: 2,
+    TERRAIN_FLASHLIGHT_POWER_STEP: 0.5,
+    TERRAIN_FLASHLIGHT_POWER_MAX: 15,
+    TERRAIN_FOG_DIVISOR: 4500,
+    TERRAIN_LIFTOFF_ATMOSPHERE_HEIGHT: 100000,
 
-
+    // ==========================================
+    // PILOTO AUTOMÁTICO Y CINEMÁTICAS
+    // ==========================================
+    AUTOPILOT_MIN_SPEED: 60000, // Velocidad mínima de viaje (unidades por segundo)
+    AUTOPILOT_MAX_SPEED: 6000000000, // Velocidad máxima permitida (50M uds/s)
+    AUTOPILOT_DESIRED_SECONDS: 1.0, // Segundos teóricos en los que queremos que llegue al objetivo para escalar velocidad
+    AUTOPILOT_BRAKE_MULTIPLIER: 0.70, // Desaceleración violenta por frame al llegar (Salto cuántico)
+    AUTOPILOT_BRAKE_ZONE_MULT: 1, // Multiplicador de radio para iniciar la frenada cuántica
+    AUTOPILOT_ARRIVAL_MULT: 3, // Multiplicador de radio para detenerse y orbitar (Cinemático FOV)
+    AUTOPILOT_MAX_ARRIVAL_DISTANCE: 6000000, // Límite máximo absoluto de distancia de órbita para monstruosidades
+    AUTOPILOT_APPROACH_LOCK_MULT: 1.5, // Multiplicador relativo a la órbita final para bloquear cámara y mostrar alerta
+    AUTOPILOT_FREELOOK_TIMEOUT: 3000, // Ms de inactividad libre antes de re-alinear vista
+    AUTOPILOT_MAX_SPEED_NORMAL: 600000, // Velocidad crucero normal
+    CINEMATIC_ORBIT_SPEED: 0.10, // Velocidad (rad/s) de la órbita de cámara alrededor del objetivo
 
     // ==========================================
     // CONTROLES Y ATAJOS DE TECLADO (HOTKEYS)
@@ -327,7 +302,7 @@ export const Config = {
     // ==========================================
     // MOTOR GRÁFICO (RENDER & RENDIMIENTO)
     // ==========================================
-    RENDER_FOV: 90, // Campo de visión de la cámara (Grados)
+    RENDER_FOV: 60, // Campo de visión de la cámara (Grados)
     RENDER_NEAR_PLANE: 0.0001, // Distancia mínima de visión antes de recortar polígonos (clipping)
     RENDER_FAR_PLANE: 1000000000, // Límite visual de la cámara (1 billón de u para ver quásares)
     RENDER_LOGARITHMIC_DEPTH: true, // Mantiene matemáticas estables a trillones de km sin romper la textura (Z-Fighting)
@@ -337,76 +312,15 @@ export const Config = {
     RENDER_STAR_POINT_SIZE: 1, // Tamaño de los puntos de luz estelares
     RENDER_ANTIALIAS: false, // Suavizado de bordes (Apagar para +70% FPS)
 
-
-
-
-    // ==========================================
-    // SISTEMA DE IMPOSTORES (LOD PROFUNDO)
-    // ==========================================
-    IMPOSTOR_RENDER_DISTANCE_CHUNKS: 10, // A cuántos chunks de distancia buscamos anomalías para proyectar
-    IMPOSTOR_UPDATE_INTERVAL: 1000, // Cada cuántos milisegundos se actualizan los impostores
-
-
-
-
-    // ==========================================
-    // ILUMINACIÓN AMBIENTAL
-    // ==========================================
-    LIGHT_AMBIENT_COLOR: 0x222233, // Color de la luz base que baña todo el espacio (Gris azulado oscuro)
-    LIGHT_SUN_INTENSITY: 4, // Fuerza con la que el Sol más cercano ilumina tus planetas
-    LIGHT_SUN_DISTANCE: 100000000, // Distancia a la que viaja la luz del Sol más cercano
-
-
-
-
     // ==========================================
     // INTERFAZ Y CONTROLES
     // ==========================================
-    UI_MAX_LABELS: 20, // Máximo de etiquetas de nombres mostrándose al mismo tiempo
+    UI_MAX_LABELS: 10, // Máximo de etiquetas de nombres mostrándose al mismo tiempo
     UI_LABEL_MAX_DISTANCE: 10000000, // Distancia máxima base (u) a la que ves el nombre de un planeta/estrella
     UI_LABEL_DISTANCE_MULT: 100, // Multiplicador del radio para ver el label a mayor distancia si es un gigante
     TARGET_HITBOX_MULT: 1.2, // Multiplicador del radio del astro para hacer clic en él (1.2 = ligero perdón visual)
     PROXIMITY_SHIELD_MULT: 1.1, // Multiplicador del radio al que empieza a funcionar el deflector de colisión
     PROXIMITY_SHIELD_MIN_SPEED: 50, // Velocidad mínima garantizada cuando estás empotrado contra el planeta (uds/s)
-
-
-
-
-    // ==========================================
-    // PILOTO AUTOMÁTICO Y CINEMÁTICAS
-    // ==========================================
-    AUTOPILOT_MIN_SPEED: 60000, // Velocidad mínima de viaje (unidades por segundo)
-    AUTOPILOT_MAX_SPEED: 6000000000, // Velocidad máxima permitida (50M uds/s)
-    AUTOPILOT_DESIRED_SECONDS: 1.0, // Segundos teóricos en los que queremos que llegue al objetivo para escalar velocidad
-    AUTOPILOT_BRAKE_MULTIPLIER: 0.70, // Desaceleración violenta por frame al llegar (Salto cuántico)
-    AUTOPILOT_BRAKE_ZONE_MULT: 5, // Multiplicador de radio para iniciar la frenada cuántica
-    AUTOPILOT_ARRIVAL_MULT: 2, // Multiplicador de radio para detenerse y orbitar (Cinemático FOV)
-    AUTOPILOT_MAX_ARRIVAL_DISTANCE: 6000000, // Límite máximo absoluto de distancia de órbita para monstruosidades
-    AUTOPILOT_APPROACH_LOCK_MULT: 1.5, // Multiplicador relativo a la órbita final para bloquear cámara y mostrar alerta
-    AUTOPILOT_FREELOOK_TIMEOUT: 3000, // Ms de inactividad libre antes de re-alinear vista
-    AUTOPILOT_MAX_SPEED_NORMAL: 600000, // Velocidad crucero normal
-    CINEMATIC_ORBIT_SPEED: 0.15, // Velocidad (rad/s) de la órbita de cámara alrededor del objetivo
-
-
-
-
-
-    // ==========================================
-    // ==========================================
-    // PARÁMETROS ESPECÍFICOS DE TERRENO Y CLIMA
-    // ==========================================
-    TERRAIN_SHIP_SPAWN_DISTANCE: 25,
-    TERRAIN_FLASHLIGHT_ANGLE: Math.PI / 4,
-    TERRAIN_FLASHLIGHT_PENUMBRA: 0.5,
-    TERRAIN_FLASHLIGHT_DECAY: 0.75,
-    TERRAIN_FLASHLIGHT_DISTANCE: 10000,
-    TERRAIN_FLASHLIGHT_DISTANCE_BASE: 10000,
-    TERRAIN_FLASHLIGHT_DISTANCE_STEP: 2000,
-    TERRAIN_FLASHLIGHT_POWER_DEFAULT: 2,
-    TERRAIN_FLASHLIGHT_POWER_STEP: 0.5,
-    TERRAIN_FLASHLIGHT_POWER_MAX: 15,
-    TERRAIN_FOG_DIVISOR: 4500,
-    TERRAIN_LIFTOFF_ATMOSPHERE_HEIGHT: 100000,
 
     // ==========================================
     // AUDIO Y SINTESIS PROCEDURAL

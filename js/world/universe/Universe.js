@@ -10,6 +10,16 @@ export class Universe {
         this.renderDistance = 1; 
         this.chunkSize = Config.UNIVERSE_CHUNK_SIZE;
         this.currentHighLODPlanet = null;
+
+        // Iluminación global y dinámica
+        this.ambientLight = new THREE.AmbientLight(0x101015);
+        this.scene.add(this.ambientLight);
+
+        this.systemLight = new THREE.PointLight(0xffffff, 4, 100000000, 0);
+        this.scene.add(this.systemLight);
+
+        this.companionLight = new THREE.PointLight(0xffffff, 2, 100000000, 0);
+        this.scene.add(this.companionLight);
     }
     
     setHighLODPlanet(planet) {
@@ -198,6 +208,47 @@ export class Universe {
                 const playerLz = playerZ - chunk.group.position.z;
                 chunk.update(dt, playerLx, playerLy, playerLz, ents.closestSystem, ents.closestPlanet, camera);
             }
+        }
+
+        // --- SISTEMA DE ILUMINACIÓN DE ESTRELLAS ---
+        if (ents.closestSystem) {
+            const sys = ents.closestSystem;
+            
+            // Estrella principal
+            if (!sys.isCompanion) {
+                this.systemLight.position.set(sys.x, sys.y, sys.z);
+                this.systemLight.color.setHex(sys.sunColor);
+                this.systemLight.intensity = Math.max(2, Math.log10(sys.radius + 1) * 3);
+                this.systemLight.visible = true;
+
+                // Si tiene compañera binaria
+                if (sys.companion) {
+                    this.companionLight.position.set(sys.companion.x, sys.companion.y, sys.companion.z);
+                    this.companionLight.color.setHex(sys.companion.sunColor);
+                    this.companionLight.intensity = Math.max(1, Math.log10(sys.companion.radius + 1) * 2);
+                    this.companionLight.visible = true;
+                } else {
+                    this.companionLight.visible = false;
+                }
+            } else {
+                // Si la estrella más cercana es una compañera binaria
+                this.systemLight.position.set(sys.x, sys.y, sys.z);
+                this.systemLight.color.setHex(sys.sunColor);
+                this.systemLight.intensity = Math.max(2, Math.log10(sys.radius + 1) * 3);
+                this.systemLight.visible = true;
+
+                if (sys.primary) {
+                    this.companionLight.position.set(sys.primary.x, sys.primary.y, sys.primary.z);
+                    this.companionLight.color.setHex(sys.primary.sunColor);
+                    this.companionLight.intensity = Math.max(1, Math.log10(sys.primary.radius + 1) * 2);
+                    this.companionLight.visible = true;
+                } else {
+                    this.companionLight.visible = false;
+                }
+            }
+        } else {
+            this.systemLight.visible = false;
+            this.companionLight.visible = false;
         }
     }
 

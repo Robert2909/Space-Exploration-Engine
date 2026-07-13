@@ -2,7 +2,6 @@ import * as THREE from 'three';
 import { Config } from './Config.js';
 import { SpaceControls } from '../player/space/SpaceControls.js';
 import { Universe } from '../world/universe/Universe.js';
-import { LightingManager } from '../graphics/LightingManager.js';
 import { UIManager } from '../ui/UIManager.js';
 import { TerrainManager } from '../world/terrain/TerrainManager.js';
 import { TerrainControls } from '../player/terrain/TerrainControls.js';
@@ -25,7 +24,6 @@ export class Engine {
         this.interactionSystem = new InteractionSystem(this);
         this.audioManager = new AudioManager(this);
 
-        this.lighting = new LightingManager(this.scene);
         this.controls = new SpaceControls(this.camera, document.body);
         this.universe = new Universe(this.scene);
         this.ui = new UIManager(this.camera);
@@ -387,8 +385,12 @@ export class Engine {
             // Destruir Universo (Congelar el espacio)
             this.universe.dispose();
             this.controls.dispose(); // Quita listeners del espacio
-            
+
             if (isGasGiant) {
+                this.universe.systemLight.visible = false;
+                this.universe.companionLight.visible = false;
+                this.universe.ambientLight.visible = false;
+
                 this.gameState = 'GAS_DIVE';
                 EventManager.emit(EVENTS.STATE_CHANGED, this.gameState);
 
@@ -433,13 +435,17 @@ export class Engine {
                     return this.terrainManager.generator.getVisualHeightAt(x, z);
                 });
 
-                // Apagar luces espaciales
-                this.lighting.systemLight.visible = false;
-                this.lighting.ambientLight.visible = false;
+                // Apagar linterna si estaba prendida
+                if (this.flashlight) this.scene.remove(this.flashlight);
+
+                // Apagar luces espaciales del universo
+                this.universe.systemLight.visible = false;
+                this.universe.companionLight.visible = false;
+                this.universe.ambientLight.visible = false;
 
                 // Gravedad Planetaria Dinámica
                 const earthRadius = 2000;
-                const gravityScale = Math.max(0.1, planet.radius / earthRadius); 
+                const gravityScale = Math.max(0.1, planet.radius / earthRadius);
                 this.terrainControls.setGravityScale(gravityScale);
                 // Heredar estado de lock
                 if (document.pointerLockElement === document.body) this.terrainControls.isLocked = true;
@@ -448,7 +454,7 @@ export class Engine {
                 this.camera.near = 0.1;
                 this.camera.far = 40000;
                 this.camera.updateProjectionMatrix();
-                this.scene.fog.density = 2.5 / Config.TERRAIN_FOG_DIVISOR; 
+                this.scene.fog.density = 2.5 / Config.TERRAIN_FOG_DIVISOR;
 
                 // Posicionar jugador en el punto exacto del terreno, garantizando que esté sobre el suelo
                 const spawnY = this.terrainManager.generator.getVisualHeightAt(startX, startZ) + 10;
@@ -489,10 +495,12 @@ export class Engine {
                     if (this.terrainControls) this.terrainControls.dispose();
                     this.terrainManager = null;
                     this.terrainControls = null;
-
-                    // Restaurar luces espaciales
-                    this.lighting.systemLight.visible = true;
-                    this.lighting.ambientLight.visible = true;
+                    this.controls.isLocked = true;
+                    
+                    // Restaurar luces espaciales del universo
+                    this.universe.systemLight.visible = true;
+                    this.universe.companionLight.visible = true;
+                    this.universe.ambientLight.visible = true;
 
                     // Apagar linterna
                     this.isFlashlightOn = false;
