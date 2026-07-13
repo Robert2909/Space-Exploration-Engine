@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { seededRandom } from '../../utils/MathUtils.js';
+import { seededRandom, starColorFromTemp } from '../../utils/MathUtils.js';
 import { generateStarName, generatePlanetName, generateBlackHoleName } from '../generators/NameGenerator.js';
 import { Config } from '../../core/Config.js';
 import { Star } from '../entities/Star.js';
@@ -183,6 +183,13 @@ export class Chunk {
                 }
                 const starTemp = Math.floor((starData.tempBase || 5000) + seededRandom(cx, cy, cz, seedBase + 30) * (starData.tempVar || 1500));
                 const starRadius = Config.STAR_RADIUS_MIN + seededRandom(cx, cy, cz, seedBase + 5) * (Config.STAR_RADIUS_MAX - Config.STAR_RADIUS_MIN);
+                
+                // Color is now based strictly on blackbody radiation from its physical temperature
+                const starRGB = starColorFromTemp(starTemp);
+                const _tempStarCol = new THREE.Color(starRGB.r, starRGB.g, starRGB.b);
+                const starHSLObj = {};
+                _tempStarCol.getHSL(starHSLObj);
+                let starColorHSL = `hsl(${Math.floor(starHSLObj.h * 360)}, ${Math.floor(starHSLObj.s * 100)}%, ${Math.floor(starHSLObj.l * 100)}%)`;
 
                 // --- BINARY STAR PRE-CHECK ---
                 const isBinary = seededRandom(cx, cy, cz, seedBase + 50) > (1 - Config.BINARY_STAR_CHANCE);
@@ -206,6 +213,12 @@ export class Chunk {
                     compTemp = Math.floor((compStarData.tempBase || 5000) + seededRandom(cx, cy, cz, seedBase + 53) * (compStarData.tempVar || 1500));
                     const compBaseRadius = Config.STAR_RADIUS_MIN + seededRandom(cx, cy, cz, seedBase + 60) * (Config.STAR_RADIUS_MAX - Config.STAR_RADIUS_MIN);
                     compRadius = compBaseRadius * (compStarData.radiusMultMin + seededRandom(cx, cy, cz, seedBase + 61) * (compStarData.radiusMultMax - compStarData.radiusMultMin));
+                    
+                    const compRGB = starColorFromTemp(compTemp);
+                    const _tempCompCol = new THREE.Color(compRGB.r, compRGB.g, compRGB.b);
+                    const compHSLObj = {};
+                    _tempCompCol.getHSL(compHSLObj);
+                    var compColorHSL = `hsl(${Math.floor(compHSLObj.h * 360)}, ${Math.floor(compHSLObj.s * 100)}%, ${Math.floor(compHSLObj.l * 100)}%)`;
                     
                     compDistance = starRadius * Config.BINARY_STAR_DISTANCE_BASE_MULT + seededRandom(cx, cy, cz, seedBase + 56) * starRadius * Config.BINARY_STAR_DISTANCE_VAR_MULT;
                     compAngle = seededRandom(cx, cy, cz, seedBase + 57) * Math.PI * 2;
@@ -259,6 +272,18 @@ export class Chunk {
 
                     const isGasGiant = biome.isGasGiant === true;
 
+                    let pHue = 0, pSat = 0.5, pLit = 0.5;
+                    if (isGasGiant) {
+                        if (biome.hueBase !== undefined) pHue = (biome.hueBase + (seededRandom(cx, cy, cz, pSeed + 10) * biome.hueVar)) % 1.0;
+                        if (biome.sat !== undefined) pSat = biome.sat;
+                        if (biome.lit !== undefined) pLit = biome.lit;
+                    } else {
+                        pSat = biome.sat !== undefined ? biome.sat : ((biome.satRandomBase||0.5) + seededRandom(cx, cy, cz, pSeed + 1) * (biome.satRandomMult||0.5));
+                        pLit = biome.lit !== undefined ? biome.lit : ((biome.litRandomBase||0.5) + seededRandom(cx, cy, cz, pSeed + 2) * (biome.litRandomMult||0.5));
+                        pHue = biome.useSystemHue ? starHSLObj.h : ((biome.hueBase||0) + seededRandom(cx, cy, cz, pSeed) * (biome.hueVar||0));
+                    }
+                    const pColorHSL = `hsl(${Math.floor(pHue * 360)}, ${Math.floor(pSat * 100)}%, ${Math.floor(pLit * 100)}%)`;
+
                     const pRadiusBase = isGasGiant ? (Config.PLANET_GAS_RADIUS_MIN + seededRandom(cx, cy, cz, pSeed + 6) * (Config.PLANET_GAS_RADIUS_MAX - Config.PLANET_GAS_RADIUS_MIN)) : (Config.PLANET_ROCKY_RADIUS_MIN + seededRandom(cx, cy, cz, pSeed + 7) * (Config.PLANET_ROCKY_RADIUS_MAX - Config.PLANET_ROCKY_RADIUS_MIN));
                     const pRadius = pRadiusBase * (biome.radiusMult !== undefined ? biome.radiusMult : 1.0);
 
@@ -273,7 +298,8 @@ export class Chunk {
                         lx: lx + Math.cos(startAngle) * orbitRadius,
                         ly: ly,
                         lz: lz + Math.sin(startAngle) * orbitRadius,
-                        temperature: pTemp
+                        temperature: pTemp,
+                        colorHSL: pColorHSL
                     });
                 }
 
@@ -285,7 +311,8 @@ export class Chunk {
                     radius: starRadius,
                     lx: lx, ly: ly, lz: lz,
                     planets: planetsData,
-                    temperature: starTemp
+                    temperature: starTemp,
+                    colorHSL: starColorHSL
                 });
 
                 if (isBinary) {
@@ -299,7 +326,8 @@ export class Chunk {
                         ly: ly + Math.sin(compAngle) * (compDistance * 0.1),
                         lz: lz + Math.sin(compAngle) * compDistance,
                         planets: [],
-                        temperature: compTemp
+                        temperature: compTemp,
+                        colorHSL: compColorHSL
                     });
                 }
             }
@@ -390,19 +418,17 @@ export class Chunk {
                     }
                 }
 
-                let sunColorObj = new THREE.Color();
-                sunColorObj.setHSL(
-                    starData.hueBase + seededRandom(this.cx, this.cy, this.cz, seedBase + 10) * starData.hueVar,
-                    starData.sat,
-                    starData.litBase + seededRandom(this.cx, this.cy, this.cz, seedBase + 11) * starData.litVar
-                );
+                // Nuevas propiedades procedimentales de estrella
+                const starTemp = Math.floor((starData.tempBase || 5000) + seededRandom(this.cx, this.cy, this.cz, seedBase + 30) * (starData.tempVar || 1500));
+                
+                // Generar color científicamente a partir de la temperatura Blackbody
+                const starRGB = starColorFromTemp(starTemp);
+                let sunColorObj = new THREE.Color(starRGB.r, starRGB.g, starRGB.b);
                 const sunColor = sunColorObj.getHex();
-
+                
                 const baseRadius = Config.STAR_RADIUS_MIN + seededRandom(this.cx, this.cy, this.cz, seedBase + 5) * (Config.STAR_RADIUS_MAX - Config.STAR_RADIUS_MIN);
                 const sunRadius = baseRadius * (starData.radiusMultMin + seededRandom(this.cx, this.cy, this.cz, seedBase + 6) * (starData.radiusMultMax - starData.radiusMultMin));
                 
-                // Nuevas propiedades procedimentales de estrella
-                const starTemp = Math.floor((starData.tempBase || 5000) + seededRandom(this.cx, this.cy, this.cz, seedBase + 30) * (starData.tempVar || 1500));
                 const starActivity = 0.5 + seededRandom(this.cx, this.cy, this.cz, seedBase + 31) * 1.5; // Multiplicador de velocidad de corona
                 // Luminosidad basada en la Ley de Stefan-Boltzmann (L ∝ R² * T⁴) usando el Sol de referencia
                 const luminosityRatio = Math.pow(sunRadius / 70000, 2) * Math.pow(starTemp / 5778, 4);
@@ -521,10 +547,18 @@ export class Chunk {
                         // Leer datos del registro (Data-Driven Pattern)
                         const biome = Config.PLANET_BIOMES[pType] || Config.PLANET_BIOMES['Planeta rocoso'];
 
-                        // Color base procedural
                         let pSat = biome.sat !== undefined ? biome.sat : (biome.satRandomBase + seededRandom(this.cx, this.cy, this.cz, pSeed + 1) * biome.satRandomMult);
                         let pLit = biome.lit !== undefined ? biome.lit : (biome.litRandomBase + seededRandom(this.cx, this.cy, this.cz, pSeed + 2) * biome.litRandomMult);
-                        let pHue = biome.useSystemHue ? hue : (biome.hueBase + seededRandom(this.cx, this.cy, this.cz, pSeed) * biome.hueVar);
+                        
+                        let pHue = 0;
+                        if (biome.useSystemHue) {
+                            const starHSL = {};
+                            sunColorObj.getHSL(starHSL);
+                            pHue = starHSL.h;
+                        } else {
+                            pHue = (biome.hueBase + seededRandom(this.cx, this.cy, this.cz, pSeed) * biome.hueVar);
+                        }
+                        
                         pColor.setHSL(pHue, pSat, pLit);
 
                         // Densidad atmosférica
@@ -648,12 +682,8 @@ export class Chunk {
 
                 // --- BINARY STAR INSTANTIATION ---
                 if (isBinary) {
-                    let compColorObj = new THREE.Color();
-                    compColorObj.setHSL(
-                        compStarData.hueBase + seededRandom(this.cx, this.cy, this.cz, seedBase + 54) * compStarData.hueVar,
-                        compStarData.sat,
-                        compStarData.litBase + seededRandom(this.cx, this.cy, this.cz, seedBase + 55) * compStarData.litVar
-                    );
+                    const compRGB = starColorFromTemp(compTemp);
+                    let compColorObj = new THREE.Color(compRGB.r, compRGB.g, compRGB.b);
                     const compColor = compColorObj.getHex();
 
                     const compAngle = seededRandom(this.cx, this.cy, this.cz, seedBase + 57) * Math.PI * 2;

@@ -134,7 +134,6 @@ canvas {
     flex: 1;
     min-height: 0;
     overflow-y: auto;
-    scroll-behavior: smooth; /* Desplazamiento suave para facilitar la lectura visual rápida */
     padding-right: 5px;
     margin-top: 0;
     border-top: none;

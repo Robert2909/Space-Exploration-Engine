@@ -490,7 +490,8 @@ export class UIManager {
             for (let i = 0; i < this.latestScanResults.length; i++) {
                 const group = this.latestScanResults[i].group;
                 const hasTemp = group === 'Star' || group === 'Estrella' || group === 'Planet' || group === 'Planeta';
-                const h = hasTemp ? 63 : 50; // Approximated accurate heights
+                // Altura exacta matemática = height (60px o 47px) + marginBottom (5px)
+                const h = hasTemp ? 65 : 52; 
                 this._locatorHeights[i] = totalHeight;
                 totalHeight += h;
             }
@@ -510,7 +511,8 @@ export class UIManager {
 
                 const scrollTop = resultsDiv.scrollTop;
                 const buffer = 3;
-                const visibleItems = 15;
+                // Min height expected is 47px (BlackHoles), max 60px. Usamos 45px para garantizar cubrir todo.
+                const visibleItems = Math.ceil(resultsDiv.clientHeight / 45) + 2;
 
                 // Find startIndex via search through prefix sums
                 let startIndex = 0;
@@ -551,9 +553,11 @@ export class UIManager {
                         item.className = 'locator-result-item';
                         item.style.marginBottom = '5px';
                         item.style.overflow = 'hidden';
+                        item.style.boxSizing = 'border-box'; // Fuerza matemática bruta
 
                         const titleDiv = document.createElement('div');
-                        titleDiv.style.cssText = "font-size: 0.8rem; font-weight: bold; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 2px;";
+                        // line-height forzado a 1.1 para evitar que símbolos especiales estiren el div
+                        titleDiv.style.cssText = "font-size: 0.8rem; font-weight: bold; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 2px; line-height: 1.1;";
                         const iconSpan = document.createElement('span');
                         const nameText = document.createTextNode('');
                         titleDiv.appendChild(iconSpan);
@@ -780,10 +784,43 @@ export class UIManager {
                     const hasTemp = isStar || isPlanet;
 
                     // Asegurar matemáticamente que la altura visual coincida con el Virtual Scroll Spacer
-                    item.style.height = hasTemp ? '60px' : '47px';
+                    const finalHeight = hasTemp ? '60px' : '47px';
+                    item.style.height = finalHeight;
+                    item.style.minHeight = finalHeight;
+                    item.style.maxHeight = finalHeight;
 
-                    const colorClass = isStar ? 'var(--function-color)' : (isBlackHole ? '#8a2be2' : 'var(--variable-color)');
-                    const icon = isStar ? '❖' : (isBlackHole ? '🌀' : '○');
+                    let colorClass = 'var(--text-primary)';
+                    let icon = '○';
+
+                    if (isStar) {
+                        icon = '❖';
+                        if (res.bodyRef.colorHSL) {
+                            colorClass = res.bodyRef.colorHSL;
+                        } else if (res.bodyRef.sunColor !== undefined) {
+                            const hsl = {};
+                            new THREE.Color(res.bodyRef.sunColor).getHSL(hsl);
+                            colorClass = `hsl(${Math.floor(hsl.h * 360)}, ${Math.floor(hsl.s * 100)}%, ${Math.floor(hsl.l * 100)}%)`;
+                        } else {
+                            const sData = Config.STAR_TYPES[res.type];
+                            colorClass = sData && sData.hueBase !== undefined ? `hsl(${Math.floor(sData.hueBase * 360)}, ${Math.floor((sData.sat || 0.8) * 100)}%, 70%)` : 'var(--function-color)';
+                        }
+                    } else if (isBlackHole) {
+                        colorClass = '#8a2be2';
+                        icon = '🌀';
+                    } else if (isPlanet) {
+                        const pData = Config.PLANET_BIOMES[res.type];
+                        icon = (pData && pData.isGasGiant) ? '○' : '●';
+                        
+                        if (res.bodyRef.colorHSL) {
+                            colorClass = res.bodyRef.colorHSL;
+                        } else if (res.bodyRef.color !== undefined) {
+                            const hsl = {};
+                            res.bodyRef.color.getHSL(hsl);
+                            colorClass = `hsl(${Math.floor(hsl.h * 360)}, ${Math.floor(hsl.s * 100)}%, ${Math.floor(hsl.l * 100)}%)`;
+                        } else {
+                            colorClass = (pData && pData.hueBase !== undefined) ? `hsl(${Math.floor(pData.hueBase * 360)}, ${Math.floor((pData.sat || 0.5) * 100)}%, 65%)` : 'var(--variable-color)';
+                        }
+                    }
                     const calculatedDist = (res.distSq >= 0) ? MeasurementSystem.formatDistance(Math.sqrt(res.distSq)) : '???';
 
                     item._iconSpan.style.color = colorClass;
@@ -794,12 +831,21 @@ export class UIManager {
                     item._radSpan.innerHTML = 'Radio: <span style="color: var(--number-color);">' + MeasurementSystem.formatSize(res.radiusVal) + '</span><br/>';
                     
                     if (hasTemp) {
-                        const tempColor = isStar ? 'var(--function-color)' : 'var(--variable-color)';
+                        let tempColor = 'var(--string-color)';
                         let tempText = '???';
                         if (res.tempVal !== undefined) {
                             const tK = Math.round(res.tempVal);
                             const tC = tK - 273;
-                            tempText = isStar ? `${tK} K` : `${tK} K (${tC} °C)`;
+                            
+                            // Color scaling based on Kelvin (same as HUD)
+                            if (tK > 5000) tempColor = '#88ccff';
+                            else if (tK > 2000) tempColor = '#ffffcc';
+                            else if (tK > 350) tempColor = '#ffaa44';
+                            else if (tK > 250) tempColor = '#55ff55';
+                            else if (tK > 150) tempColor = '#aaffff';
+                            else tempColor = '#5555ff';
+
+                            tempText = isStar ? `${Config.formatNumber(tK)} K` : `${Config.formatNumber(tK)} K (${Config.formatNumber(tC)} °C)`;
                         }
                         item._tempSpan.innerHTML = `Temperatura: <span style="color: ${tempColor};">` + tempText + '</span>';
                     } else {
@@ -902,10 +948,42 @@ export class UIManager {
                 const distText = MeasurementSystem.formatDistance(Math.max(0, dist - body.radius));
 
                 if (el._lastName !== body.name) {
-                    const isStar = body.group === 'Estrella';
+                    const isStar = body.group === 'Star' || body.group === 'Estrella';
+                    const isPlanet = body.group === 'Planet' || body.group === 'Planeta';
                     const isBlackHole = body.group === 'BlackHole';
-                    const colorClass = isStar ? 'var(--function-color)' : (isBlackHole ? '#8a2be2' : 'var(--variable-color)');
-                    const icon = isStar ? '❖' : (isBlackHole ? '🌀' : '○');
+                    
+                    let colorClass = 'var(--text-primary)';
+                    let icon = '○';
+
+                    if (isStar) {
+                        icon = '❖';
+                        if (body.colorHSL) {
+                            colorClass = body.colorHSL;
+                        } else if (body.sunColor !== undefined) {
+                            const hsl = {};
+                            new THREE.Color(body.sunColor).getHSL(hsl);
+                            colorClass = `hsl(${Math.floor(hsl.h * 360)}, ${Math.floor(hsl.s * 100)}%, ${Math.floor(hsl.l * 100)}%)`;
+                        } else {
+                            const sData = Config.STAR_TYPES[body.type];
+                            colorClass = sData && sData.hueBase !== undefined ? `hsl(${Math.floor(sData.hueBase * 360)}, ${Math.floor((sData.sat || 0.8) * 100)}%, 70%)` : 'var(--function-color)';
+                        }
+                    } else if (isBlackHole) {
+                        colorClass = '#8a2be2';
+                        icon = '🌀';
+                    } else if (isPlanet) {
+                        const pData = Config.PLANET_BIOMES[body.type];
+                        icon = (pData && pData.isGasGiant) ? '○' : '●';
+                        
+                        if (body.colorHSL) {
+                            colorClass = body.colorHSL;
+                        } else if (body.color !== undefined) {
+                            const hsl = {};
+                            body.color.getHSL(hsl);
+                            colorClass = `hsl(${Math.floor(hsl.h * 360)}, ${Math.floor(hsl.s * 100)}%, ${Math.floor(hsl.l * 100)}%)`;
+                        } else {
+                            colorClass = (pData && pData.hueBase !== undefined) ? `hsl(${Math.floor(pData.hueBase * 360)}, ${Math.floor((pData.sat || 0.5) * 100)}%, 65%)` : 'var(--variable-color)';
+                        }
+                    }
 
                     el.innerHTML = `<div style="text-align: left; line-height: 1.2;">
                         <span style="color:${colorClass}; font-size: 0.9rem; margin-right: 4px;">${icon}</span>
@@ -1101,7 +1179,7 @@ export class UIManager {
             if (temp !== undefined) {
                 temp = Math.round(temp);
                 let tempC = temp - 273; // Conversion Kelvin a Celsius
-                targetTemp.innerText = isStar ? `'${temp} K'` : `'${temp} K (${tempC} °C)'`;
+                targetTemp.innerText = isStar ? `'${Config.formatNumber(temp)} K'` : `'${Config.formatNumber(temp)} K (${Config.formatNumber(tempC)} °C)'`;
 
                 // Color scaling based on Kelvin
                 if (temp > 5000) targetTemp.style.color = '#88ccff';
