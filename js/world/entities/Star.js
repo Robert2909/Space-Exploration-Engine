@@ -14,12 +14,13 @@ export class Star extends CelestialBody {
         
         // Propiedades para Sistemas Binarios
         this.isCompanion = config.isCompanion || false;
+        this.isPrimaryBinary = config.isPrimaryBinary || false;
         this.orbitRadius = config.orbitRadius || 0;
         this.orbitSpeed = config.orbitSpeed || 0;
         this.orbitAngle = config.orbitAngle || 0;
-        this.parentLx = config.parentLx || 0;
-        this.parentLy = config.parentLy || 0;
-        this.parentLz = config.parentLz || 0;
+        this.parentLx = config.parentLx !== undefined ? config.parentLx : this.lx;
+        this.parentLy = config.parentLy !== undefined ? config.parentLy : this.ly;
+        this.parentLz = config.parentLz !== undefined ? config.parentLz : this.lz;
         
         // Boundaries del sistema solar
         this.systemRadius = config.systemRadius || this.radius * 10;
@@ -29,7 +30,7 @@ export class Star extends CelestialBody {
     }
 
     update(dt) {
-        if (this.isCompanion) {
+        if (this.isCompanion || this.isPrimaryBinary) {
             this.orbitAngle += this.orbitSpeed * dt;
             this.lx = this.parentLx + Math.cos(this.orbitAngle) * this.orbitRadius;
             this.lz = this.parentLz + Math.sin(this.orbitAngle) * this.orbitRadius;
@@ -37,8 +38,13 @@ export class Star extends CelestialBody {
         }
         
         // Actualizar planetas (si los hay)
+        // En sistemas binarios cerrados (P-Type), los planetas orbitan el centro de masa (barycenter)
+        const centerLx = this.isPrimaryBinary ? this.parentLx : this.lx;
+        const centerLy = this.isPrimaryBinary ? this.parentLy : this.ly;
+        const centerLz = this.isPrimaryBinary ? this.parentLz : this.lz;
+
         for (let planet of this.planets) {
-            planet.update(dt, this.lx, this.ly, this.lz);
+            planet.update(dt, centerLx, centerLy, centerLz);
         }
     }
 }

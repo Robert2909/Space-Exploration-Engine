@@ -184,6 +184,33 @@ export class Chunk {
                 const starTemp = Math.floor((starData.tempBase || 5000) + seededRandom(cx, cy, cz, seedBase + 30) * (starData.tempVar || 1500));
                 const starRadius = Config.STAR_RADIUS_MIN + seededRandom(cx, cy, cz, seedBase + 5) * (Config.STAR_RADIUS_MAX - Config.STAR_RADIUS_MIN);
 
+                // --- BINARY STAR PRE-CHECK ---
+                const isBinary = seededRandom(cx, cy, cz, seedBase + 50) > (1 - Config.BINARY_STAR_CHANCE);
+                let compTemp = 0;
+                let compRadius = 0;
+                let compStarName = 'Enana roja';
+                let compDistance = 0;
+                let compAngle = 0;
+                if (isBinary) {
+                    const compTypeRand = seededRandom(cx, cy, cz, seedBase + 52);
+                    let compCumulative = 1.0;
+                    let compStarData = Config.STAR_TYPES['Red Dwarf'];
+                    for (const [sName, sData] of Object.entries(Config.STAR_TYPES)) {
+                        compCumulative -= sData.chance;
+                        if (compTypeRand > compCumulative) {
+                            compStarData = sData;
+                            compStarName = sName;
+                            break;
+                        }
+                    }
+                    compTemp = Math.floor((compStarData.tempBase || 5000) + seededRandom(cx, cy, cz, seedBase + 53) * (compStarData.tempVar || 1500));
+                    const compBaseRadius = Config.STAR_RADIUS_MIN + seededRandom(cx, cy, cz, seedBase + 60) * (Config.STAR_RADIUS_MAX - Config.STAR_RADIUS_MIN);
+                    compRadius = compBaseRadius * (compStarData.radiusMultMin + seededRandom(cx, cy, cz, seedBase + 61) * (compStarData.radiusMultMax - compStarData.radiusMultMin));
+                    
+                    compDistance = starRadius * Config.BINARY_STAR_DISTANCE_BASE_MULT + seededRandom(cx, cy, cz, seedBase + 56) * starRadius * Config.BINARY_STAR_DISTANCE_VAR_MULT;
+                    compAngle = seededRandom(cx, cy, cz, seedBase + 57) * Math.PI * 2;
+                }
+
                 const planetsData = [];
                 const numPlanets = Math.floor(seededRandom(cx, cy, cz, seedBase + 6) * Config.PLANETS_MAX_PER_SYSTEM) + 1;
                 const systemPlanetNames = [];
@@ -191,27 +218,51 @@ export class Chunk {
                     const pSeed = seedBase + 20 + j;
                     const pName = generatePlanetName(starName, j, pSeed + 13, cx, cy, cz, systemPlanetNames);
                     systemPlanetNames.push(pName);
-                    const typeRand = seededRandom(cx, cy, cz, pSeed + 20);
-                    let pCumulative = 1.0;
-                    let pType = 'Planeta rocoso'; // Fallback
+                    const orbitRadius = starRadius * 1.5 + Config.ORBIT_DISTANCE_START + j * (Config.ORBIT_DISTANCE_SPACING + seededRandom(cx, cy, cz, pSeed + 8) * Config.ORBIT_DISTANCE_VAR);
+                    
+                    let flux = Math.pow(starTemp, 4) * Math.pow(starRadius / (2 * orbitRadius), 2);
+                    if (isBinary) {
+                        flux += Math.pow(compTemp, 4) * Math.pow(compRadius / (2 * orbitRadius), 2);
+                    }
+                    const pTempEq = Math.pow(flux, 0.25);
+
+                    let validBiomes = [];
                     for (const [biomeName, biomeData] of Object.entries(Config.PLANET_BIOMES)) {
-                        if (biomeName !== 'Planeta rocoso') {
-                            pCumulative -= biomeData.chance;
-                            if (typeRand > pCumulative) {
-                                pType = biomeName;
+                        const tSurf = pTempEq * Math.pow(1 - (biomeData.albedo !== undefined ? biomeData.albedo : 0.3), 0.25) * (1 + (biomeData.greenhouse !== undefined ? biomeData.greenhouse : 0.8));
+                        if (tSurf >= (biomeData.tempMin !== undefined ? biomeData.tempMin : -999) && tSurf <= (biomeData.tempMax !== undefined ? biomeData.tempMax : 9999)) {
+                            validBiomes.push({ name: biomeName, data: biomeData, tSurf });
+                        }
+                    }
+
+                    let pType = 'Planeta rocoso';
+                    let pTemp = Math.floor(pTempEq);
+                    let biome = Config.PLANET_BIOMES['Planeta rocoso'];
+
+                    if (validBiomes.length > 0) {
+                        let totalChance = validBiomes.reduce((sum, b) => sum + (b.data.chance || 0.01), 0);
+                        const typeRand = seededRandom(cx, cy, cz, pSeed + 20) * totalChance;
+                        let pCumulative = 0;
+                        for (const b of validBiomes) {
+                            pCumulative += (b.data.chance || 0.01);
+                            if (typeRand <= pCumulative) {
+                                pType = b.name;
+                                biome = b.data;
+                                pTemp = Math.floor(b.tSurf);
                                 break;
                             }
                         }
+                    } else {
+                        const fallbackAlbedo = biome.albedo !== undefined ? biome.albedo : 0.3;
+                        const fallbackGreenhouse = biome.greenhouse !== undefined ? biome.greenhouse : 0.8;
+                        pTemp = Math.floor(pTempEq * Math.pow(1 - fallbackAlbedo, 0.25) * (1 + fallbackGreenhouse));
                     }
-                    const biome = Config.PLANET_BIOMES[pType] || Config.PLANET_BIOMES['Planeta rocoso'];
+
                     const isGasGiant = biome.isGasGiant === true;
 
                     const pRadiusBase = isGasGiant ? (Config.PLANET_GAS_RADIUS_MIN + seededRandom(cx, cy, cz, pSeed + 6) * (Config.PLANET_GAS_RADIUS_MAX - Config.PLANET_GAS_RADIUS_MIN)) : (Config.PLANET_ROCKY_RADIUS_MIN + seededRandom(cx, cy, cz, pSeed + 7) * (Config.PLANET_ROCKY_RADIUS_MAX - Config.PLANET_ROCKY_RADIUS_MIN));
                     const pRadius = pRadiusBase * (biome.radiusMult !== undefined ? biome.radiusMult : 1.0);
 
-                    const orbitRadius = starRadius * 1.5 + Config.ORBIT_DISTANCE_START + j * (Config.ORBIT_DISTANCE_SPACING + seededRandom(cx, cy, cz, pSeed + 8) * Config.ORBIT_DISTANCE_VAR);
                     const startAngle = seededRandom(cx, cy, cz, pSeed + 11) * Math.PI * 2;
-                    const pTemp = Math.floor(starTemp * Math.sqrt(starRadius / (2 * orbitRadius)));
 
                     planetsData.push({
                         isMock: true,
@@ -236,6 +287,21 @@ export class Chunk {
                     planets: planetsData,
                     temperature: starTemp
                 });
+
+                if (isBinary) {
+                    systems.push({
+                        isMock: true,
+                        group: 'Star',
+                        type: compStarName,
+                        name: starName + " B",
+                        radius: compRadius,
+                        lx: lx + Math.cos(compAngle) * compDistance,
+                        ly: ly + Math.sin(compAngle) * (compDistance * 0.1),
+                        lz: lz + Math.sin(compAngle) * compDistance,
+                        planets: [],
+                        temperature: compTemp
+                    });
+                }
             }
         }
         return systems;
@@ -343,6 +409,31 @@ export class Chunk {
                 // Mapeo logarítmico para mantener la luminosidad en un rango visual atractivo sin saturar el blanco
                 const starLuminosity = Math.max(0.1, 0.8 + Math.log10(luminosityRatio) * 0.4);
                 
+                // --- BINARY STAR PRE-CHECK ---
+                const isBinary = seededRandom(this.cx, this.cy, this.cz, seedBase + 50) > (1 - Config.BINARY_STAR_CHANCE);
+                let compTemp = 0;
+                let compRadius = 0;
+                let compDistance = 0;
+                let compStarData = null;
+                let compStarName = 'Enana roja';
+                if (isBinary) {
+                    const compTypeRand = seededRandom(this.cx, this.cy, this.cz, seedBase + 52);
+                    let compCumulative = 1.0;
+                    compStarData = Config.STAR_TYPES['Red Dwarf'];
+                    for (const [sName, sData] of Object.entries(Config.STAR_TYPES)) {
+                        compCumulative -= sData.chance;
+                        if (compTypeRand > compCumulative) {
+                            compStarData = sData;
+                            compStarName = sName;
+                            break;
+                        }
+                    }
+                    compTemp = Math.floor((compStarData.tempBase || 5000) + seededRandom(this.cx, this.cy, this.cz, seedBase + 53) * (compStarData.tempVar || 1500));
+                    const compBaseRadius = Config.STAR_RADIUS_MIN + seededRandom(this.cx, this.cy, this.cz, seedBase + 60) * (Config.STAR_RADIUS_MAX - Config.STAR_RADIUS_MIN);
+                    compRadius = compBaseRadius * (compStarData.radiusMultMin + seededRandom(this.cx, this.cy, this.cz, seedBase + 61) * (compStarData.radiusMultMax - compStarData.radiusMultMin));
+                    compDistance = sunRadius * Config.BINARY_STAR_DISTANCE_BASE_MULT + seededRandom(this.cx, this.cy, this.cz, seedBase + 56) * sunRadius * Config.BINARY_STAR_DISTANCE_VAR_MULT;
+                }
+
                 const numPlanets = Math.floor(seededRandom(this.cx, this.cy, this.cz, seedBase + 6) * Config.PLANETS_MAX_PER_SYSTEM) + 1;
                 const planets = [];
                 const systemPlanetNames = [];
@@ -352,21 +443,50 @@ export class Chunk {
                     const pName = generatePlanetName(starName, j, pSeed + 13, this.cx, this.cy, this.cz, systemPlanetNames);
                     systemPlanetNames.push(pName);
                     const hue = seededRandom(this.cx, this.cy, this.cz, pSeed);
-                    const typeRand = seededRandom(this.cx, this.cy, this.cz, pSeed + 20);
-                    let pCumulative = 1.0;
-                    let pType = 'Planeta rocoso'; // Fallback
+                    
+                    let orbitStart = sunRadius * 1.5 + Config.ORBIT_DISTANCE_START;
+                    if (isBinary) {
+                        orbitStart += compDistance * 2.5; // Circumbinary planets must orbit outside the unstable resonance zone
+                    }
+                    const orbitRadius = orbitStart + j * (Config.ORBIT_DISTANCE_SPACING + seededRandom(this.cx, this.cy, this.cz, pSeed + 8) * Config.ORBIT_DISTANCE_VAR);
+                    
+                    let flux = Math.pow(starTemp, 4) * Math.pow(sunRadius / (2 * orbitRadius), 2);
+                    if (isBinary) {
+                        flux += Math.pow(compTemp, 4) * Math.pow(compRadius / (2 * orbitRadius), 2);
+                    }
+                    const pTempEq = Math.pow(flux, 0.25);
 
+                    let validBiomes = [];
                     for (const [biomeName, biomeData] of Object.entries(Config.PLANET_BIOMES)) {
-                        if (biomeName !== 'Planeta rocoso') {
-                            pCumulative -= biomeData.chance;
-                            if (typeRand > pCumulative) {
-                                pType = biomeName;
-                                break;
-                            }
+                        const tSurf = pTempEq * Math.pow(1 - (biomeData.albedo !== undefined ? biomeData.albedo : 0.3), 0.25) * (1 + (biomeData.greenhouse !== undefined ? biomeData.greenhouse : 0.8));
+                        if (tSurf >= (biomeData.tempMin !== undefined ? biomeData.tempMin : -999) && tSurf <= (biomeData.tempMax !== undefined ? biomeData.tempMax : 9999)) {
+                            validBiomes.push({ name: biomeName, data: biomeData, tSurf });
                         }
                     }
 
-                    const biome = Config.PLANET_BIOMES[pType] || Config.PLANET_BIOMES['Planeta rocoso'];
+                    let pType = 'Planeta rocoso';
+                    let pTemp = Math.floor(pTempEq);
+                    let biome = Config.PLANET_BIOMES['Planeta rocoso'];
+
+                    if (validBiomes.length > 0) {
+                        let totalChance = validBiomes.reduce((sum, b) => sum + (b.data.chance || 0.01), 0);
+                        const typeRand = seededRandom(this.cx, this.cy, this.cz, pSeed + 20) * totalChance;
+                        let pCumulative = 0;
+                        for (const b of validBiomes) {
+                            pCumulative += (b.data.chance || 0.01);
+                            if (typeRand <= pCumulative) {
+                                pType = b.name;
+                                biome = b.data;
+                                pTemp = Math.floor(b.tSurf);
+                                break;
+                            }
+                        }
+                    } else {
+                        const fallbackAlbedo = biome.albedo !== undefined ? biome.albedo : 0.3;
+                        const fallbackGreenhouse = biome.greenhouse !== undefined ? biome.greenhouse : 0.8;
+                        pTemp = Math.floor(pTempEq * Math.pow(1 - fallbackAlbedo, 0.25) * (1 + fallbackGreenhouse));
+                    }
+
                     const isGasGiant = biome.isGasGiant === true;
 
                     let pColor = new THREE.Color();
@@ -454,7 +574,6 @@ export class Chunk {
 
                     const pRadiusBase = isGasGiant ? (Config.PLANET_GAS_RADIUS_MIN + seededRandom(this.cx, this.cy, this.cz, pSeed + 6) * (Config.PLANET_GAS_RADIUS_MAX - Config.PLANET_GAS_RADIUS_MIN)) : (Config.PLANET_ROCKY_RADIUS_MIN + seededRandom(this.cx, this.cy, this.cz, pSeed + 7) * (Config.PLANET_ROCKY_RADIUS_MAX - Config.PLANET_ROCKY_RADIUS_MIN));
                     const pRadius = pRadiusBase * (biome.radiusMult !== undefined ? biome.radiusMult : 1.0);
-                    const orbitRadius = sunRadius * 1.5 + Config.ORBIT_DISTANCE_START + j * (Config.ORBIT_DISTANCE_SPACING + seededRandom(this.cx, this.cy, this.cz, pSeed + 8) * Config.ORBIT_DISTANCE_VAR);
                     const baseOrbitSpeed = Config.PLANET_ORBIT_SPEED_MIN + seededRandom(this.cx, this.cy, this.cz, pSeed + 9) * (Config.PLANET_ORBIT_SPEED_MAX - Config.PLANET_ORBIT_SPEED_MIN);
                     const orbitSpeed = baseOrbitSpeed * (seededRandom(this.cx, this.cy, this.cz, pSeed + 10) > 0.5 ? 1 : -1);
                     const baseRotationSpeed = Config.PLANET_ROTATION_SPEED_MIN + seededRandom(this.cx, this.cy, this.cz, pSeed + 15) * (Config.PLANET_ROTATION_SPEED_MAX - Config.PLANET_ROTATION_SPEED_MIN);
@@ -501,7 +620,7 @@ export class Chunk {
                         };
                     }
 
-                    const pTemp = Math.floor(starTemp * Math.sqrt(sunRadius / (2 * orbitRadius)));
+                    // pTemp is already calculated accurately with Albedo and Greenhouse
                     const planetInstance = new Planet({
                         name: pName, type: pType, radius: pRadius, color: pColor,
                         atmosphereDensity: atmosphereDensity,
@@ -521,29 +640,14 @@ export class Chunk {
                     systemRadius = planets[planets.length - 1].orbitRadius + Config.HELIOPAUSE_PADDING;
                 }
 
-                const starInstance = new Star({
-                    name: starName, type: starType, sunColor, radius: sunRadius, lx, ly, lz, planets, systemRadius,
-                    temperature: starTemp, activity: starActivity, luminosity: starLuminosity
-                });
-                systemsData.push(starInstance);
                 totalPlanets += numPlanets;
                 let companionRef = null;
+                let primaryOrbitRadius = 0;
+                let primaryOrbitAngle = 0;
+                let primaryOrbitSpeed = 0;
 
-                // --- BINARY STAR CHECK ---
-                const isBinary = seededRandom(this.cx, this.cy, this.cz, seedBase + 50) > (1 - Config.BINARY_STAR_CHANCE);
+                // --- BINARY STAR INSTANTIATION ---
                 if (isBinary) {
-                    const compTypeRand = seededRandom(this.cx, this.cy, this.cz, seedBase + 52);
-                    let compCumulative = 1.0;
-                    let compStarData = Config.STAR_TYPES['Red Dwarf']; // Fallback common companion
-
-                    for (const [sName, sData] of Object.entries(Config.STAR_TYPES)) {
-                        compCumulative -= sData.chance;
-                        if (compTypeRand > compCumulative) {
-                            compStarData = sData;
-                            break;
-                        }
-                    }
-
                     let compColorObj = new THREE.Color();
                     compColorObj.setHSL(
                         compStarData.hueBase + seededRandom(this.cx, this.cy, this.cz, seedBase + 54) * compStarData.hueVar,
@@ -552,25 +656,38 @@ export class Chunk {
                     );
                     const compColor = compColorObj.getHex();
 
-                    const compBaseRadius = Config.STAR_RADIUS_MIN + seededRandom(this.cx, this.cy, this.cz, seedBase + 60) * (Config.STAR_RADIUS_MAX - Config.STAR_RADIUS_MIN);
-                    const compRadius = compBaseRadius * (compStarData.radiusMultMin + seededRandom(this.cx, this.cy, this.cz, seedBase + 61) * (compStarData.radiusMultMax - compStarData.radiusMultMin));
-
-                    const compDistance = sunRadius * Config.BINARY_STAR_DISTANCE_BASE_MULT + seededRandom(this.cx, this.cy, this.cz, seedBase + 56) * sunRadius * Config.BINARY_STAR_DISTANCE_VAR_MULT;
                     const compAngle = seededRandom(this.cx, this.cy, this.cz, seedBase + 57) * Math.PI * 2;
                     const compSpeed = Config.PLANET_ORBIT_SPEED_MAX * (0.5 + seededRandom(this.cx, this.cy, this.cz, seedBase + 58)) * (seededRandom(this.cx, this.cy, this.cz, seedBase + 59) > 0.5 ? 1 : -1);
 
+                    // Primary star orbits the barycenter opposite to the companion.
+                    // The radius is proportional to the mass ratio (approximated by radius ratio).
+                    primaryOrbitRadius = compDistance * (compRadius / (sunRadius + compRadius));
+                    primaryOrbitAngle = compAngle + Math.PI;
+                    primaryOrbitSpeed = compSpeed;
+
                     const companionInstance = new Star({
-                        name: starName + " B", type: "Binary Companion Star", sunColor: compColor, radius: compRadius,
+                        name: starName + " B", type: compStarName, sunColor: compColor, radius: compRadius,
                         isCompanion: true, parentLx: lx, parentLy: ly, parentLz: lz,
                         orbitRadius: compDistance, orbitSpeed: compSpeed, orbitAngle: compAngle,
                         lx: lx + Math.cos(compAngle) * compDistance,
                         lz: lz + Math.sin(compAngle) * compDistance,
                         ly: ly + Math.sin(compAngle) * (compDistance * 0.1),
-                        planets: [] // Planets orbit the primary, companion is just another star in the system
+                        planets: [], // Planets orbit the primary, companion is just another star in the system
+                        temperature: compTemp
                     });
                     systemsData.push(companionInstance);
                     companionRef = companionInstance;
                 }
+
+                const starInstance = new Star({
+                    name: starName, type: starType, sunColor, radius: sunRadius, lx, ly, lz, planets, systemRadius,
+                    temperature: starTemp, activity: starActivity, luminosity: starLuminosity,
+                    isPrimaryBinary: isBinary,
+                    parentLx: lx, parentLy: ly, parentLz: lz,
+                    orbitRadius: primaryOrbitRadius, orbitSpeed: primaryOrbitSpeed, orbitAngle: primaryOrbitAngle
+                });
+                systemsData.push(starInstance);
+                
                 if (companionRef) {
                     companionRef.primary = starInstance;
                 }
@@ -825,7 +942,7 @@ export class Chunk {
             if (sys.mesh) {
                 sys.mesh.visible = isCurrentSystem;
                 if (sys.mesh.visible) {
-                    if (sys.isCompanion) {
+                    if (sys.isCompanion || sys.isPrimaryBinary) {
                         sys.mesh.position.set(sys.lx, sys.ly, sys.lz);
                     }
                     if (sys.mesh.material && sys.mesh.material.uniforms) {
@@ -897,7 +1014,7 @@ export class Chunk {
                     let sprite = sys.coronaSprites[i];
                     sprite.visible = isCurrentSystem;
                     if (sprite.visible) {
-                        if (sys.isCompanion) {
+                        if (sys.isCompanion || sys.isPrimaryBinary) {
                             sprite.position.set(sys.lx, sys.ly, sys.lz);
                         }
                         

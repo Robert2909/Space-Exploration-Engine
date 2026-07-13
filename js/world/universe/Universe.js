@@ -15,10 +15,12 @@ export class Universe {
         this.ambientLight = new THREE.AmbientLight(0x101015);
         this.scene.add(this.ambientLight);
 
-        this.systemLight = new THREE.PointLight(0xffffff, 4, 100000000, 0);
+        // Distance 0 means no arbitrary cutoff. Decay 0 means no physically correct falloff 
+        // (to prevent planets from going totally black at 300M km with standard intensities)
+        this.systemLight = new THREE.PointLight(0xffffff, 4, 0, 0);
         this.scene.add(this.systemLight);
 
-        this.companionLight = new THREE.PointLight(0xffffff, 2, 100000000, 0);
+        this.companionLight = new THREE.PointLight(0xffffff, 2, 0, 0);
         this.scene.add(this.companionLight);
     }
     

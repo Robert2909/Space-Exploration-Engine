@@ -427,9 +427,55 @@ export class UIManager {
                 this._locatorItemsContainer.style.left = '0';
                 this._locatorItemsContainer.style.right = '0';
 
+                // Variables para interpolación suave
+                let targetScroll = 0;
+                let isSmoothScrolling = false;
+
+                // Si el usuario usa la barra de scroll manualmente (o teclado/touch), interrumpimos la animación para evitar el efecto de liga elástica
+                resultsDiv.addEventListener('mousedown', () => { isSmoothScrolling = false; });
+                resultsDiv.addEventListener('keydown', () => { isSmoothScrolling = false; });
+                resultsDiv.addEventListener('touchstart', () => { isSmoothScrolling = false; });
+
                 resultsDiv.addEventListener('scroll', () => {
+                    if (!isSmoothScrolling) {
+                        targetScroll = resultsDiv.scrollTop;
+                    }
                     if (this._updateVirtualScroll) this._updateVirtualScroll();
                 });
+
+                const smoothScrollRender = () => {
+                    if (!isSmoothScrolling) return; // Abortar inmediatamente si el usuario interviene manualmente
+                    
+                    const currentScroll = resultsDiv.scrollTop;
+                    const diff = targetScroll - currentScroll;
+                    
+                    if (Math.abs(diff) > 0.5) {
+                        // Lerp: 0.08 hace que sea asombrosamente suave y sedoso
+                        resultsDiv.scrollTop = currentScroll + diff * 0.08;
+                        requestAnimationFrame(smoothScrollRender);
+                    } else {
+                        resultsDiv.scrollTop = targetScroll;
+                        isSmoothScrolling = false;
+                    }
+                };
+
+                // HACK REAL: Animación personalizada frame por frame
+                resultsDiv.addEventListener('wheel', (e) => {
+                    e.preventDefault();
+                    if (!isSmoothScrolling) {
+                        targetScroll = resultsDiv.scrollTop;
+                    }
+                    
+                    const maxScroll = resultsDiv.scrollHeight - resultsDiv.clientHeight;
+                    // deltaY * 3.5 compensa la suavidad extra para que puedas avanzar mucho si giras rápido
+                    targetScroll += e.deltaY * 3.5; 
+                    targetScroll = Math.max(0, Math.min(targetScroll, maxScroll));
+                    
+                    if (!isSmoothScrolling) {
+                        isSmoothScrolling = true;
+                        requestAnimationFrame(smoothScrollRender);
+                    }
+                }, { passive: false });
             }
 
             // Remove all children safely
@@ -442,8 +488,9 @@ export class UIManager {
             this._locatorHeights = new Int32Array(this.latestScanResults.length);
             let totalHeight = 0;
             for (let i = 0; i < this.latestScanResults.length; i++) {
-                const isStar = this.latestScanResults[i].group === 'Star' || this.latestScanResults[i].group === 'Estrella';
-                const h = isStar ? 63 : 50; // Approximated accurate heights
+                const group = this.latestScanResults[i].group;
+                const hasTemp = group === 'Star' || group === 'Estrella' || group === 'Planet' || group === 'Planeta';
+                const h = hasTemp ? 63 : 50; // Approximated accurate heights
                 this._locatorHeights[i] = totalHeight;
                 totalHeight += h;
             }
@@ -726,12 +773,15 @@ export class UIManager {
                     item.classList.remove('selected');
                     item._bodyRef = res.bodyRef;
 
-                    const isStar = res.group === 'Star' || res.group === 'Estrella';
+                    const resGroup = res.group;
+                    const isStar = resGroup === 'Star' || resGroup === 'Estrella';
+                    const isPlanet = resGroup === 'Planet' || resGroup === 'Planeta';
+                    const isBlackHole = resGroup === 'BlackHole';
+                    const hasTemp = isStar || isPlanet;
 
                     // Asegurar matemáticamente que la altura visual coincida con el Virtual Scroll Spacer
-                    item.style.height = isStar ? '60px' : '47px';
+                    item.style.height = hasTemp ? '60px' : '47px';
 
-                    const isBlackHole = res.group === 'BlackHole';
                     const colorClass = isStar ? 'var(--function-color)' : (isBlackHole ? '#8a2be2' : 'var(--variable-color)');
                     const icon = isStar ? '❖' : (isBlackHole ? '🌀' : '○');
                     const calculatedDist = (res.distSq >= 0) ? MeasurementSystem.formatDistance(Math.sqrt(res.distSq)) : '???';
@@ -742,8 +792,16 @@ export class UIManager {
 
                     item._distSpan.innerHTML = 'Distancia: <span style="color: var(--number-color);">' + calculatedDist + '</span><br/>';
                     item._radSpan.innerHTML = 'Radio: <span style="color: var(--number-color);">' + MeasurementSystem.formatSize(res.radiusVal) + '</span><br/>';
-                    if (isStar) {
-                        item._tempSpan.innerHTML = 'Temperatura: <span style="color: var(--function-color);">' + (res.tempVal ? `${res.tempVal} K</span>` : '???');
+                    
+                    if (hasTemp) {
+                        const tempColor = isStar ? 'var(--function-color)' : 'var(--variable-color)';
+                        let tempText = '???';
+                        if (res.tempVal !== undefined) {
+                            const tK = Math.round(res.tempVal);
+                            const tC = tK - 273;
+                            tempText = isStar ? `${tK} K` : `${tK} K (${tC} °C)`;
+                        }
+                        item._tempSpan.innerHTML = `Temperatura: <span style="color: ${tempColor};">` + tempText + '</span>';
                     } else {
                         item._tempSpan.innerHTML = '';
                     }
@@ -796,7 +854,8 @@ export class UIManager {
             this.latestScanResults = payload.results;
             this.latestScanTotal = payload.total;
             if (sortTempBtn) {
-                sortTempBtn.style.display = (this.latestCriteria && this.latestCriteria.mainType === 'Star') ? 'block' : 'none';
+                const showTemp = this.latestCriteria && (this.latestCriteria.mainType === 'Star' || this.latestCriteria.mainType === 'Planet');
+                sortTempBtn.style.display = showTemp ? 'block' : 'none';
             }
             this.renderResults();
         });
@@ -945,18 +1004,23 @@ export class UIManager {
         if (targetAtmo) {
             targetAtmo.style.color = 'var(--string-color)';
             if (isGas) {
-                targetAtmo.innerText = "'Letal/Tóxica'";
+                // Generate a consistent huge number based on its radius
+                const gasPressure = Math.round(target.radius * 0.45);
+                targetAtmo.innerText = `'${Config.formatNumber(gasPressure)} atm - Aplastante'`;
                 targetAtmo.style.color = '#ff5555';
             } else if (target.atmosphereDensity > 0) {
-                const densityPct = Math.round((target.atmosphereDensity / 0.0005) * 100);
+                // Approximate 0.00022 density to 1 atm based on the Pristine/Edenic biomes
+                const pressure = target.atmosphereDensity / 0.00022;
+                const pressureStr = Config.formatNumber(pressure, 2) + ' atm';
                 let text = '';
-                if (densityPct < 20) { text = 'Tenue'; targetAtmo.style.color = '#55ffff'; }
-                else if (densityPct < 60) { text = 'Respirable'; targetAtmo.style.color = '#55ff55'; }
-                else if (densityPct < 90) { text = 'Densa'; targetAtmo.style.color = '#ffff55'; }
-                else { text = 'Sofocante'; targetAtmo.style.color = '#ffaa00'; }
-                targetAtmo.innerText = `'${text} (${densityPct}%)'`;
+                if (pressure < 0.05) { text = 'Casi Vacío'; targetAtmo.style.color = '#aaaaaa'; }
+                else if (pressure < 0.5) { text = 'Tenue'; targetAtmo.style.color = '#55ffff'; }
+                else if (pressure < 1.5) { text = 'Habitable'; targetAtmo.style.color = '#55ff55'; }
+                else if (pressure < 5.0) { text = 'Densa'; targetAtmo.style.color = '#ffff55'; }
+                else { text = 'Letal'; targetAtmo.style.color = '#ffaa00'; }
+                targetAtmo.innerText = `'${pressureStr} - ${text}'`;
             } else {
-                targetAtmo.innerText = "'Nula'";
+                targetAtmo.innerText = "'0 atm - Vacío'";
                 targetAtmo.style.color = '#aaaaaa';
             }
         }
@@ -1032,32 +1096,20 @@ export class UIManager {
         }
 
         if (targetTemp) {
-            let temp = undefined;
-            if (isStar && target.temperature !== undefined) {
-                temp = target.temperature;
-            } else if (target.temperature !== undefined) {
-                // Para planetas, combinamos el cálculo físico (target.temperature) con la base del bioma
-                let baseBiomeTemp = 0;
-                if (Config.PLANET_BIOMES && Config.PLANET_BIOMES[target.type] && Config.PLANET_BIOMES[target.type].baseTemp !== undefined) {
-                    baseBiomeTemp = Config.PLANET_BIOMES[target.type].baseTemp;
-                }
-                temp = target.temperature + baseBiomeTemp;
-            } else if (Config.PLANET_BIOMES && Config.PLANET_BIOMES[target.type]) {
-                // Fallback si no tiene target.temperature precalculado (no debería ocurrir según Chunk.js)
-                temp = (Config.PLANET_BIOMES[target.type].baseTemp || 280) + (target.temperatureOffset || 0);
-            }
+            let temp = target.temperature;
 
             if (temp !== undefined) {
                 temp = Math.round(temp);
-                targetTemp.innerText = isStar ? `'${temp} K'` : `'${temp} °C'`;
-                
-                // Los rangos térmicos pueden variar, ajustamos los colores
+                let tempC = temp - 273; // Conversion Kelvin a Celsius
+                targetTemp.innerText = isStar ? `'${temp} K'` : `'${temp} K (${tempC} °C)'`;
+
+                // Color scaling based on Kelvin
                 if (temp > 5000) targetTemp.style.color = '#88ccff';
                 else if (temp > 2000) targetTemp.style.color = '#ffffcc';
                 else if (temp > 350) targetTemp.style.color = '#ffaa44';
-                else if (temp > 250 || (isStar && temp > 1000)) targetTemp.style.color = '#55ff55';
-                else if (temp > 150 || (isStar && temp > 500)) targetTemp.style.color = '#aaffff';
-                else targetTemp.style.color = '#aaaaaa';
+                else if (temp > 250) targetTemp.style.color = '#55ff55';
+                else if (temp > 150) targetTemp.style.color = '#aaffff';
+                else targetTemp.style.color = '#5555ff';
             } else {
                 targetTemp.innerText = "'N/A'";
                 targetTemp.style.color = 'var(--string-color)';

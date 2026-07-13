@@ -61,9 +61,21 @@ canvas {
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    color: rgba(255, 255, 255, 0.4);
-    font-size: 20px;
-    font-weight: 300;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    
+    /* El truco mágico de Minecraft adaptado a escala de grises puros */
+    backdrop-filter: invert(1) grayscale(1) brightness(1.2) contrast(0.4);
+    -webkit-backdrop-filter: invert(1) grayscale(1) brightness(1.2) contrast(0.4);
+    
+    /* Cortamos el centro para que solo se aplique el filtro en un anillo de 1.5px de grosor */
+    -webkit-mask: radial-gradient(circle, transparent 3.5px, black 4px);
+    mask: radial-gradient(circle, transparent 3.5px, black 4px);
+    
+    opacity: 0.65;
+    pointer-events: none;
+    z-index: 9999; /* Por si las moscas, siempre al frente */
 }
 
 #hud {
@@ -122,6 +134,7 @@ canvas {
     flex: 1;
     min-height: 0;
     overflow-y: auto;
+    scroll-behavior: smooth; /* Desplazamiento suave para facilitar la lectura visual rápida */
     padding-right: 5px;
     margin-top: 0;
     border-top: none;
