@@ -780,7 +780,6 @@ export class UIManager {
                     const resGroup = res.group;
                     const isStar = resGroup === 'Star' || resGroup === 'Estrella';
                     const isPlanet = resGroup === 'Planet' || resGroup === 'Planeta';
-                    const isBlackHole = resGroup === 'BlackHole';
                     const hasTemp = isStar || isPlanet;
 
                     // Asegurar matemáticamente que la altura visual coincida con el Virtual Scroll Spacer
@@ -789,38 +788,9 @@ export class UIManager {
                     item.style.minHeight = finalHeight;
                     item.style.maxHeight = finalHeight;
 
-                    let colorClass = 'var(--text-primary)';
-                    let icon = '○';
+                    let colorClass = res.bodyRef.colorString || 'var(--text-primary)';
+                    let icon = res.bodyRef.icon || '○';
 
-                    if (isStar) {
-                        icon = '❖';
-                        if (res.bodyRef.colorHSL) {
-                            colorClass = res.bodyRef.colorHSL;
-                        } else if (res.bodyRef.sunColor !== undefined) {
-                            const hsl = {};
-                            new THREE.Color(res.bodyRef.sunColor).getHSL(hsl);
-                            colorClass = `hsl(${Math.floor(hsl.h * 360)}, ${Math.floor(hsl.s * 100)}%, ${Math.floor(hsl.l * 100)}%)`;
-                        } else {
-                            const sData = Config.STAR_TYPES[res.type];
-                            colorClass = sData && sData.hueBase !== undefined ? `hsl(${Math.floor(sData.hueBase * 360)}, ${Math.floor((sData.sat || 0.8) * 100)}%, 70%)` : 'var(--function-color)';
-                        }
-                    } else if (isBlackHole) {
-                        colorClass = '#8a2be2';
-                        icon = '🌀';
-                    } else if (isPlanet) {
-                        const pData = Config.PLANET_BIOMES[res.type];
-                        icon = (pData && pData.isGasGiant) ? '○' : '●';
-                        
-                        if (res.bodyRef.colorHSL) {
-                            colorClass = res.bodyRef.colorHSL;
-                        } else if (res.bodyRef.color !== undefined) {
-                            const hsl = {};
-                            res.bodyRef.color.getHSL(hsl);
-                            colorClass = `hsl(${Math.floor(hsl.h * 360)}, ${Math.floor(hsl.s * 100)}%, ${Math.floor(hsl.l * 100)}%)`;
-                        } else {
-                            colorClass = (pData && pData.hueBase !== undefined) ? `hsl(${Math.floor(pData.hueBase * 360)}, ${Math.floor((pData.sat || 0.5) * 100)}%, 65%)` : 'var(--variable-color)';
-                        }
-                    }
                     const calculatedDist = (res.distSq >= 0) ? MeasurementSystem.formatDistance(Math.sqrt(res.distSq)) : '???';
 
                     item._iconSpan.style.color = colorClass;
@@ -948,42 +918,8 @@ export class UIManager {
                 const distText = MeasurementSystem.formatDistance(Math.max(0, dist - body.radius));
 
                 if (el._lastName !== body.name) {
-                    const isStar = body.group === 'Star' || body.group === 'Estrella';
-                    const isPlanet = body.group === 'Planet' || body.group === 'Planeta';
-                    const isBlackHole = body.group === 'BlackHole';
-                    
-                    let colorClass = 'var(--text-primary)';
-                    let icon = '○';
-
-                    if (isStar) {
-                        icon = '❖';
-                        if (body.colorHSL) {
-                            colorClass = body.colorHSL;
-                        } else if (body.sunColor !== undefined) {
-                            const hsl = {};
-                            new THREE.Color(body.sunColor).getHSL(hsl);
-                            colorClass = `hsl(${Math.floor(hsl.h * 360)}, ${Math.floor(hsl.s * 100)}%, ${Math.floor(hsl.l * 100)}%)`;
-                        } else {
-                            const sData = Config.STAR_TYPES[body.type];
-                            colorClass = sData && sData.hueBase !== undefined ? `hsl(${Math.floor(sData.hueBase * 360)}, ${Math.floor((sData.sat || 0.8) * 100)}%, 70%)` : 'var(--function-color)';
-                        }
-                    } else if (isBlackHole) {
-                        colorClass = '#8a2be2';
-                        icon = '🌀';
-                    } else if (isPlanet) {
-                        const pData = Config.PLANET_BIOMES[body.type];
-                        icon = (pData && pData.isGasGiant) ? '○' : '●';
-                        
-                        if (body.colorHSL) {
-                            colorClass = body.colorHSL;
-                        } else if (body.color !== undefined) {
-                            const hsl = {};
-                            body.color.getHSL(hsl);
-                            colorClass = `hsl(${Math.floor(hsl.h * 360)}, ${Math.floor(hsl.s * 100)}%, ${Math.floor(hsl.l * 100)}%)`;
-                        } else {
-                            colorClass = (pData && pData.hueBase !== undefined) ? `hsl(${Math.floor(pData.hueBase * 360)}, ${Math.floor((pData.sat || 0.5) * 100)}%, 65%)` : 'var(--variable-color)';
-                        }
-                    }
+                    let colorClass = body.colorString || 'var(--text-primary)';
+                    let icon = body.icon || '○';
 
                     el.innerHTML = `<div style="text-align: left; line-height: 1.2;">
                         <span style="color:${colorClass}; font-size: 0.9rem; margin-right: 4px;">${icon}</span>
@@ -1072,12 +1008,7 @@ export class UIManager {
         const targetLat = document.getElementById('target-lat');
         const targetLon = document.getElementById('target-lon');
 
-        let isGas = false;
-        if (Config.PLANET_BIOMES && Config.PLANET_BIOMES[target.type] && Config.PLANET_BIOMES[target.type].isGasGiant) {
-            isGas = true;
-        } else if (target.type === 'Gigante gaseoso') {
-            isGas = true;
-        }
+        let isGas = target.isGasGiant || false;
 
         if (targetAtmo) {
             targetAtmo.style.color = 'var(--string-color)';
@@ -1126,7 +1057,7 @@ export class UIManager {
             else targetRot.innerHTML = "'N/A'";
         }
 
-        const isStar = target.sunColor !== undefined || (target.type && (target.type.includes('Enana') || target.type.includes('Gigante azul') || target.type.includes('Estrella') || target.type.includes('Star')));
+        const isStar = target.group === 'Star' || target.group === 'Estrella';
 
         const targetSurface = document.getElementById('target-surface');
         if (targetSurface) {

@@ -32,7 +32,7 @@ export class SpaceControls {
         this.boostMultiplier = Config.PLAYER_BOOST_MULTIPLIER;
         this.friction = Config.PLAYER_FRICTION;
 
-        this.keys = { w: false, a: false, s: false, d: false, q: false, e: false, shift: false, space: false };
+        this.keys = { w: false, a: false, s: false, d: false, q: false, e: false, shift: false, space: false, up: false, down: false };
 
         this.initEvents();
     }
@@ -67,6 +67,15 @@ export class SpaceControls {
                 const promise = this.domElement.requestPointerLock();
                 if (promise) promise.catch(e => console.warn("PointerLock:", e));
             }
+        };
+        this._onMouseDown = (e) => {
+            if (!this.isLocked) return;
+            if (e.button === Config.KEYS.VERTICAL_DOWN_BTN) this.keys.down = true;
+            if (e.button === Config.KEYS.VERTICAL_UP_BTN) this.keys.up = true;
+        };
+        this._onMouseUp = (e) => {
+            if (e.button === Config.KEYS.VERTICAL_DOWN_BTN) this.keys.down = false;
+            if (e.button === Config.KEYS.VERTICAL_UP_BTN) this.keys.up = false;
         };
         this._onMouseMove = (e) => {
             if (!this.isLocked) return;
@@ -107,6 +116,8 @@ export class SpaceControls {
 
         document.addEventListener('pointerlockchange', this._onPointerLockChange);
         this.domElement.addEventListener('click', this._onClick);
+        document.addEventListener('mousedown', this._onMouseDown);
+        document.addEventListener('mouseup', this._onMouseUp);
         document.addEventListener('mousemove', this._onMouseMove);
         document.addEventListener('keydown', this._onKeyDown);
         document.addEventListener('keyup', this._onKeyUp);
@@ -325,10 +336,12 @@ export class SpaceControls {
                 this._direction.set(0, 0, 0);
                 this._direction.z = Number(this.keys.w) - Number(this.keys.s);
                 this._direction.x = Number(this.keys.d) - Number(this.keys.a);
+                this._direction.y = Number(this.keys.up) - Number(this.keys.down);
                 this._direction.normalize();
 
                 const targetVelZ = this._direction.z * currentSpeed;
                 const targetVelX = this._direction.x * currentSpeed;
+                const targetVelY = this._direction.y * currentSpeed;
 
                 // Aceleración independiente del framerate usando decaimiento exponencial
                 const accelRate = 5.0; // Velocidad de aceleración/desaceleración
@@ -336,6 +349,7 @@ export class SpaceControls {
 
                 this.velocity.z = THREE.MathUtils.lerp(this.velocity.z, targetVelZ === 0 ? 0 : -targetVelZ, t);
                 this.velocity.x = THREE.MathUtils.lerp(this.velocity.x, targetVelX, t);
+                this.velocity.y = THREE.MathUtils.lerp(this.velocity.y, targetVelY, t);
 
                 const targetRoll = (Number(this.keys.q) - Number(this.keys.e)) * Config.ROLL_SPEED;
                 this.currentRollSpeed += (targetRoll - this.currentRollSpeed) * dt * 5.0; // Lerp suave

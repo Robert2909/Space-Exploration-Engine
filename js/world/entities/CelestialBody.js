@@ -7,6 +7,10 @@ export class CelestialBody {
         this.group = config.group || 'CelestialBody';
         this.radius = config.radius || 100;
         
+        // UI Telemetry Attributes
+        this.icon = config.icon || '○';
+        this.colorString = config.colorString || '#ffffff';
+
         // Local position within the Chunk
         this.lx = config.lx || 0;
         this.ly = config.ly || 0;

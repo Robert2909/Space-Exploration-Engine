@@ -7,14 +7,21 @@ export class Planet extends CelestialBody {
         this.color = config.color; // THREE.Color
         this.atmosphereDensity = config.atmosphereDensity || 0;
         this.temperature = config.temperature || 250; // Temp in Kelvin
+        this.isGasGiant = config.isGasGiant || false;
         
         // Orbital mechanics parameters
         this.orbitRadius = config.orbitRadius || 0;
         this.orbitSpeed = config.orbitSpeed || 0;
         this.rotationSpeed = config.rotationSpeed || 0;
-        this.angle = config.angle || 0;
-        this.tiltOffset = config.tiltOffset || 0;
-        this.rotationY = config.rotationY || 0;
+        this.angle = config.angle || 0; // Current orbital phase (True Anomaly roughly)
+        
+        // 3D Orbital Mechanics
+        this.orbitInclination = config.orbitInclination || 0; // Tilt of the orbit relative to the ecliptic
+        this.ascendingNode = config.ascendingNode || 0; // Where the orbit crosses the ecliptic
+        
+        // Planet's own rotation
+        this.axialTilt = config.axialTilt || (config.tiltOffset || 0); // Obliquity (tilt of the pole)
+        this.rotationY = config.rotationY || 0; // Current spin phase
         
         // Terrain Variance Modifiers
         this.terrainVariance = config.terrainVariance || {
@@ -41,9 +48,21 @@ export class Planet extends CelestialBody {
         this.angle += this.orbitSpeed * dt;
         this.rotationY += dt * this.rotationSpeed;
         
-        // Position relative to parent star (and therefore relative to Chunk)
-        this.lx = parentLx + Math.cos(this.angle) * this.orbitRadius;
-        this.lz = parentLz + Math.sin(this.angle) * this.orbitRadius;
-        this.ly = parentLy + Math.sin(this.angle + this.tiltOffset) * (this.orbitRadius * 0.1);
+        // 1. Calculate the flat 2D orbit position (on the XZ plane)
+        const flatX = Math.cos(this.angle) * this.orbitRadius;
+        const flatZ = Math.sin(this.angle) * this.orbitRadius;
+        const flatY = 0;
+        
+        // 2. Apply orbital inclination (rotation around the line of nodes)
+        // Ascending Node defines the axis of rotation for the inclination tilt
+        const cosAsc = Math.cos(this.ascendingNode);
+        const sinAsc = Math.sin(this.ascendingNode);
+        const cosInc = Math.cos(this.orbitInclination);
+        const sinInc = Math.sin(this.orbitInclination);
+
+        // Apply 3D rotation matrix
+        this.lx = parentLx + (cosAsc * flatX - sinAsc * cosInc * flatZ);
+        this.ly = parentLy + (sinInc * flatZ);
+        this.lz = parentLz + (sinAsc * flatX + cosAsc * cosInc * flatZ);
     }
 }

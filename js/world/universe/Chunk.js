@@ -237,11 +237,13 @@ export class Chunk {
                     if (isBinary) {
                         flux += Math.pow(compTemp, 4) * Math.pow(compRadius / (2 * orbitRadius), 2);
                     }
-                    const pTempEq = Math.pow(flux, 0.25);
+                    // Limitar a 3K (Fondo Cósmico de Microondas)
+                    const pTempEq = Math.max(3, Math.pow(flux, 0.25));
 
                     let validBiomes = [];
                     for (const [biomeName, biomeData] of Object.entries(Config.PLANET_BIOMES)) {
-                        const tSurf = pTempEq * Math.pow(1 - (biomeData.albedo !== undefined ? biomeData.albedo : 0.3), 0.25) * (1 + (biomeData.greenhouse !== undefined ? biomeData.greenhouse : 0.8));
+                        let tSurf = pTempEq * Math.pow(1 - (biomeData.albedo !== undefined ? biomeData.albedo : 0.3), 0.25) * (1 + (biomeData.greenhouse !== undefined ? biomeData.greenhouse : 0.8));
+                        tSurf = Math.max(3, tSurf); // Limitar también tras el cálculo de superficie
                         if (tSurf >= (biomeData.tempMin !== undefined ? biomeData.tempMin : -999) && tSurf <= (biomeData.tempMax !== undefined ? biomeData.tempMax : 9999)) {
                             validBiomes.push({ name: biomeName, data: biomeData, tSurf });
                         }
@@ -299,7 +301,10 @@ export class Chunk {
                         ly: ly,
                         lz: lz + Math.sin(startAngle) * orbitRadius,
                         temperature: pTemp,
-                        colorHSL: pColorHSL
+                        colorHSL: pColorHSL,
+                        icon: isGasGiant ? '○' : '●',
+                        colorString: pColorHSL,
+                        isGasGiant: isGasGiant
                     });
                 }
 
@@ -312,7 +317,9 @@ export class Chunk {
                     lx: lx, ly: ly, lz: lz,
                     planets: planetsData,
                     temperature: starTemp,
-                    colorHSL: starColorHSL
+                    colorHSL: starColorHSL,
+                    icon: '❖',
+                    colorString: starColorHSL
                 });
 
                 if (isBinary) {
@@ -384,7 +391,9 @@ export class Chunk {
             const blackHole = new BlackHole({
                 name: finalName,
                 radius: radius,
-                lx: lx, ly: ly, lz: lz
+                lx: lx, ly: ly, lz: lz,
+                icon: '🌀',
+                colorString: '#8a2be2'
             });
             this.systems.push(blackHole);
             this.group.add(blackHole.mesh);
@@ -425,6 +434,9 @@ export class Chunk {
                 const starRGB = starColorFromTemp(starTemp);
                 let sunColorObj = new THREE.Color(starRGB.r, starRGB.g, starRGB.b);
                 const sunColor = sunColorObj.getHex();
+                let sunHSL = {};
+                sunColorObj.getHSL(sunHSL);
+                const sunColorString = `hsl(${Math.floor(sunHSL.h * 360)}, ${Math.floor(sunHSL.s * 100)}%, ${Math.floor(sunHSL.l * 100)}%)`;
                 
                 const baseRadius = Config.STAR_RADIUS_MIN + seededRandom(this.cx, this.cy, this.cz, seedBase + 5) * (Config.STAR_RADIUS_MAX - Config.STAR_RADIUS_MIN);
                 const sunRadius = baseRadius * (starData.radiusMultMin + seededRandom(this.cx, this.cy, this.cz, seedBase + 6) * (starData.radiusMultMax - starData.radiusMultMin));
@@ -622,15 +634,31 @@ export class Chunk {
                         const widthMult = Config.PLANET_RING_MIN_WIDTH_MULT + seededRandom(this.cx, this.cy, this.cz, pSeed + 32) * (Config.PLANET_RING_MAX_WIDTH_MULT - Config.PLANET_RING_MIN_WIDTH_MULT);
                         const outerMult = innerMult + widthMult;
 
+                        let pHSL = {};
+                        pColor.getHSL(pHSL);
+                        let ringHueBase = pHSL.h;
+                        
                         let ringSat = 0.3;
                         let ringLit = 0.8;
                         if (!isGasGiant) {
                             const biome = Config.PLANET_BIOMES[pType] || Config.PLANET_BIOMES['Planeta rocoso'];
-                            ringSat = biome.sat !== undefined ? biome.sat * 0.5 : 0.3;
-                            ringLit = biome.lit !== undefined ? biome.lit * 1.5 : 0.8;
+                            ringSat = biome.sat !== undefined ? biome.sat * 0.4 : 0.3;
+                            ringLit = biome.lit !== undefined ? biome.lit * 1.2 : 0.8;
                         } else {
                             ringSat = 0.4;
                             ringLit = 0.6;
+                        }
+
+                        // Fenómenos extraños: 15% de probabilidad de tener anillos exóticos/anómalos (minerales raros)
+                        const isAnomalous = seededRandom(this.cx, this.cy, this.cz, pSeed + 80) < 0.15;
+                        if (isAnomalous) {
+                            ringHueBase = seededRandom(this.cx, this.cy, this.cz, pSeed + 81); // Color completamente distinto
+                            ringSat = 0.8; // Muy vibrante
+                            ringLit = 0.7;
+                        } else {
+                            // Si son anillos normales de roca/hielo, se desaturan un poco para ser realistas
+                            ringSat *= 0.5;
+                            ringLit = Math.min(1.0, ringLit * 0.9 + 0.2); // Más reflectantes (hielo/polvo)
                         }
 
                         ringConfig = {
@@ -640,19 +668,23 @@ export class Chunk {
                             density: 30.0 + seededRandom(this.cx, this.cy, this.cz, pSeed + 37) * 70.0, // Controla cuántas líneas tiene el anillo
                             seed: seededRandom(this.cx, this.cy, this.cz, pSeed + 38) * 100.0,
                             color1: new THREE.Color().setHSL(
-                                (hue + seededRandom(this.cx, this.cy, this.cz, pSeed + 34) * 0.1) % 1.0,
+                                (ringHueBase + seededRandom(this.cx, this.cy, this.cz, pSeed + 34) * 0.05) % 1.0,
                                 ringSat, ringLit
                             ),
                             color2: new THREE.Color().setHSL(
-                                (hue + seededRandom(this.cx, this.cy, this.cz, pSeed + 35) * 0.15) % 1.0,
-                                ringSat * 0.8, ringLit * 1.2
+                                (ringHueBase + seededRandom(this.cx, this.cy, this.cz, pSeed + 35) * 0.08) % 1.0,
+                                ringSat * 0.8, ringLit * 1.1
                             ),
                             color3: new THREE.Color().setHSL(
-                                (hue + seededRandom(this.cx, this.cy, this.cz, pSeed + 36) * 0.2) % 1.0,
-                                ringSat * 1.2, ringLit * 0.8
+                                (ringHueBase + seededRandom(this.cx, this.cy, this.cz, pSeed + 36) * 0.1) % 1.0,
+                                ringSat * 1.2, ringLit * 0.9
                             )
                         };
                     }
+
+                    let finalPHSL = {};
+                    pColor.getHSL(finalPHSL);
+                    let colorString = `hsl(${Math.floor(finalPHSL.h * 360)}, ${Math.floor(finalPHSL.s * 100)}%, ${Math.floor(finalPHSL.l * 100)}%)`;
 
                     // pTemp is already calculated accurately with Albedo and Greenhouse
                     const planetInstance = new Planet({
@@ -660,11 +692,17 @@ export class Chunk {
                         atmosphereDensity: atmosphereDensity,
                         temperature: pTemp,
                         orbitRadius, orbitSpeed, rotationSpeed,
-                        angle: startAngle, tiltOffset: seededRandom(this.cx, this.cy, this.cz, pSeed + 12) * Math.PI * 2,
+                        angle: startAngle, 
+                        orbitInclination: (seededRandom(this.cx, this.cy, this.cz, pSeed + 12) - 0.5) * 0.5, // -0.25 to 0.25 radians (about -14 to +14 degrees)
+                        ascendingNode: seededRandom(this.cx, this.cy, this.cz, pSeed + 13) * Math.PI * 2,
+                        axialTilt: (seededRandom(this.cx, this.cy, this.cz, pSeed + 14) - 0.5) * Math.PI * 0.5, // -45 to +45 degrees mostly, some crazy ones possible if we tweak it
                         rotationY: 0, lx: 0, ly: 0, lz: 0,
                         terrainVariance: terrainVariance,
                         shaderParams: shaderParams,
-                        ringConfig: ringConfig
+                        ringConfig: ringConfig,
+                        isGasGiant: isGasGiant,
+                        icon: isGasGiant ? '○' : '●',
+                        colorString: colorString
                     });
                     planets.push(planetInstance);
                 }
@@ -685,6 +723,9 @@ export class Chunk {
                     const compRGB = starColorFromTemp(compTemp);
                     let compColorObj = new THREE.Color(compRGB.r, compRGB.g, compRGB.b);
                     const compColor = compColorObj.getHex();
+                    let compHSL = {};
+                    compColorObj.getHSL(compHSL);
+                    const compColorString = `hsl(${Math.floor(compHSL.h * 360)}, ${Math.floor(compHSL.s * 100)}%, ${Math.floor(compHSL.l * 100)}%)`;
 
                     const compAngle = seededRandom(this.cx, this.cy, this.cz, seedBase + 57) * Math.PI * 2;
                     const compSpeed = Config.PLANET_ORBIT_SPEED_MAX * (0.5 + seededRandom(this.cx, this.cy, this.cz, seedBase + 58)) * (seededRandom(this.cx, this.cy, this.cz, seedBase + 59) > 0.5 ? 1 : -1);
@@ -703,7 +744,8 @@ export class Chunk {
                         lz: lz + Math.sin(compAngle) * compDistance,
                         ly: ly + Math.sin(compAngle) * (compDistance * 0.1),
                         planets: [], // Planets orbit the primary, companion is just another star in the system
-                        temperature: compTemp
+                        temperature: compTemp,
+                        icon: '❖', colorString: compColorString
                     });
                     systemsData.push(companionInstance);
                     companionRef = companionInstance;
@@ -714,7 +756,8 @@ export class Chunk {
                     temperature: starTemp, activity: starActivity, luminosity: starLuminosity,
                     isPrimaryBinary: isBinary,
                     parentLx: lx, parentLy: ly, parentLz: lz,
-                    orbitRadius: primaryOrbitRadius, orbitSpeed: primaryOrbitSpeed, orbitAngle: primaryOrbitAngle
+                    orbitRadius: primaryOrbitRadius, orbitSpeed: primaryOrbitSpeed, orbitAngle: primaryOrbitAngle,
+                    icon: '❖', colorString: sunColorString
                 });
                 systemsData.push(starInstance);
                 
@@ -915,9 +958,6 @@ export class Chunk {
                         const ringMat = getRingShaderMaterial(p.ringConfig);
 
                         p.ringMesh = new THREE.Mesh(ringGeo, ringMat);
-                        // Inclinamos el anillo para que quede en el ecuador (plano XZ), 
-                        // y le aplicamos un tilt aleatorio que guardamos en p.tiltOffset para órbitas
-                        p.ringMesh.rotation.x = Math.PI / 2 + p.tiltOffset;
                         p.ringMesh.frustumCulled = false; // DESACTIVAR CULLING PARA ASEGURAR QUE SE RENDERICE
                         this.group.add(p.ringMesh);
                     }
@@ -1115,6 +1155,9 @@ export class Chunk {
                     p.mesh.visible = (p === closestPlanet);
                     if (p.mesh.visible) {
                         p.mesh.position.set(p.lx, p.ly, p.lz);
+                        // Aplicar spin (Y) sobre el eje inclinado (X)
+                        p.mesh.rotation.order = 'YXZ';
+                        p.mesh.rotation.x = p.axialTilt;
                         p.mesh.rotation.y = p.rotationY;
                     }
                 }
@@ -1123,10 +1166,28 @@ export class Chunk {
                     p.ringMesh.visible = (p === closestPlanet);
                     if (p.ringMesh.visible) {
                         p.ringMesh.position.set(p.lx, p.ly, p.lz);
-                        p.ringMesh.rotation.z = -p.rotationY * 0.5;
+                        p.ringMesh.rotation.order = 'YXZ';
+                        // El anillo de ThreeJS se genera plano sobre XY. Sumamos PI/2 en X para que su normal sea Y (ecuador),
+                        // y luego le sumamos la inclinación del eje (axialTilt).
+                        p.ringMesh.rotation.x = Math.PI / 2 + p.axialTilt;
+                        p.ringMesh.rotation.y = p.rotationY * 0.2; // Giran despacio
+                        
                         const distSq = (p.lx - playerLx) ** 2 + (p.ly - playerLy) ** 2 + (p.lz - playerLz) ** 2;
                         const hdDist = p.radius * Config.LOD_HIGH_DISTANCE_MULT;
                         p.ringMesh.visible = distSq < hdDist * hdDist;
+                        
+                        if (p.ringMesh.visible && p.ringMesh.material.uniforms.sunDirection) {
+                            // Dirección desde el planeta hacia su estrella (en espacio local del Chunk, que equivale a espacio padre del anillo)
+                            const sunDir = new THREE.Vector3(sys.lx - p.lx, sys.ly - p.ly, sys.lz - p.lz).normalize();
+                            
+                            // Para calcular la sombra localmente sin perder precisión,
+                            // transformamos la dirección del sol al espacio local del anillo
+                            const ringQuat = new THREE.Quaternion().setFromEuler(p.ringMesh.rotation);
+                            const sunDirLocal = sunDir.clone().applyQuaternion(ringQuat.invert());
+                            
+                            p.ringMesh.material.uniforms.sunDirection.value.copy(sunDirLocal);
+                            p.ringMesh.material.uniforms.planetRadius.value = p.radius;
+                        }
                     }
                 }
             }
