@@ -445,10 +445,10 @@ export class UIManager {
 
                 const smoothScrollRender = () => {
                     if (!isSmoothScrolling) return; // Abortar inmediatamente si el usuario interviene manualmente
-                    
+
                     const currentScroll = resultsDiv.scrollTop;
                     const diff = targetScroll - currentScroll;
-                    
+
                     if (Math.abs(diff) > 0.5) {
                         // Lerp: 0.08 hace que sea asombrosamente suave y sedoso
                         resultsDiv.scrollTop = currentScroll + diff * 0.08;
@@ -465,12 +465,12 @@ export class UIManager {
                     if (!isSmoothScrolling) {
                         targetScroll = resultsDiv.scrollTop;
                     }
-                    
+
                     const maxScroll = resultsDiv.scrollHeight - resultsDiv.clientHeight;
                     // deltaY * 3.5 compensa la suavidad extra para que puedas avanzar mucho si giras rápido
-                    targetScroll += e.deltaY * 3.5; 
+                    targetScroll += e.deltaY * 3.5;
                     targetScroll = Math.max(0, Math.min(targetScroll, maxScroll));
-                    
+
                     if (!isSmoothScrolling) {
                         isSmoothScrolling = true;
                         requestAnimationFrame(smoothScrollRender);
@@ -489,9 +489,9 @@ export class UIManager {
             let totalHeight = 0;
             for (let i = 0; i < this.latestScanResults.length; i++) {
                 const group = this.latestScanResults[i].group;
-                const hasTemp = group === 'Star' || group === 'Estrella' || group === 'Planet' || group === 'Planeta';
+                const hasTemp = group === 'Star' || group === 'Estrella' || group === 'Planet' || group === 'Planeta' || group === 'BlackHole' || group === 'Agujero Negro';
                 // Altura exacta matemática = height (60px o 47px) + marginBottom (5px)
-                const h = hasTemp ? 65 : 52; 
+                const h = hasTemp ? 65 : 52;
                 this._locatorHeights[i] = totalHeight;
                 totalHeight += h;
             }
@@ -780,7 +780,8 @@ export class UIManager {
                     const resGroup = res.group;
                     const isStar = resGroup === 'Star' || resGroup === 'Estrella';
                     const isPlanet = resGroup === 'Planet' || resGroup === 'Planeta';
-                    const hasTemp = isStar || isPlanet;
+                    const isBlackHole = resGroup === 'BlackHole' || resGroup === 'Agujero Negro';
+                    const hasTemp = isStar || isPlanet || isBlackHole;
 
                     // Asegurar matemáticamente que la altura visual coincida con el Virtual Scroll Spacer
                     const finalHeight = hasTemp ? '60px' : '47px';
@@ -799,14 +800,14 @@ export class UIManager {
 
                     item._distSpan.innerHTML = 'Distancia: <span style="color: var(--number-color);">' + calculatedDist + '</span><br/>';
                     item._radSpan.innerHTML = 'Radio: <span style="color: var(--number-color);">' + MeasurementSystem.formatSize(res.radiusVal) + '</span><br/>';
-                    
+
                     if (hasTemp) {
                         let tempColor = 'var(--string-color)';
                         let tempText = '???';
                         if (res.tempVal !== undefined) {
                             const tK = Math.round(res.tempVal);
                             const tC = tK - 273;
-                            
+
                             // Color scaling based on Kelvin (same as HUD)
                             if (tK > 5000) tempColor = '#88ccff';
                             else if (tK > 2000) tempColor = '#ffffcc';
@@ -815,9 +816,9 @@ export class UIManager {
                             else if (tK > 150) tempColor = '#aaffff';
                             else tempColor = '#5555ff';
 
-                            tempText = isStar ? `${Config.formatNumber(tK)} K` : `${Config.formatNumber(tK)} K (${Config.formatNumber(tC)} °C)`;
+                            tempText = (isStar || isBlackHole) ? `${Config.formatNumber(tK)} K` : `${Config.formatNumber(tK)} K (${Config.formatNumber(tC)} °C)`;
                         }
-                        item._tempSpan.innerHTML = `Temperatura: <span style="color: ${tempColor};">` + tempText + '</span>';
+                        item._tempSpan.innerHTML = `${isBlackHole ? 'Temp. Disco: ' : 'Temperatura: '} <span style="color: ${tempColor};">` + tempText + '</span>';
                     } else {
                         item._tempSpan.innerHTML = '';
                     }
@@ -865,12 +866,12 @@ export class UIManager {
             // Attach raw radius value for sorting
             payload.results.forEach(r => {
                 r.radiusVal = r.bodyRef.radius;
-                r.tempVal = r.bodyRef.temperature || 0;
+                r.tempVal = r.bodyRef.temperature || r.bodyRef.diskTemperature || 0;
             });
             this.latestScanResults = payload.results;
             this.latestScanTotal = payload.total;
             if (sortTempBtn) {
-                const showTemp = this.latestCriteria && (this.latestCriteria.mainType === 'Star' || this.latestCriteria.mainType === 'Planet');
+                const showTemp = this.latestCriteria && (this.latestCriteria.mainType === 'ALL' || this.latestCriteria.mainType === 'Star' || this.latestCriteria.mainType === 'Planet' || this.latestCriteria.mainType === 'BlackHole');
                 sortTempBtn.style.display = showTemp ? 'block' : 'none';
             }
             this.renderResults();
@@ -996,7 +997,15 @@ export class UIManager {
         document.getElementById('target-panel').style.display = 'block';
         document.getElementById('target-name').innerText = "'" + target.name + "'";
         document.getElementById('target-type').innerText = "'" + target.type + "'";
-        document.getElementById('target-radius').innerHTML = MeasurementSystem.formatSize(target.radius);
+
+        const classContainer = document.getElementById('target-class-container');
+        const classElement = document.getElementById('target-class');
+        if (target.subType) {
+            classContainer.style.display = 'flex';
+            classElement.innerText = "'" + target.subType + "'";
+        } else {
+            classContainer.style.display = 'none';
+        }
 
         const targetAtmo = document.getElementById('target-atmo');
         const targetGravity = document.getElementById('target-gravity');
@@ -1009,66 +1018,210 @@ export class UIManager {
         const targetLon = document.getElementById('target-lon');
 
         let isGas = target.isGasGiant || false;
+        const isBlackHole = target.type === 'Agujero Negro' || (target.type && target.type.includes('Agujero Negro'));
+        const isStar = target.group === 'Star' || target.group === 'Estrella';
 
-        if (targetAtmo) {
-            targetAtmo.style.color = 'var(--string-color)';
-            if (isGas) {
-                // Generate a consistent huge number based on its radius
-                const gasPressure = Math.round(target.radius * 0.45);
-                targetAtmo.innerText = `'${Config.formatNumber(gasPressure)} atm - Aplastante'`;
-                targetAtmo.style.color = '#ff5555';
-            } else if (target.atmosphereDensity > 0) {
-                // Approximate 0.00022 density to 1 atm based on the Pristine/Edenic biomes
-                const pressure = target.atmosphereDensity / 0.00022;
-                const pressureStr = Config.formatNumber(pressure, 2) + ' atm';
-                let text = '';
-                if (pressure < 0.05) { text = 'Casi Vacío'; targetAtmo.style.color = '#aaaaaa'; }
-                else if (pressure < 0.5) { text = 'Tenue'; targetAtmo.style.color = '#55ffff'; }
-                else if (pressure < 1.5) { text = 'Habitable'; targetAtmo.style.color = '#55ff55'; }
-                else if (pressure < 5.0) { text = 'Densa'; targetAtmo.style.color = '#ffff55'; }
-                else { text = 'Letal'; targetAtmo.style.color = '#ffaa00'; }
-                targetAtmo.innerText = `'${pressureStr} - ${text}'`;
-            } else {
-                targetAtmo.innerText = "'0 atm - Vacío'";
-                targetAtmo.style.color = '#aaaaaa';
+        const setLabel = (el, label) => { if (el && el.previousElementSibling) el.previousElementSibling.innerText = label; };
+        const radiusEl = document.getElementById('target-radius');
+
+        if (isBlackHole) {
+            setLabel(targetGravity, 'masaSolar');
+            setLabel(radiusEl, 'radioSchwarz');
+            setLabel(targetRot, 'espin');
+            setLabel(targetOrbit, 'ergosfera');
+            setLabel(targetAtmo, 'estadoActividad');
+            setLabel(targetTemp, 'tempDisco');
+            setLabel(targetTime, 'fuerzaMarea');
+
+            document.getElementById('target-surface').innerText = "'Singularidad'";
+            document.getElementById('target-surface').style.color = '#55ff55';
+
+            const rsContainer = document.getElementById('target-rs-container');
+            const rsValue = document.getElementById('target-rs');
+            if (rsContainer && rsValue) {
+                rsContainer.style.display = 'flex';
+                const rsVal = target.schwarzschildRadius || (target.radius * 0.1);
+                rsValue.innerHTML = MeasurementSystem.formatDistance(rsVal);
+                rsValue.style.color = '#ff5555';
+            }
+
+            const mSolSymbol = `<span style="font-family: 'Cambria Math', 'Times New Roman', serif; font-weight: bold;">M<sub>☉</sub></span>`;
+
+            const classContainer = document.getElementById('target-class-container');
+            const classValue = document.getElementById('target-class');
+            if (classContainer && classValue) {
+                classContainer.style.display = 'flex';
+                classValue.innerText = `'${target.subType || 'Masa Estelar'}'`;
+                classValue.style.color = '#ff88ff';
+            }
+
+            const accretionContainer = document.getElementById('target-accretion-container');
+            const accretionValue = document.getElementById('target-accretion');
+            if (accretionContainer) accretionContainer.style.display = 'flex';
+
+            if (targetAtmo) {
+                let actState = target.activityState;
+                let accRate = target.accretionRate;
+                if (actState === undefined) {
+                    const seed = Math.abs((target.lx || 0) * 738 + (target.ly || 0) * 19 + (target.lz || 0) * 88);
+                    const spin = Math.sin(seed + 2) * 0.5 + 0.5;
+                    accRate = Math.abs(Math.sin((seed + 3) * 1.234));
+                    if (accRate < 0.05) actState = 'Durmiente';
+                    else if (accRate < 0.5) actState = 'Alimentación Lenta';
+                    else if (accRate < 0.8) actState = 'Activo';
+                    else actState = (spin > 0.7) ? 'Quásar' : 'Activo (Sin Jets)';
+                }
+                const massPerYear = (accRate * 1.5).toFixed(2);
+                targetAtmo.innerText = `'${actState}'`;
+                targetAtmo.style.color = '#55ffff';
+
+                if (accretionValue) {
+                    accretionValue.innerHTML = `${massPerYear} ${mSolSymbol}/año`;
+                    accretionValue.style.color = '#55aaff';
+                }
+            }
+            if (targetGravity) {
+                const mass = Config.formatNumber(Math.round(target.mass));
+                targetGravity.innerHTML = `${mass} ${mSolSymbol}`;
+                targetGravity.style.color = '#cc55ff';
+            }
+            if (radiusEl) {
+                const rsVal = target.schwarzschildRadius || (target.radius * 0.1);
+                radiusEl.innerHTML = MeasurementSystem.formatDistance(rsVal);
+                radiusEl.style.color = '#ff5555';
+            }
+            if (targetTemp) {
+                if (target.hasDisk) {
+                    targetTemp.innerText = Config.formatNumber(target.diskTemperature) + ' K';
+                    targetTemp.style.color = '#ff5555';
+                } else {
+                    targetTemp.innerText = '0 K';
+                    targetTemp.style.color = '#aaaaaa';
+                }
+            }
+            if (targetOrbit) {
+                const ergoVal = target.ergosphereRadius || (target.radius * 0.2);
+                targetOrbit.innerHTML = MeasurementSystem.formatDistance(ergoVal);
+                targetOrbit.style.color = '#ffaa00';
+            }
+            if (targetRot) {
+                targetRot.innerText = target.spin ? target.spin.toFixed(3) + ' c' : '0.000 c';
+                targetRot.style.color = '#55ff55';
+            }
+            if (targetTime) {
+                const mass = target.mass || 1000;
+                const rs = target.schwarzschildRadius || 5000;
+                // Calculo falso pero estable de G/km
+                let fakeG = Math.round((mass / Math.pow(rs / 5000, 3)) * 15000);
+                if (fakeG < 100000) {
+                    const pseudoRandom = (mass * 7.38) % 50000;
+                    fakeG = 100000 + pseudoRandom;
+                }
+
+                const gValue = Config.formatNumber(fakeG);
+                targetTime.innerText = `${gValue} G/km ('Letal')`;
+                targetTime.style.color = '#ff2222';
+                targetTime.dataset.bhOverride = "true";
+            }
+            document.getElementById('target-type').style.color = '#aa00ff';
+        } else {
+            // Planetas normales y estrellas
+            const accretionContainer = document.getElementById('target-accretion-container');
+            if (accretionContainer) accretionContainer.style.display = 'none';
+
+            const rsContainer = document.getElementById('target-rs-container');
+            if (rsContainer) rsContainer.style.display = 'none';
+
+            setLabel(radiusEl, 'radio');
+            setLabel(targetAtmo, 'atmosfera');
+            setLabel(targetGravity, 'gravedad');
+            setLabel(targetTemp, 'temperatura');
+            setLabel(targetOrbit, 'vTraslación');
+            setLabel(targetRot, 'vRotación');
+            setLabel(targetTime, 'horaRotacional');
+
+            document.getElementById('target-type').style.color = '';
+
+            if (radiusEl) {
+                radiusEl.innerHTML = MeasurementSystem.formatSize(target.radius);
+            }
+            if (targetAtmo) {
+                targetAtmo.style.color = 'var(--string-color)';
+                if (isGas) {
+                    // Generate a consistent huge number based on its radius
+                    const gasPressure = Math.round(target.radius * 0.45);
+                    targetAtmo.innerText = `'${Config.formatNumber(gasPressure)} atm - Aplastante'`;
+                    targetAtmo.style.color = '#ff5555';
+                } else if (target.atmosphereDensity > 0) {
+                    // Approximate 0.00022 density to 1 atm based on the Pristine/Edenic biomes
+                    const pressure = target.atmosphereDensity / 0.00022;
+                    const pressureStr = Config.formatNumber(pressure, 2) + ' atm';
+                    let text = '';
+                    if (pressure < 0.05) { text = 'Casi Vacío'; targetAtmo.style.color = '#aaaaaa'; }
+                    else if (pressure < 0.5) { text = 'Tenue'; targetAtmo.style.color = '#55ffff'; }
+                    else if (pressure < 1.5) { text = 'Habitable'; targetAtmo.style.color = '#55ff55'; }
+                    else if (pressure < 5.0) { text = 'Densa'; targetAtmo.style.color = '#ffff55'; }
+                    else { text = 'Letal'; targetAtmo.style.color = '#ffaa00'; }
+                    targetAtmo.innerText = `'${pressureStr} - ${text}'`;
+                } else {
+                    targetAtmo.innerText = "'0 atm - Vacío'";
+                    targetAtmo.style.color = '#aaaaaa';
+                }
+            }
+
+            if (targetGravity) {
+                let baseGravity = isGas ? 2.5 : 1.0;
+                // La Tierra tiene ~6371 km de radio (637 U). Ese será el estándar para 1 G.
+                let radiusFactor = target.radius / Config.REFERENCE_EARTH_RADIUS_U;
+                let calculatedG = baseGravity * radiusFactor;
+                targetGravity.innerText = Config.formatNumber(calculatedG, 2) + ' G';
+
+                if (calculatedG < 0.5) targetGravity.style.color = '#55ffff';
+                else if (calculatedG < 1.5) targetGravity.style.color = '#ffffff';
+                else targetGravity.style.color = '#ff5555';
+            }
+
+            if (targetOrbit) {
+                if (target.orbitSpeed) targetOrbit.innerHTML = `'${MeasurementSystem.formatPlanetarySpeed(target.orbitSpeed, target.orbitRadius)}'`;
+                else targetOrbit.innerHTML = "'N/A'";
+            }
+
+            if (targetTemp) {
+                if (target.temperature !== undefined) {
+                    targetTemp.innerText = Config.formatNumber(target.temperature) + ' K';
+
+                    if (target.temperature < 250) targetTemp.style.color = '#55ffff';
+                    else if (target.temperature > 320) targetTemp.style.color = '#ff5555';
+                    else targetTemp.style.color = '#55ff55'; // Habitable temp
+                } else {
+                    targetTemp.innerText = "'N/A'";
+                    targetTemp.style.color = '';
+                }
+            }
+
+            if (targetRot) {
+                // ...existing rotations
             }
         }
 
-        if (targetGravity) {
-            let baseGravity = isGas ? 2.5 : 1.0;
-            // La Tierra tiene ~6371 km de radio (637 U). Ese será el estándar para 1 G.
-            let radiusFactor = target.radius / Config.REFERENCE_EARTH_RADIUS_U;
-            let calculatedG = baseGravity * radiusFactor;
-            targetGravity.innerText = Config.formatNumber(calculatedG, 2) + ' G';
-
-            if (calculatedG < 0.5) targetGravity.style.color = '#55ffff';
-            else if (calculatedG < 1.5) targetGravity.style.color = '#ffffff';
-            else targetGravity.style.color = '#ff5555';
-        }
-
-        if (targetOrbit) {
-            if (target.orbitSpeed) targetOrbit.innerHTML = `'${MeasurementSystem.formatPlanetarySpeed(target.orbitSpeed, target.orbitRadius)}'`;
-            else targetOrbit.innerHTML = "'N/A'";
-        }
-
-        if (targetRot) {
+        if (targetRot && !isBlackHole) {
             // For rotation, the relevant radius for linear surface speed is the planet's radius
             if (target.rotationSpeed) targetRot.innerHTML = `'${MeasurementSystem.formatPlanetarySpeed(target.rotationSpeed, target.radius || target.radiusVal)}'`;
             else targetRot.innerHTML = "'N/A'";
         }
 
-        const isStar = target.group === 'Star' || target.group === 'Estrella';
-
         const targetSurface = document.getElementById('target-surface');
         if (targetSurface) {
-            if (target.type === 'Agujero Negro') targetSurface.innerText = "'Singularidad'";
+            if (isBlackHole) targetSurface.innerText = "'Singularidad'";
             else if (isStar) targetSurface.innerText = "'Plasma'";
             else if (isGas) targetSurface.innerText = "'Gaseoso'";
             else targetSurface.innerText = "'Rocoso'";
         }
 
         if (targetTime) {
-            if (isStar || target.type === 'Agujero Negro') {
+            if (isBlackHole) {
+                // Ya se asignó en updateTargetDetails, no sobreescribir
+            } else if (isStar) {
                 targetTime.innerText = "'N/A'";
                 targetTime.style.color = 'var(--string-color)';
             } else {
@@ -1104,7 +1257,7 @@ export class UIManager {
             }
         }
 
-        if (targetTemp) {
+        if (targetTemp && !isBlackHole) {
             let temp = target.temperature;
 
             if (temp !== undefined) {

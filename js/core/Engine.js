@@ -146,39 +146,38 @@ export class Engine {
                     let dy = sysY - pos.y;
                     let dz = sysZ - pos.z;
                     let distSq = dx * dx + dy * dy + dz * dz;
+                    let groupType = 'Star';
+                    if (sys.type === 'Agujero Negro') {
+                        groupType = 'BlackHole';
+                    }
 
-                    // Agujeros negros don't have planets
-                    if (sys.group === 'BlackHole') {
-                        this._checkAndAddLocatorResult(sys, 'BlackHole', 'Agujero Negro', distSq, results, sysX, sysY, sysZ, criteria);
-                    } else {
-                        // It's a Star
-                        this._checkAndAddLocatorResult(sys, 'Star', sys.type, distSq, results, sysX, sysY, sysZ, criteria);
+                    this._checkAndAddLocatorResult(sys, groupType, sys.type || 'Agujero Negro', distSq, results, sysX, sysY, sysZ, criteria);
 
-                        if (sys.planets) {
-                            for (let planet of sys.planets) {
-                                let pWorldX, pWorldY, pWorldZ;
+                    // Tanto estrellas como agujeros negros pueden tener planetas ahora
+                    if (sys.planets) {
+                        for (let planet of sys.planets) {
+                            let pWorldX, pWorldY, pWorldZ;
 
-                                if (planet.x !== undefined && !planet.isMock) {
-                                    pWorldX = planet.x;
-                                    pWorldY = planet.y;
-                                    pWorldZ = planet.z;
-                                } else {
-                                    // For mock planets, planet.lx is already relative to the chunk center (it includes parent star's lx)
-                                    let plx = planet.lx || 0;
-                                    let ply = planet.ly || 0;
-                                    let plz = planet.lz || 0;
-                                    pWorldX = cxW + plx;
-                                    pWorldY = cyW + ply;
-                                    pWorldZ = czW + plz;
-                                }
-
-                                let pdx = pWorldX - pos.x;
-                                let pdy = pWorldY - pos.y;
-                                let pdz = pWorldZ - pos.z;
-                                let pdistSq = pdx * pdx + pdy * pdy + pdz * pdz;
-
-                                this._checkAndAddLocatorResult(planet, 'Planet', planet.type, pdistSq, results, pWorldX, pWorldY, pWorldZ, criteria);
+                            if (planet.x !== undefined && !planet.isMock) {
+                                pWorldX = planet.x;
+                                pWorldY = planet.y;
+                                pWorldZ = planet.z;
+                            } else {
+                                // planet.lx ya incluye el parentLx (relativo al centro del chunk)
+                                let plx = planet.lx || 0;
+                                let ply = planet.ly || 0;
+                                let plz = planet.lz || 0;
+                                pWorldX = cxW + plx;
+                                pWorldY = cyW + ply;
+                                pWorldZ = czW + plz;
                             }
+
+                            let pdx = pWorldX - pos.x;
+                            let pdy = pWorldY - pos.y;
+                            let pdz = pWorldZ - pos.z;
+                            let pDistSq = pdx * pdx + pdy * pdy + pdz * pdz;
+
+                            this._checkAndAddLocatorResult(planet, 'Planet', planet.type, pDistSq, results, pWorldX, pWorldY, pWorldZ, criteria);
                         }
                     }
                 }

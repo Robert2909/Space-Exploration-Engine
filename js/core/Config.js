@@ -31,6 +31,7 @@ export const Config = {
     STAR_RADIUS_MIN: 20000, // Radio mínimo de estrella principal (200,000 km)
     STAR_RADIUS_MAX: 100000, // Radio máximo de estrella (1,000,000 km)
     PLANETS_MAX_PER_SYSTEM: 9, // 1 a 10 planetas por estrella
+    STAR_ICON: '❖', // Ícono maestro para estrellas
 
     // ANILLOS PLANETARIOS
     PLANET_RING_MIN_RADIUS_MULT: 1.5, // Empieza a 1.5x el radio del planeta
@@ -39,6 +40,8 @@ export const Config = {
     PLANET_RING_MAX_WIDTH_MULT: 2.5,  // Ancho máximo del anillo (2.5x radio)
     PLANET_RING_OPACITY_MIN: 0.4,
     PLANET_RING_OPACITY_MAX: 0.9,
+    PLANET_ROCKY_ICON: '●',
+    PLANET_GAS_ICON: '○',
     PLANET_ROCKY_RADIUS_MIN: 400, // Radio mínimo planeta rocoso (~4,000 km, similar a Marte/Tierra)
     PLANET_ROCKY_RADIUS_MAX: 1000, // Radio máximo planeta rocoso (~10,000 km, Súper-Tierras)
     PLANET_GAS_RADIUS_MIN: 3000, // Radio mínimo planeta gaseoso (~30,000 km)
@@ -158,6 +161,8 @@ export const Config = {
     // ==========================================
     // AGUJEROS NEGROS
     // ==========================================
+    BLACK_HOLE_ICON: '🌀',
+    BLACK_HOLE_COLOR: '#8a2be2',
     BLACK_HOLE_SIZE_MULT_NORMAL: 50.0, // Variación de tamaño para agujeros negros normales (1.0 + X)
     BLACK_HOLE_ULTRA_MASSIVE_CHANCE: 0.01, // Probabilidad de generar un ultramasivo (0.0 a 1.0)
     BLACK_HOLE_SIZE_MULT_ULTRA: 5000.0, // Tamaño extra para los ultramasivos
@@ -266,7 +271,7 @@ export const Config = {
     // PILOTO AUTOMÁTICO Y CINEMÁTICAS
     // ==========================================
     AUTOPILOT_MIN_SPEED: 60000, // Velocidad mínima de viaje (unidades por segundo)
-    AUTOPILOT_MAX_SPEED: 6000000000, // Velocidad máxima permitida (50M uds/s)
+    AUTOPILOT_MAX_SPEED: 60000000000, // Velocidad máxima permitida (50M uds/s)
     AUTOPILOT_DESIRED_SECONDS: 1.0, // Segundos teóricos en los que queremos que llegue al objetivo para escalar velocidad
     AUTOPILOT_BRAKE_MULTIPLIER: 0.70, // Desaceleración violenta por frame al llegar (Salto cuántico)
     AUTOPILOT_BRAKE_ZONE_MULT: 1, // Multiplicador de radio para iniciar la frenada cuántica

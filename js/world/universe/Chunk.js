@@ -9,6 +9,7 @@ import { getRingShaderMaterial } from '../materials/RingShader.js';
 import { Lensflare, LensflareElement } from 'three/addons/objects/Lensflare.js';
 import { Planet } from '../entities/Planet.js';
 import { BlackHole } from '../entities/BlackHole.js';
+import { getLensingShaderMaterial, getAccretionDiskShaderMaterial } from '../materials/BlackHoleShader.js';
 
 export const SHARED_SPHERE_GEO = new THREE.IcosahedronGeometry(1, 1); // 80 faces, super fast
 export const SHARED_HIGH_POLY_GEO = new THREE.SphereGeometry(1, 128, 128);
@@ -18,9 +19,9 @@ export const SHARED_GHOST_GEO = new THREE.PlaneGeometry(1, 1); // Plano base par
 
 const SHARED_ASTEROID_GEO = new THREE.IcosahedronGeometry(1, 0); // Low-poly para asteroides
 const SHARED_STAR_MAT = new THREE.PointsMaterial({
-    size: Config.RENDER_STAR_POINT_SIZE || 20, 
-    vertexColors: true, 
-    transparent: false, 
+    size: Config.RENDER_STAR_POINT_SIZE || 20,
+    vertexColors: true,
+    transparent: false,
     sizeAttenuation: true,
     depthWrite: true
 });
@@ -58,7 +59,7 @@ function createRaysTexture() {
     for (let i = 0; i < 60; i++) {
         const angle = Math.random() * Math.PI * 2;
         const isLong = Math.random() > 0.8;
-        const length = isLong ? 150 + Math.random() * 80 : 60 + Math.random() * 80; 
+        const length = isLong ? 150 + Math.random() * 80 : 60 + Math.random() * 80;
         const opacity = (isLong ? 0.3 : 0.1) + Math.random() * 0.4;
         const spread = (isLong ? 0.02 : 0.05) + Math.random() * 0.05; // Base del triángulo
 
@@ -68,7 +69,7 @@ function createRaysTexture() {
         context.lineTo(cx + Math.cos(angle) * length, cy + Math.sin(angle) * length); // Punta aguda
         context.lineTo(cx + Math.cos(angle + spread) * 20, cy + Math.sin(angle + spread) * 20);
         context.closePath();
-        
+
         context.fillStyle = `rgba(255, 255, 255, ${opacity})`;
         context.fill();
     }
@@ -139,24 +140,65 @@ export class Chunk {
             const ly = (seededRandom(cx, cy, cz, bhSeed + 1) - 0.5) * size * 0.8;
             const lz = (seededRandom(cx, cy, cz, bhSeed + 2) - 0.5) * size * 0.8;
 
-            let bhSizeMult = 1.0 + seededRandom(cx, cy, cz, bhSeed + 9) * Config.BLACK_HOLE_SIZE_MULT_NORMAL;
-            let isUltraMassive = false;
-            if (seededRandom(cx, cy, cz, bhSeed + 10) > (1 - Config.BLACK_HOLE_ULTRA_MASSIVE_CHANCE)) {
-                bhSizeMult = Config.BLACK_HOLE_SIZE_MULT_NORMAL + seededRandom(cx, cy, cz, bhSeed + 11) * (Config.BLACK_HOLE_SIZE_MULT_ULTRA - Config.BLACK_HOLE_SIZE_MULT_NORMAL);
-                isUltraMassive = true;
-            }
-            const radius = Config.STAR_RADIUS_MAX * (1 + seededRandom(cx, cy, cz, bhSeed + 3) * Config.BLACK_HOLE_BASE_RADIUS_VAR) * bhSizeMult;
+            let isUltraMassive = seededRandom(cx, cy, cz, bhSeed + 10) > (1 - Config.BLACK_HOLE_ULTRA_MASSIVE_CHANCE);
             const finalName = generateBlackHoleName(bhSeed, cx, cy, cz, isUltraMassive);
 
-            systems.push({
-                isMock: true,
-                group: 'BlackHole',
-                type: 'Agujero Negro',
+            const blackHole = new BlackHole({
                 name: finalName,
-                radius: radius,
                 lx: lx, ly: ly, lz: lz,
-                planets: []
+                isUltraMassive: isUltraMassive,
+                icon: Config.BLACK_HOLE_ICON,
+                colorString: Config.BLACK_HOLE_COLOR
             });
+            blackHole.isMock = true; // flag it
+
+            const numPlanets = Math.floor(seededRandom(cx, cy, cz, bhSeed + 12) * 6);
+            const systemPlanetNames = [];
+            for (let i = 0; i < numPlanets; i++) {
+                const pSeed = bhSeed * (i + 13);
+                const planetName = generatePlanetName(finalName, i, pSeed, cx, cy, cz, systemPlanetNames);
+                systemPlanetNames.push(planetName);
+                const pRadius = 15 + seededRandom(cx, cy, cz, pSeed) * 50;
+
+                const distance = blackHole.iscoRadius * 5 + Config.ORBIT_DISTANCE_START + (i * (Config.ORBIT_DISTANCE_SPACING + seededRandom(cx, cy, cz, pSeed + 8) * Config.ORBIT_DISTANCE_VAR));
+
+                // Velocidad Orbital Kepleriana (Tercera Ley de Kepler: w = sqrt(G * M / r^3))
+                const G_ENGINE = 500000; // Constante gravitacional abstraída del engine
+                let baseOrbitSpeed = Math.sqrt((G_ENGINE * blackHole.mass) / Math.pow(distance, 3));
+                const orbitSpeed = baseOrbitSpeed * (seededRandom(cx, cy, cz, pSeed + 22) > 0.5 ? 1 : -1);
+
+                const baseRotationSpeed = Config.PLANET_ROTATION_SPEED_MIN + seededRandom(cx, cy, cz, pSeed + 15) * (Config.PLANET_ROTATION_SPEED_MAX - Config.PLANET_ROTATION_SPEED_MIN);
+                const rotationSpeed = baseRotationSpeed * (seededRandom(cx, cy, cz, pSeed + 16) > 0.5 ? 1 : -1);
+
+                const allowedBiomes = ['Rocoso', 'Volcánico', 'Yermo', 'Metálico', 'Obsidiana', 'Fracturado'];
+                const biome = allowedBiomes[Math.floor(seededRandom(cx, cy, cz, pSeed + 4) * allowedBiomes.length)];
+
+                let bhSunColor = null;
+                if (blackHole.hasDisk) {
+                    bhSunColor = new THREE.Color(0x88aaff); // Luz azulada intensa del plasma
+                }
+
+                blackHole.planets.push({
+                    isMock: true,
+                    group: 'Planet',
+                    type: biome,
+                    name: planetName,
+                    radius: pRadius,
+                    lx: lx + distance,
+                    ly: ly,
+                    lz: lz,
+                    colorString: '#777777', // Los dejaremos con color roca estéril, pero con su ícono correcto
+                    color: new THREE.Color(0x555555),
+                    atmosphereDensity: 0,
+                    temperature: 0,
+                    icon: Config.PLANET_ROCKY_ICON,
+                    rotationSpeed: rotationSpeed,
+                    orbitSpeed: orbitSpeed,
+                    orbitRadius: distance
+                });
+            }
+
+            systems.push(blackHole);
             return systems;
         }
 
@@ -183,7 +225,7 @@ export class Chunk {
                 }
                 const starTemp = Math.floor((starData.tempBase || 5000) + seededRandom(cx, cy, cz, seedBase + 30) * (starData.tempVar || 1500));
                 const starRadius = Config.STAR_RADIUS_MIN + seededRandom(cx, cy, cz, seedBase + 5) * (Config.STAR_RADIUS_MAX - Config.STAR_RADIUS_MIN);
-                
+
                 // Color is now based strictly on blackbody radiation from its physical temperature
                 const starRGB = starColorFromTemp(starTemp);
                 const _tempStarCol = new THREE.Color(starRGB.r, starRGB.g, starRGB.b);
@@ -213,13 +255,13 @@ export class Chunk {
                     compTemp = Math.floor((compStarData.tempBase || 5000) + seededRandom(cx, cy, cz, seedBase + 53) * (compStarData.tempVar || 1500));
                     const compBaseRadius = Config.STAR_RADIUS_MIN + seededRandom(cx, cy, cz, seedBase + 60) * (Config.STAR_RADIUS_MAX - Config.STAR_RADIUS_MIN);
                     compRadius = compBaseRadius * (compStarData.radiusMultMin + seededRandom(cx, cy, cz, seedBase + 61) * (compStarData.radiusMultMax - compStarData.radiusMultMin));
-                    
+
                     const compRGB = starColorFromTemp(compTemp);
                     const _tempCompCol = new THREE.Color(compRGB.r, compRGB.g, compRGB.b);
                     const compHSLObj = {};
                     _tempCompCol.getHSL(compHSLObj);
                     var compColorHSL = `hsl(${Math.floor(compHSLObj.h * 360)}, ${Math.floor(compHSLObj.s * 100)}%, ${Math.floor(compHSLObj.l * 100)}%)`;
-                    
+
                     compDistance = starRadius * Config.BINARY_STAR_DISTANCE_BASE_MULT + seededRandom(cx, cy, cz, seedBase + 56) * starRadius * Config.BINARY_STAR_DISTANCE_VAR_MULT;
                     compAngle = seededRandom(cx, cy, cz, seedBase + 57) * Math.PI * 2;
                 }
@@ -232,7 +274,7 @@ export class Chunk {
                     const pName = generatePlanetName(starName, j, pSeed + 13, cx, cy, cz, systemPlanetNames);
                     systemPlanetNames.push(pName);
                     const orbitRadius = starRadius * 1.5 + Config.ORBIT_DISTANCE_START + j * (Config.ORBIT_DISTANCE_SPACING + seededRandom(cx, cy, cz, pSeed + 8) * Config.ORBIT_DISTANCE_VAR);
-                    
+
                     let flux = Math.pow(starTemp, 4) * Math.pow(starRadius / (2 * orbitRadius), 2);
                     if (isBinary) {
                         flux += Math.pow(compTemp, 4) * Math.pow(compRadius / (2 * orbitRadius), 2);
@@ -280,9 +322,9 @@ export class Chunk {
                         if (biome.sat !== undefined) pSat = biome.sat;
                         if (biome.lit !== undefined) pLit = biome.lit;
                     } else {
-                        pSat = biome.sat !== undefined ? biome.sat : ((biome.satRandomBase||0.5) + seededRandom(cx, cy, cz, pSeed + 1) * (biome.satRandomMult||0.5));
-                        pLit = biome.lit !== undefined ? biome.lit : ((biome.litRandomBase||0.5) + seededRandom(cx, cy, cz, pSeed + 2) * (biome.litRandomMult||0.5));
-                        pHue = biome.useSystemHue ? starHSLObj.h : ((biome.hueBase||0) + seededRandom(cx, cy, cz, pSeed) * (biome.hueVar||0));
+                        pSat = biome.sat !== undefined ? biome.sat : ((biome.satRandomBase || 0.5) + seededRandom(cx, cy, cz, pSeed + 1) * (biome.satRandomMult || 0.5));
+                        pLit = biome.lit !== undefined ? biome.lit : ((biome.litRandomBase || 0.5) + seededRandom(cx, cy, cz, pSeed + 2) * (biome.litRandomMult || 0.5));
+                        pHue = biome.useSystemHue ? starHSLObj.h : ((biome.hueBase || 0) + seededRandom(cx, cy, cz, pSeed) * (biome.hueVar || 0));
                     }
                     const pColorHSL = `hsl(${Math.floor(pHue * 360)}, ${Math.floor(pSat * 100)}%, ${Math.floor(pLit * 100)}%)`;
 
@@ -290,6 +332,12 @@ export class Chunk {
                     const pRadius = pRadiusBase * (biome.radiusMult !== undefined ? biome.radiusMult : 1.0);
 
                     const startAngle = seededRandom(cx, cy, cz, pSeed + 11) * Math.PI * 2;
+
+                    const baseOrbitSpeed = Config.PLANET_ORBIT_SPEED_MIN + seededRandom(cx, cy, cz, pSeed + 9) * (Config.PLANET_ORBIT_SPEED_MAX - Config.PLANET_ORBIT_SPEED_MIN);
+                    const orbitSpeed = baseOrbitSpeed * (seededRandom(cx, cy, cz, pSeed + 10) > 0.5 ? 1 : -1);
+
+                    const baseRotationSpeed = Config.PLANET_ROTATION_SPEED_MIN + seededRandom(cx, cy, cz, pSeed + 15) * (Config.PLANET_ROTATION_SPEED_MAX - Config.PLANET_ROTATION_SPEED_MIN);
+                    const rotationSpeed = baseRotationSpeed * (seededRandom(cx, cy, cz, pSeed + 16) > 0.5 ? 1 : -1);
 
                     planetsData.push({
                         isMock: true,
@@ -302,9 +350,12 @@ export class Chunk {
                         lz: lz + Math.sin(startAngle) * orbitRadius,
                         temperature: pTemp,
                         colorHSL: pColorHSL,
-                        icon: isGasGiant ? '○' : '●',
+                        icon: isGasGiant ? Config.PLANET_GAS_ICON : Config.PLANET_ROCKY_ICON,
                         colorString: pColorHSL,
-                        isGasGiant: isGasGiant
+                        isGasGiant: isGasGiant,
+                        rotationSpeed: rotationSpeed,
+                        orbitSpeed: orbitSpeed,
+                        orbitRadius: orbitRadius
                     });
                 }
 
@@ -318,7 +369,7 @@ export class Chunk {
                     planets: planetsData,
                     temperature: starTemp,
                     colorHSL: starColorHSL,
-                    icon: '❖',
+                    icon: Config.STAR_ICON,
                     colorString: starColorHSL
                 });
 
@@ -334,7 +385,9 @@ export class Chunk {
                         lz: lz + Math.sin(compAngle) * compDistance,
                         planets: [],
                         temperature: compTemp,
-                        colorHSL: compColorHSL
+                        colorHSL: compColorHSL,
+                        icon: Config.STAR_ICON,
+                        colorString: compColorHSL
                     });
                 }
             }
@@ -390,14 +443,157 @@ export class Chunk {
 
             const blackHole = new BlackHole({
                 name: finalName,
-                radius: radius,
                 lx: lx, ly: ly, lz: lz,
-                icon: '🌀',
-                colorString: '#8a2be2'
+                icon: Config.BLACK_HOLE_ICON,
+                colorString: Config.BLACK_HOLE_COLOR,
+                isUltraMassive: isUltraMassive
             });
             this.systems.push(blackHole);
+
+            // FASE 2 EDSSM: Delegación Visual
+            blackHole.mesh = new THREE.Group();
+            blackHole.mesh.position.set(lx, ly, lz);
+
+            // 1. Horizonte de Eventos y Lente Gravitacional (Shader custom)
+            const euler = new THREE.Euler(blackHole.inclinationX, blackHole.inclinationY, blackHole.inclinationZ);
+
+            const lensingMat = getLensingShaderMaterial();
+            // Lienzo masivo (5x el radio) para que la textura tenga muchísimo espacio para estirarse infinitamente
+            const horizonGeo = new THREE.SphereGeometry(blackHole.schwarzschildRadius * 4.0, 64, 64);
+            const horizonMesh = new THREE.Mesh(horizonGeo, lensingMat);
+            horizonMesh.rotation.copy(euler);
+            blackHole.mesh.add(horizonMesh);
+
+            // Centro negro puro (Ocluye lo que haya detrás)
+            const coreGeo = new THREE.SphereGeometry(blackHole.schwarzschildRadius, 64, 64);
+            const coreMat = new THREE.MeshBasicMaterial({ color: 0x000000 });
+            const coreMesh = new THREE.Mesh(coreGeo, coreMat);
+            blackHole.mesh.add(coreMesh);
+
+            // 2. DISCO DE ACRECIÓN (Esfera Aplastada)
+            if (blackHole.hasDisk) {
+                // Outer radius = ISCO + (Rs * factor de masa y acreción)
+                const outerRadius = blackHole.iscoRadius + (blackHole.schwarzschildRadius * 20 * blackHole.accretionRate);
+
+                const diskMat = getAccretionDiskShaderMaterial(
+                    blackHole.diskTemperature,
+                    blackHole.accretionRate,
+                    blackHole.spin,
+                    blackHole.iscoRadius,
+                    outerRadius
+                );
+
+                // Geometría de Toroide (Dona): Permite que el borde interior se curve hacia abajo hacia el agujero negro.
+                // El rendimiento es casi idéntico (apenas unos miles de vértices), el problema anterior de FPS fue por los shaders FBM, no por la geometría.
+                const midRadius = (outerRadius + blackHole.iscoRadius) / 2;
+                const tubeThickness = (outerRadius - blackHole.iscoRadius) / 2;
+
+                const diskGeo = new THREE.TorusGeometry(midRadius, tubeThickness, 16, 128);
+                const diskMesh = new THREE.Mesh(diskGeo, diskMat);
+
+                diskMesh.rotation.copy(euler); // Alinear con las normales físicas
+                diskMesh.scale.set(1, 1, 0.035); // Aplastarlo a un nivel equilibrado para la dona
+
+                blackHole.diskMesh = diskMesh; // Guardar referencia para el Chunk.update()
+                blackHole.mesh.add(diskMesh);
+
+                // 3. Jets (Microquásar)
+                if (blackHole.hasJets) {
+                    const jetHeight = blackHole.schwarzschildRadius * 200;
+                    const jetRadius = blackHole.schwarzschildRadius * 0.5;
+                    const jetGeo = new THREE.CylinderGeometry(0.1, jetRadius, jetHeight, 32);
+                    // Desplazar la geometría para que la base empiece en el centro
+                    jetGeo.translate(0, jetHeight / 2, 0);
+
+                    const jetMat = new THREE.MeshBasicMaterial({
+                        color: 0x88ccff, transparent: true, opacity: 0.5,
+                        blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide
+                    });
+
+                    const jetMesh = new THREE.Mesh(jetGeo, jetMat);
+                    jetMesh.rotation.copy(euler);
+
+                    blackHole.jetMesh = jetMesh;
+                    blackHole.mesh.add(jetMesh);
+                }
+            }
+
+            // Desactivar Frustum Culling para no desaparecer anomalías gigantes
+            blackHole.mesh.traverse((child) => {
+                if (child.isMesh) child.frustumCulled = false;
+            });
+
             this.group.add(blackHole.mesh);
-            return; // Si hay blackHole, devora todo lo demás, no hay estrellas normales.
+
+            // FASE 3 EDSSM: Ecosistemas Oscuros
+            // Generar planetas orbitando el Agujero Negro
+            const numPlanets = Math.floor(seededRandom(this.cx, this.cy, this.cz, bhSeed + 12) * 6); // 0 a 5 planetas
+
+            // Iluminación del sistema
+            // Si está durmiente (0.05 acreción), no hay luz. Si está activo, el disco emite luz dura.
+            let bhSunColor = null;
+            if (blackHole.hasDisk) {
+                bhSunColor = new THREE.Color(0x88aaff); // Luz azulada intensa del plasma
+            }
+
+            const systemPlanetNames = [];
+            let maxDistance = blackHole.iscoRadius * 5;
+            for (let i = 0; i < numPlanets; i++) {
+                const pSeed = bhSeed * (i + 13);
+                const planetName = generatePlanetName(finalName, i, pSeed, this.cx, this.cy, this.cz, systemPlanetNames);
+                systemPlanetNames.push(planetName);
+                const pRadius = 15 + seededRandom(this.cx, this.cy, this.cz, pSeed) * 50;
+
+                // Distancia segura: Lejos del ISCO, usando el espaciado estándar del universo
+                const distance = blackHole.iscoRadius * 5 + Config.ORBIT_DISTANCE_START + (i * (Config.ORBIT_DISTANCE_SPACING + seededRandom(this.cx, this.cy, this.cz, pSeed + 8) * Config.ORBIT_DISTANCE_VAR));
+
+                // Velocidad Orbital Kepleriana (Tercera Ley de Kepler: w = sqrt(G * M / r^3))
+                const G_ENGINE = 500000; // Constante gravitacional abstraída del engine
+                const baseOrbitSpeed = Math.sqrt((G_ENGINE * blackHole.mass) / Math.pow(distance, 3));
+                const orbitSpeed = baseOrbitSpeed * (seededRandom(this.cx, this.cy, this.cz, pSeed + 2) > 0.5 ? 1 : -1);
+
+                const baseRotationSpeed = Config.PLANET_ROTATION_SPEED_MIN + seededRandom(this.cx, this.cy, this.cz, pSeed + 15) * (Config.PLANET_ROTATION_SPEED_MAX - Config.PLANET_ROTATION_SPEED_MIN);
+                const rotationSpeed = baseRotationSpeed * (seededRandom(this.cx, this.cy, this.cz, pSeed + 16) > 0.5 ? 1 : -1);
+
+                const initialAngle = seededRandom(this.cx, this.cy, this.cz, pSeed + 3) * Math.PI * 2;
+                const rotationY = seededRandom(this.cx, this.cy, this.cz, pSeed + 18) * Math.PI * 2;
+
+                const allowedBiomes = ['Rocoso', 'Volcánico', 'Yermo', 'Metálico', 'Obsidiana', 'Fracturado'];
+                const biome = allowedBiomes[Math.floor(seededRandom(this.cx, this.cy, this.cz, pSeed + 4) * allowedBiomes.length)];
+
+                const planetConfig = {
+                    name: planetName,
+                    type: `Planeta ${biome}`,
+                    radius: pRadius,
+                    orbitRadius: distance,
+                    orbitSpeed: orbitSpeed,
+                    rotationSpeed: rotationSpeed,
+                    rotationY: rotationY,
+                    angle: initialAngle,
+                    surfaceType: biome,
+                    sunColor: bhSunColor, // Luz heredada del disco (o nula)
+                    orbitInclination: blackHole.inclinationX + (seededRandom(this.cx, this.cy, this.cz, pSeed + 5) * 0.2 - 0.1),
+                    colorString: '#777777',
+                    color: new THREE.Color(0x555555),
+                    atmosphereDensity: 0, // Planetas de agujeros negros están estériles
+                    temperature: 0,
+                    icon: '●'
+                };
+
+                const planet = new Planet(planetConfig);
+                planet.parentSystem = blackHole;
+
+                // Chunk.js crea la malla manualmente
+                planet.mesh = new THREE.Mesh(SHARED_SPHERE_GEO, SHARED_PLANET_MAT.clone());
+                planet.mesh.material.color = planet.color || new THREE.Color(0x333333);
+                planet.mesh.scale.set(planet.radius, planet.radius, planet.radius);
+
+                blackHole.planets.push(planet);
+                this.group.add(planet.mesh); // Agregado al chunk group igual que estrellas
+            }
+
+            blackHole.systemRadius = maxDistance * 1.5;
+            return; // Fin del chunk. El agujero es el único sistema aquí.
         }
 
         const hasSystem = seededRandom(this.cx, this.cy, this.cz, 100) > (1 - Config.SYSTEM_SPAWN_CHANCE);
@@ -429,7 +625,7 @@ export class Chunk {
 
                 // Nuevas propiedades procedimentales de estrella
                 const starTemp = Math.floor((starData.tempBase || 5000) + seededRandom(this.cx, this.cy, this.cz, seedBase + 30) * (starData.tempVar || 1500));
-                
+
                 // Generar color científicamente a partir de la temperatura Blackbody
                 const starRGB = starColorFromTemp(starTemp);
                 let sunColorObj = new THREE.Color(starRGB.r, starRGB.g, starRGB.b);
@@ -437,16 +633,16 @@ export class Chunk {
                 let sunHSL = {};
                 sunColorObj.getHSL(sunHSL);
                 const sunColorString = `hsl(${Math.floor(sunHSL.h * 360)}, ${Math.floor(sunHSL.s * 100)}%, ${Math.floor(sunHSL.l * 100)}%)`;
-                
+
                 const baseRadius = Config.STAR_RADIUS_MIN + seededRandom(this.cx, this.cy, this.cz, seedBase + 5) * (Config.STAR_RADIUS_MAX - Config.STAR_RADIUS_MIN);
                 const sunRadius = baseRadius * (starData.radiusMultMin + seededRandom(this.cx, this.cy, this.cz, seedBase + 6) * (starData.radiusMultMax - starData.radiusMultMin));
-                
+
                 const starActivity = 0.5 + seededRandom(this.cx, this.cy, this.cz, seedBase + 31) * 1.5; // Multiplicador de velocidad de corona
                 // Luminosidad basada en la Ley de Stefan-Boltzmann (L ∝ R² * T⁴) usando el Sol de referencia
                 const luminosityRatio = Math.pow(sunRadius / 70000, 2) * Math.pow(starTemp / 5778, 4);
                 // Mapeo logarítmico para mantener la luminosidad en un rango visual atractivo sin saturar el blanco
                 const starLuminosity = Math.max(0.1, 0.8 + Math.log10(luminosityRatio) * 0.4);
-                
+
                 // --- BINARY STAR PRE-CHECK ---
                 const isBinary = seededRandom(this.cx, this.cy, this.cz, seedBase + 50) > (1 - Config.BINARY_STAR_CHANCE);
                 let compTemp = 0;
@@ -481,13 +677,13 @@ export class Chunk {
                     const pName = generatePlanetName(starName, j, pSeed + 13, this.cx, this.cy, this.cz, systemPlanetNames);
                     systemPlanetNames.push(pName);
                     const hue = seededRandom(this.cx, this.cy, this.cz, pSeed);
-                    
+
                     let orbitStart = sunRadius * 1.5 + Config.ORBIT_DISTANCE_START;
                     if (isBinary) {
                         orbitStart += compDistance * 2.5; // Circumbinary planets must orbit outside the unstable resonance zone
                     }
                     const orbitRadius = orbitStart + j * (Config.ORBIT_DISTANCE_SPACING + seededRandom(this.cx, this.cy, this.cz, pSeed + 8) * Config.ORBIT_DISTANCE_VAR);
-                    
+
                     let flux = Math.pow(starTemp, 4) * Math.pow(sunRadius / (2 * orbitRadius), 2);
                     if (isBinary) {
                         flux += Math.pow(compTemp, 4) * Math.pow(compRadius / (2 * orbitRadius), 2);
@@ -561,7 +757,7 @@ export class Chunk {
 
                         let pSat = biome.sat !== undefined ? biome.sat : (biome.satRandomBase + seededRandom(this.cx, this.cy, this.cz, pSeed + 1) * biome.satRandomMult);
                         let pLit = biome.lit !== undefined ? biome.lit : (biome.litRandomBase + seededRandom(this.cx, this.cy, this.cz, pSeed + 2) * biome.litRandomMult);
-                        
+
                         let pHue = 0;
                         if (biome.useSystemHue) {
                             const starHSL = {};
@@ -570,7 +766,7 @@ export class Chunk {
                         } else {
                             pHue = (biome.hueBase + seededRandom(this.cx, this.cy, this.cz, pSeed) * biome.hueVar);
                         }
-                        
+
                         pColor.setHSL(pHue, pSat, pLit);
 
                         // Densidad atmosférica
@@ -637,7 +833,7 @@ export class Chunk {
                         let pHSL = {};
                         pColor.getHSL(pHSL);
                         let ringHueBase = pHSL.h;
-                        
+
                         let ringSat = 0.3;
                         let ringLit = 0.8;
                         if (!isGasGiant) {
@@ -692,7 +888,7 @@ export class Chunk {
                         atmosphereDensity: atmosphereDensity,
                         temperature: pTemp,
                         orbitRadius, orbitSpeed, rotationSpeed,
-                        angle: startAngle, 
+                        angle: startAngle,
                         orbitInclination: (seededRandom(this.cx, this.cy, this.cz, pSeed + 12) - 0.5) * 0.5, // -0.25 to 0.25 radians (about -14 to +14 degrees)
                         ascendingNode: seededRandom(this.cx, this.cy, this.cz, pSeed + 13) * Math.PI * 2,
                         axialTilt: (seededRandom(this.cx, this.cy, this.cz, pSeed + 14) - 0.5) * Math.PI * 0.5, // -45 to +45 degrees mostly, some crazy ones possible if we tweak it
@@ -745,7 +941,7 @@ export class Chunk {
                         ly: ly + Math.sin(compAngle) * (compDistance * 0.1),
                         planets: [], // Planets orbit the primary, companion is just another star in the system
                         temperature: compTemp,
-                        icon: '❖', colorString: compColorString
+                        icon: Config.STAR_ICON, colorString: compColorString
                     });
                     systemsData.push(companionInstance);
                     companionRef = companionInstance;
@@ -757,10 +953,10 @@ export class Chunk {
                     isPrimaryBinary: isBinary,
                     parentLx: lx, parentLy: ly, parentLz: lz,
                     orbitRadius: primaryOrbitRadius, orbitSpeed: primaryOrbitSpeed, orbitAngle: primaryOrbitAngle,
-                    icon: '❖', colorString: sunColorString
+                    icon: Config.STAR_ICON, colorString: sunColorString
                 });
                 systemsData.push(starInstance);
-                
+
                 if (companionRef) {
                     companionRef.primary = starInstance;
                 }
@@ -850,21 +1046,21 @@ export class Chunk {
                 const starHSL = starColorObj.getHSL({});
                 const ghosts = [
                     // Hexágonos primarios (línea central), colores basados en HSL dinámico de la estrella
-                    { size: 40, dist: 0.2, color: new THREE.Color().setHSL((starHSL.h + 0.05)%1.0, 1.0, 0.8), tex: SHARED_HEX_TEXTURE },
-                    { size: 70, dist: 0.45, color: new THREE.Color().setHSL((starHSL.h + 0.5)%1.0, 1.0, 0.7), tex: SHARED_HEX_TEXTURE },
+                    { size: 40, dist: 0.2, color: new THREE.Color().setHSL((starHSL.h + 0.05) % 1.0, 1.0, 0.8), tex: SHARED_HEX_TEXTURE },
+                    { size: 70, dist: 0.45, color: new THREE.Color().setHSL((starHSL.h + 0.5) % 1.0, 1.0, 0.7), tex: SHARED_HEX_TEXTURE },
                     { size: 30, dist: 0.6, color: new THREE.Color(0xffffff), tex: SHARED_HEX_TEXTURE },
-                    { size: 100, dist: 0.8, color: new THREE.Color().setHSL((starHSL.h + 0.1)%1.0, 1.0, 0.6), tex: SHARED_HEX_TEXTURE },
-                    { size: 50, dist: 1.1, color: new THREE.Color().setHSL((starHSL.h - 0.2 + 1.0)%1.0, 0.8, 0.7), tex: SHARED_HEX_TEXTURE },
+                    { size: 100, dist: 0.8, color: new THREE.Color().setHSL((starHSL.h + 0.1) % 1.0, 1.0, 0.6), tex: SHARED_HEX_TEXTURE },
+                    { size: 50, dist: 1.1, color: new THREE.Color().setHSL((starHSL.h - 0.2 + 1.0) % 1.0, 0.8, 0.7), tex: SHARED_HEX_TEXTURE },
                     // Círculos de colores (reflejos de lentes internos)
                     { size: 250, dist: 0.1, color: new THREE.Color(sys.sunColor), tex: SHARED_SUN_TEXTURE, op: 0.25 },
-                    { size: 150, dist: 0.35, color: new THREE.Color().setHSL((starHSL.h + 0.3)%1.0, 1.0, 0.5), tex: SHARED_SUN_TEXTURE, op: 0.15 },
-                    { size: 300, dist: 0.9, color: new THREE.Color().setHSL((starHSL.h + 0.6)%1.0, 1.0, 0.4), tex: SHARED_SUN_TEXTURE, op: 0.15 },
-                    { size: 180, dist: 1.25, color: new THREE.Color().setHSL((starHSL.h - 0.1 + 1.0)%1.0, 1.0, 0.5), tex: SHARED_SUN_TEXTURE, op: 0.2 },
+                    { size: 150, dist: 0.35, color: new THREE.Color().setHSL((starHSL.h + 0.3) % 1.0, 1.0, 0.5), tex: SHARED_SUN_TEXTURE, op: 0.15 },
+                    { size: 300, dist: 0.9, color: new THREE.Color().setHSL((starHSL.h + 0.6) % 1.0, 1.0, 0.4), tex: SHARED_SUN_TEXTURE, op: 0.15 },
+                    { size: 180, dist: 1.25, color: new THREE.Color().setHSL((starHSL.h - 0.1 + 1.0) % 1.0, 1.0, 0.5), tex: SHARED_SUN_TEXTURE, op: 0.2 },
                     // Hexágonos secundarios ligeramente desviados
-                    { size: 35, dist: 0.4, color: new THREE.Color().setHSL((starHSL.h + 0.15)%1.0, 1.0, 0.7), tex: SHARED_HEX_TEXTURE, offset: 0.05 },
-                    { size: 60, dist: 0.75, color: new THREE.Color().setHSL((starHSL.h + 0.45)%1.0, 1.0, 0.7), tex: SHARED_HEX_TEXTURE, offset: -0.05 }
+                    { size: 35, dist: 0.4, color: new THREE.Color().setHSL((starHSL.h + 0.15) % 1.0, 1.0, 0.7), tex: SHARED_HEX_TEXTURE, offset: 0.05 },
+                    { size: 60, dist: 0.75, color: new THREE.Color().setHSL((starHSL.h + 0.45) % 1.0, 1.0, 0.7), tex: SHARED_HEX_TEXTURE, offset: -0.05 }
                 ];
-                
+
                 for (let g of ghosts) {
                     const mat = new THREE.ShaderMaterial({
                         uniforms: {
@@ -904,10 +1100,10 @@ export class Chunk {
                     mesh.visible = false;
                     mesh.frustumCulled = false; // Como lo posicionamos en pantalla, NUNCA debe descartarse
                     this.group.add(mesh);
-                    sys.ghostSprites.push({ 
-                        sprite: mesh, 
-                        baseSize: g.size, 
-                        dist: g.dist, 
+                    sys.ghostSprites.push({
+                        sprite: mesh,
+                        baseSize: g.size,
+                        dist: g.dist,
                         baseColor: g.color,
                         baseOp: g.op || 1.0,
                         offset: g.offset || 0.0
@@ -931,7 +1127,7 @@ export class Chunk {
                     const scaleMult = Config.SUN_GLOW_SCALE * (1.5 + i * 0.7);
                     sprite.scale.set(sys.radius * scaleMult, sys.radius * scaleMult, 1);
                     sprite.position.set(sys.lx, sys.ly, sys.lz);
-                    sprite.frustumCulled = true; 
+                    sprite.frustumCulled = true;
 
                     // Datos para animar en el bucle
                     sprite.userData = {
@@ -983,13 +1179,28 @@ export class Chunk {
             sys.update(dt);
             sys.updateAbsolutePosition(this.group.position.x, this.group.position.y, this.group.position.z);
 
+            // FASE 2 EDSSM: Si es un Agujero Negro, actualizar uniforms críticos para los Shaders
+            if (sys.type === 'Agujero Negro' && sys.mesh) {
+                if (sys.hasDisk && sys.diskMesh && camera) {
+                    // Rotar visualmente el disco a velocidad relativista
+                    // Entre más rotación, más dinámico se ve
+                    sys.diskMesh.rotation.z -= (sys.spin * 0.5 + 0.1) * dt;
+                }
+
+                if (sys.hasJets && sys.jetMesh) {
+                    // Hacer pulsar ligeramente a los jets
+                    const pulse = 1.0 + Math.sin(Date.now() * 0.005) * 0.05;
+                    sys.jetMesh.scale.set(pulse, 1, pulse);
+                }
+            }
+
             // OPTIMIZACIÓN EXTREMA: Solo mostrar la estrella si pertenece al sistema actual Y está dentro del rango visual
             // (incluyendo compañeras binarias si estamos en la principal, o viceversa)
             const dx = playerLx - sys.lx;
             const dy = playerLy - sys.ly;
             const dz = playerLz - sys.lz;
-            const sysDistSq = dx*dx + dy*dy + dz*dz;
-            
+            const sysDistSq = dx * dx + dy * dy + dz * dz;
+
             const maxSysDist = sys.radius * Config.LOD_HIGH_DISTANCE_MULT;
             const isInSysRange = sysDistSq < (maxSysDist * maxSysDist);
 
@@ -999,20 +1210,26 @@ export class Chunk {
             let dist = 1000.0;
             let distanceInRadii = 1000.0;
             let solarFilter = 0.0;
-            
+
             if (isCurrentSystem) {
                 dist = Math.max(0.1, Math.sqrt(sysDistSq));
                 distanceInRadii = dist / sys.radius;
-                
+
                 // Filtro Solar Automático (Telescopio H-Alpha de la nave)
                 // Se activa desde los 6 radios, logrando su máximo efecto a los 2 radios
                 solarFilter = Math.max(0.0, Math.min(1.0, 1.0 - ((distanceInRadii - 2.0) / 4.0)));
             }
 
             if (sys.mesh) {
+                // Usamos systemRadius si existe, de lo contrario radius, como límite para isCurrentSystem
+                let sysMaxDist = (sys.systemRadius || sys.radius) * Config.LOD_HIGH_DISTANCE_MULT;
+                const isInSysRange = sysDistSq < (sysMaxDist * sysMaxDist);
+                const isCurrentSystem = ((sys === closestSystem) || (sys.primary === closestSystem) || (sys === closestSystem?.primary)) && isInSysRange;
+
                 sys.mesh.visible = isCurrentSystem;
+
                 if (sys.mesh.visible) {
-                    if (sys.isCompanion || sys.isPrimaryBinary) {
+                    if (sys.isCompanion || sys.isPrimaryBinary || sys.type === 'Agujero Negro') {
                         sys.mesh.position.set(sys.lx, sys.ly, sys.lz);
                     }
                     if (sys.mesh.material && sys.mesh.material.uniforms) {
@@ -1024,6 +1241,24 @@ export class Chunk {
                             sys.mesh.material.uniforms.uSolarFilter.value = solarFilter;
                         }
                     }
+
+                    // Actualizar uniforms específicos de agujeros negros
+                    if (sys.type === 'Agujero Negro' && camera) {
+                        const now = performance.now() * 0.001;
+                        sys.mesh.traverse((child) => {
+                            if (child.isMesh && child.material && child.material.uniforms) {
+                                if (child.material.uniforms.cameraPosLocal) {
+                                    // Transformar la posición de la cámara al espacio local del disco para evitar pérdida de precisión Float32
+                                    const localCamPos = camera.position.clone();
+                                    child.worldToLocal(localCamPos);
+                                    child.material.uniforms.cameraPosLocal.value.copy(localCamPos);
+                                }
+                                if (child.material.uniforms.uTime) {
+                                    child.material.uniforms.uTime.value = now + sys.timeOffset;
+                                }
+                            }
+                        });
+                    }
                 }
             }
 
@@ -1032,40 +1267,40 @@ export class Chunk {
             let distFromCenter = 0;
             let viewShift = 0;
             let occlusionFactor = 1.0;
-            
+
             if (camera && isCurrentSystem) {
                 const C = camera.position;
                 starWorldPos.set(sys.lx + this.group.position.x, sys.ly + this.group.position.y, sys.lz + this.group.position.z);
                 const cameraDir = new THREE.Vector3();
                 camera.getWorldDirection(cameraDir);
                 const starDir = starWorldPos.clone().sub(C).normalize();
-                
+
                 isStarInFront = cameraDir.dot(starDir) > 0;
                 if (isStarInFront) {
                     starWorldPos.project(camera); // Rango de coordenadas de pantalla [-1, 1]
-                    distFromCenter = Math.sqrt(starWorldPos.x*starWorldPos.x + starWorldPos.y*starWorldPos.y);
+                    distFromCenter = Math.sqrt(starWorldPos.x * starWorldPos.x + starWorldPos.y * starWorldPos.y);
                 }
-                
+
                 // Un valor pseudo-aleatorio pero SUAVE (sin brincos por límites de PI) que reacciona a la rotación pura de la cámara
                 viewShift = cameraDir.x * 3.0 + cameraDir.y * 2.5 + cameraDir.z * 2.0;
-                
+
                 // Cálculo de oclusión física por planetas (Eclipses y Atardeceres)
                 const distCS = C.distanceTo(new THREE.Vector3(sys.lx + this.group.position.x, sys.ly + this.group.position.y, sys.lz + this.group.position.z));
                 const angRadStar = Math.asin(Math.min(1.0, sys.radius / distCS));
-                
+
                 for (let p of sys.planets) {
                     const P = new THREE.Vector3(p.lx + this.group.position.x, p.ly + this.group.position.y, p.lz + this.group.position.z);
                     const distCP = C.distanceTo(P);
-                    
+
                     if (distCP < distCS) { // Solo si el planeta está frente a la estrella
                         let angRadPlanet = distCP <= p.radius ? Math.PI : Math.asin(p.radius / distCP);
-                        
+
                         const dirP = P.clone().sub(C).normalize();
                         const angle = starDir.angleTo(dirP);
-                        
+
                         const fullyOccluded = Math.max(0, angRadPlanet - angRadStar);
-                        const fullyVisible = angRadPlanet + angRadStar * 1.5; 
-                        
+                        const fullyVisible = angRadPlanet + angRadStar * 1.5;
+
                         if (angle < fullyOccluded) {
                             occlusionFactor = 0.0;
                             break;
@@ -1087,13 +1322,13 @@ export class Chunk {
                         if (sys.isCompanion || sys.isPrimaryBinary) {
                             sprite.position.set(sys.lx, sys.ly, sys.lz);
                         }
-                        
+
                         let scalePulse = 1.0;
                         if (sprite.userData.isRay) {
                             const dynamicRot = sprite.userData.phaseOffset + viewShift * (i % 2 === 0 ? 1 : -1) * 0.5;
                             sprite.material.rotation = dynamicRot;
                             scalePulse = 1.0 + Math.min(0.2, distFromCenter * 0.1);
-                            
+
                             // Difuminación dinámica: los rayos cambian de intensidad mágicamente al girar la vista
                             const anglePhase = viewShift * 4.0 + sprite.userData.phaseOffset;
                             const angleOpacity = 0.4 + 0.6 * Math.sin(anglePhase);
@@ -1103,9 +1338,9 @@ export class Chunk {
                             scalePulse = 1.0 + Math.sin(now * 2.0 * (sys.activity || 1.0) + sys.timeOffset + sprite.userData.phaseOffset) * 0.05;
                             sprite.material.opacity = Math.max(0.15, 1.0 - (solarFilter * 0.85)) * occlusionFactor * (sys.luminosity || 1.0);
                         }
-                        
+
                         sprite.scale.set(sprite.userData.baseScale * scalePulse, sprite.userData.baseScale * scalePulse, 1);
-                        
+
                         // Si está totalmente eclipsada, ocultamos para optimizar
                         if (occlusionFactor <= 0.001) sprite.visible = false;
                     }
@@ -1117,30 +1352,30 @@ export class Chunk {
                     const opacityFactor = Math.max(0.0, 1.0 - (dist / (sys.radius * 2000.0)));
                     const vecX = -starWorldPos.x;
                     const vecY = -starWorldPos.y;
-                    
+
                     sys.ghostSprites.forEach((g, index) => {
                         let flareX = starWorldPos.x + vecX * g.dist;
                         let flareY = starWorldPos.y + vecY * g.dist;
-                        
+
                         if (g.offset) {
                             flareX += vecY * g.offset;
                             flareY += -vecX * g.offset;
                         }
-                        
+
                         const hexScaleFactor = Math.max(0.3, Math.min(1.5, (sys.radius * 40.0) / dist));
                         const pulse = 1.0 + Math.sin(viewShift * 5.0 + index) * 0.15;
                         const currentPixelSize = g.baseSize * hexScaleFactor * pulse;
-                        
+
                         // Conversión a rango NDC (-1 a 1) para el tamaño
                         const scaleX = (currentPixelSize * 2.0) / window.innerWidth;
                         const scaleY = (currentPixelSize * 2.0) / window.innerHeight;
-                        
+
                         g.sprite.material.uniforms.uScreenPos.value.set(flareX, flareY);
                         g.sprite.material.uniforms.uScale.value.set(scaleX, scaleY);
-                        
+
                         const finalOpacity = opacityFactor * pulse * (1.0 - solarFilter) * (g.baseOp || 1.0) * occlusionFactor * (sys.luminosity || 1.0);
                         g.sprite.material.uniforms.uOpacity.value = finalOpacity;
-                        
+
                         g.sprite.visible = occlusionFactor > 0.001;
                     });
                 } else {
@@ -1171,20 +1406,20 @@ export class Chunk {
                         // y luego le sumamos la inclinación del eje (axialTilt).
                         p.ringMesh.rotation.x = Math.PI / 2 + p.axialTilt;
                         p.ringMesh.rotation.y = p.rotationY * 0.2; // Giran despacio
-                        
+
                         const distSq = (p.lx - playerLx) ** 2 + (p.ly - playerLy) ** 2 + (p.lz - playerLz) ** 2;
                         const hdDist = p.radius * Config.LOD_HIGH_DISTANCE_MULT;
                         p.ringMesh.visible = distSq < hdDist * hdDist;
-                        
+
                         if (p.ringMesh.visible && p.ringMesh.material.uniforms.sunDirection) {
                             // Dirección desde el planeta hacia su estrella (en espacio local del Chunk, que equivale a espacio padre del anillo)
                             const sunDir = new THREE.Vector3(sys.lx - p.lx, sys.ly - p.ly, sys.lz - p.lz).normalize();
-                            
+
                             // Para calcular la sombra localmente sin perder precisión,
                             // transformamos la dirección del sol al espacio local del anillo
                             const ringQuat = new THREE.Quaternion().setFromEuler(p.ringMesh.rotation);
                             const sunDirLocal = sunDir.clone().applyQuaternion(ringQuat.invert());
-                            
+
                             p.ringMesh.material.uniforms.sunDirection.value.copy(sunDirLocal);
                             p.ringMesh.material.uniforms.planetRadius.value = p.radius;
                         }

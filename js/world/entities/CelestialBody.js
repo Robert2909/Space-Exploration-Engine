@@ -31,6 +31,11 @@ export class CelestialBody {
         this.x = this.lx + cx;
         this.y = this.ly + cy;
         this.z = this.lz + cz;
+        if (this.planets && this.planets.length > 0) {
+            for (let i = 0; i < this.planets.length; i++) {
+                this.planets[i].updateAbsolutePosition(cx, cy, cz);
+            }
+        }
     }
 
     update(dt) {

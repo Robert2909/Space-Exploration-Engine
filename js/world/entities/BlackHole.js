@@ -1,4 +1,3 @@
-import * as THREE from 'three';
 import { CelestialBody } from './CelestialBody.js';
 import { seededRandom } from '../../utils/MathUtils.js';
 import { Config } from '../../core/Config.js';
@@ -8,198 +7,103 @@ export class BlackHole extends CelestialBody {
         super(config);
         this.type = 'Agujero Negro'; // Para que SpaceState.js sepa que no se puede aterrizar
         this.group = 'BlackHole';
-        // Agujero negros have high mass/radius
-        this.mass = config.mass || this.radius * 1000;
-        this.planets = []; // Para no crashear Chunk.js
 
-        // We'll give it a visual representation for now:
-        // A pitch black sphere surrounded by a glowing accretion disk
-        this.mesh = new THREE.Group();
-        this.mesh.position.set(this.lx, this.ly, this.lz);
+        this.icon = Config.BLACK_HOLE_ICON;
+        this.colorString = Config.BLACK_HOLE_COLOR;
 
-        // Event Horizon (El Vacío Absoluto)
-        const eventHorizonMat = new THREE.MeshBasicMaterial({ color: 0x000000 });
-        const eventHorizonGeo = new THREE.SphereGeometry(this.radius, 64, 64);
-        this.eventHorizon = new THREE.Mesh(eventHorizonGeo, eventHorizonMat);
-
-        // Efecto de distorsión del espacio (Aura oscura/Lensing simplificado)
-        const voidMat = new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.5, side: THREE.BackSide });
-        this.voidMesh = new THREE.Mesh(new THREE.SphereGeometry(this.radius * 1.15, 64, 64), voidMat);
-
-        this.mesh.add(this.eventHorizon);
-        this.mesh.add(this.voidMesh);
-
-        // Función auxiliar para texturas difuminadas (Gradientes)
-        const createGradientTexture = (c1, c2, radial) => {
-            const canvas = document.createElement('canvas');
-            canvas.width = 256; canvas.height = 256;
-            const ctx = canvas.getContext('2d');
-            let grad;
-            if (radial) {
-                grad = ctx.createRadialGradient(128, 128, 0, 128, 128, 128);
-                grad.addColorStop(0, c1);
-                grad.addColorStop(1, c2);
-            } else {
-                grad = ctx.createLinearGradient(0, 0, 0, 256);
-                grad.addColorStop(0, c2);
-                grad.addColorStop(0.5, c1);
-                grad.addColorStop(1, c2);
-            }
-            ctx.fillStyle = grad;
-            ctx.fillRect(0, 0, 256, 256);
-            return new THREE.CanvasTexture(canvas);
-        };
+        // Fase 3 preparación: Soportaremos planetas muertos orbitando
+        this.planets = config.planets || [];
 
         const seed = Math.abs(this.lx * 738 + this.ly * 19 + this.lz * 88);
 
-        const getColor = (cArr, a) => `hsla(${cArr[0]}, ${cArr[1]}%, ${cArr[2]}%, ${a})`;
+        // ==========================================
+        // FASE 1: PIPELINE FÍSICO Y MATEMÁTICO
+        // ==========================================
 
-        const palettes = [
-            // Standard (Orange/White)
-            { o: [340, 100, 30], m: [15, 100, 50], i: [35, 100, 70], core: [0, 0, 100], j1: [210, 100, 80], j2: [230, 100, 50], j3: [250, 100, 20], c: [270, 100, 30], glow: [260, 100, 50] },
-            // Hot Blue
-            { o: [240, 100, 30], m: [220, 100, 50], i: [200, 100, 70], core: [0, 0, 100], j1: [190, 100, 80], j2: [210, 100, 50], j3: [230, 100, 20], c: [240, 100, 30], glow: [220, 100, 50] },
-            // Emerald
-            { o: [120, 100, 20], m: [140, 100, 40], i: [160, 100, 60], core: [0, 0, 100], j1: [130, 100, 80], j2: [150, 100, 50], j3: [170, 100, 20], c: [120, 100, 20], glow: [140, 100, 40] },
-            // Crimson
-            { o: [0, 100, 20], m: [350, 100, 40], i: [340, 100, 60], core: [330, 100, 80], j1: [0, 100, 70], j2: [350, 100, 40], j3: [340, 100, 10], c: [0, 100, 20], glow: [350, 100, 40] },
-            // Violet / Pure Energy
-            { o: [270, 100, 30], m: [290, 100, 50], i: [310, 100, 70], core: [0, 0, 100], j1: [280, 100, 80], j2: [300, 100, 50], j3: [320, 100, 20], c: [270, 100, 30], glow: [290, 100, 50] }
-        ];
-
-        const p = palettes[Math.floor(seededRandom(this.lx, this.ly, this.lz, seed) * palettes.length)];
-
-        const createBeamTexture = () => {
-            const canvas = document.createElement('canvas');
-            canvas.width = 256; canvas.height = 512;
-            const ctx = canvas.getContext('2d');
-
-            ctx.scale(1, 2);
-            const grad = ctx.createRadialGradient(128, 128, 0, 128, 128, 128);
-            grad.addColorStop(0, getColor(p.j1, 1));
-            grad.addColorStop(0.1, getColor(p.j2, 0.8));
-            grad.addColorStop(0.3, getColor(p.j3, 0.4));
-            grad.addColorStop(1, 'rgba(0,0,0,0)');
-
-            ctx.fillStyle = grad;
-            ctx.fillRect(0, 0, 256, 256);
-            ctx.setTransform(1, 0, 0, 1, 0, 0);
-
-            return new THREE.CanvasTexture(canvas);
-        };
-
-        const texDisk1 = createGradientTexture(getColor(p.o, 0.3), 'rgba(0,0,0,0)', true);
-        const texDisk2 = createGradientTexture(getColor(p.m, 0.6), 'rgba(0,0,0,0)', true);
-        const texDisk3 = createGradientTexture(getColor(p.i, 0.8), 'rgba(0,0,0,0)', true);
-        const texDisk4 = createGradientTexture(getColor(p.core, 1), 'rgba(0,0,0,0)', true);
-
-        // Usar PlaneGeometry en vez de Ring para evitar bordes duros cortados
-        const s = Config.BLACK_HOLE_DISK_SCALE;
-        const diskSizeOuterMost = this.radius * 24.0 * s;
-        const diskSizeOuter = this.radius * 16.0 * s;
-        const diskSizeMid = this.radius * 8.0 * s;
-        const diskSizeInner = this.radius * 4.0 * s;
-
-        const diskGeoOuterMost = new THREE.PlaneGeometry(diskSizeOuterMost, diskSizeOuterMost);
-        const diskGeoOuter = new THREE.PlaneGeometry(diskSizeOuter, diskSizeOuter);
-        const diskGeoMid = new THREE.PlaneGeometry(diskSizeMid, diskSizeMid);
-        const diskGeoInner = new THREE.PlaneGeometry(diskSizeInner, diskSizeInner);
-
-        diskGeoOuterMost.rotateX(Math.PI / 2);
-        diskGeoOuter.rotateX(Math.PI / 2);
-        diskGeoMid.rotateX(Math.PI / 2);
-        diskGeoInner.rotateX(Math.PI / 2);
-
-        const diskMatOuterMost = new THREE.MeshBasicMaterial({
-            map: texDisk1, transparent: true, opacity: 0.4, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, depthWrite: false
-        });
-        const diskMatOuter = new THREE.MeshBasicMaterial({
-            map: texDisk2, transparent: true, opacity: 0.6, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, depthWrite: false
-        });
-        const diskMatMid = new THREE.MeshBasicMaterial({
-            map: texDisk3, transparent: true, opacity: 0.8, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, depthWrite: false
-        });
-        const diskMatInner = new THREE.MeshBasicMaterial({
-            map: texDisk4, transparent: true, opacity: 1.0, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, depthWrite: false
-        });
-
-        this.diskOuterMost = new THREE.Mesh(diskGeoOuterMost, diskMatOuterMost);
-        this.diskOuter = new THREE.Mesh(diskGeoOuter, diskMatOuter);
-        this.diskMid = new THREE.Mesh(diskGeoMid, diskMatMid);
-        this.diskInner = new THREE.Mesh(diskGeoInner, diskMatInner);
-
-        // Agrupamos el disco de acreción para rotarlo entero
-        this.accretionGroup = new THREE.Group();
-        this.accretionGroup.add(this.diskOuterMost);
-        this.accretionGroup.add(this.diskOuter);
-        this.accretionGroup.add(this.diskMid);
-        this.accretionGroup.add(this.diskInner);
-
-        // Aura gravitacional de alta radiación (Corona tridimensional suave)
-        const texCorona = createGradientTexture(getColor(p.c, 0.3), 'rgba(0,0,0,0)', true);
-        const coronaMat = new THREE.SpriteMaterial({
-            map: texCorona, transparent: true, opacity: 0.8, blending: THREE.AdditiveBlending, depthWrite: false
-        });
-        this.corona = new THREE.Sprite(coronaMat);
-        this.corona.scale.set(this.radius * 4, this.radius * 4, 1);
-        this.mesh.add(this.corona);
-
-        // ==== SUPER RESPLANDOR (BLOOM PROCEDURAL) ====
-        const texGlow = createGradientTexture('rgba(255,255,255,1)', getColor(p.glow, 0), true);
-        const glowMat = new THREE.SpriteMaterial({
-            map: texGlow, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false
-        });
-        this.superGlow = new THREE.Sprite(glowMat);
-        this.superGlow.scale.set(this.radius * 20, this.radius * 20, 1);
-        this.mesh.add(this.superGlow);
-        // ===========================================
-
-        // Jets Relativistas (Quásar) disparados desde los polos
-        const texJet = createBeamTexture();
-        const jetGeo = new THREE.PlaneGeometry(this.radius * Config.BLACK_HOLE_JET_WIDTH, this.radius * Config.BLACK_HOLE_JET_LENGTH);
-        const jetMat = new THREE.MeshBasicMaterial({
-            map: texJet, transparent: true, opacity: 0.6, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, depthWrite: false
-        });
-
-        this.jet = new THREE.Group();
-        const numPlanes = 3;
-        for (let i = 0; i < numPlanes; i++) {
-            const plane = new THREE.Mesh(jetGeo, jetMat);
-            plane.rotation.y = (Math.PI / numPlanes) * i;
-            this.jet.add(plane);
+        // 1. MASA BASE ($M_\odot$)
+        const massRng = seededRandom(this.lx, this.ly, this.lz, seed);
+        if (config.mass) {
+            this.mass = config.mass;
+        } else if (config.isUltraMassive) {
+            this.mass = 1e9 + seededRandom(this.lx, this.ly, this.lz, seed + 1) * 1e10; // Titán
+        } else if (massRng > 0.95) {
+            this.mass = 1e5 + seededRandom(this.lx, this.ly, this.lz, seed + 1) * 1e8; // Supermasivo
+        } else if (massRng > 0.8) {
+            this.mass = 100 + seededRandom(this.lx, this.ly, this.lz, seed + 1) * 1e5; // Intermedio
+        } else {
+            this.mass = 3 + seededRandom(this.lx, this.ly, this.lz, seed + 1) * 97; // Estelar
         }
 
-        this.accretionGroup.add(this.jet);
+        if (this.mass > 1e9) this.subType = 'Hipermasivo (Titán)';
+        else if (this.mass > 1e5) this.subType = 'Supermasivo (SMBH)';
+        else if (this.mass > 100) this.subType = 'Masa Intermedia';
+        else this.subType = 'Masa Estelar';
 
-        // Orientación Aleatoria de la anomalía
-        this.accretionGroup.rotation.x = seededRandom(this.lx, this.ly, this.lz, seed + 1) * Math.PI * 2;
-        this.accretionGroup.rotation.y = seededRandom(this.lx, this.ly, this.lz, seed + 2) * Math.PI * 2;
-        this.accretionGroup.rotation.z = seededRandom(this.lx, this.ly, this.lz, seed + 3) * Math.PI * 2;
+        // 2. RADIO DE SCHWARZSCHILD (Rs)
+        // Escalado visualmente para que sean verdaderos "Titanes del abismo cósmico"
+        // Estelares (~5,000 a 15,000), Supermasivos (~500,000), Hipermasivos (~20,000,000)
+        const RS_MULTIPLIER = 2000;
+        this.radius = Math.max(5000, Math.pow(this.mass, 0.4) * RS_MULTIPLIER);
+        this.schwarzschildRadius = this.radius;
 
-        this.mesh.add(this.accretionGroup);
+        // 3. ESPÍN / MOMENTO ANGULAR (a) [0.0 - 1.0]
+        this.spin = seededRandom(this.lx, this.ly, this.lz, seed + 2);
 
-        // PLAN MOTOR GRAFICO: FASE 2
-        // Desactivamos el Frustum Culling para anomalías inmensas.
-        // Esto asegura que si su centro sale de cámara, los 200 Millones de KM de jets sigan dibujándose.
-        this.mesh.traverse((child) => {
-            if (child.isMesh || child.isSprite) {
-                child.frustumCulled = false;
-            }
-        });
+        // Límite de la Ergósfera (Cálculo simplificado ecuatorial)
+        this.ergosphereRadius = this.schwarzschildRadius * (1 + Math.sqrt(1 - this.spin * this.spin));
+
+        // 4. TASA DE ACRECIÓN [0.0 - 1.0]
+        this.accretionRate = seededRandom(this.lx, this.ly, this.lz, seed + 3);
+
+        if (this.accretionRate < 0.05) {
+            this.activityState = 'Durmiente';
+            this.hasDisk = false;
+            this.hasJets = false;
+        } else if (this.accretionRate < 0.5) {
+            this.activityState = 'Alimentación Lenta';
+            this.hasDisk = true;
+            this.hasJets = false;
+        } else if (this.accretionRate < 0.8) {
+            this.activityState = 'Activo';
+            this.hasDisk = true;
+            this.hasJets = false;
+        } else {
+            this.activityState = (this.spin > 0.7) ? 'Quásar' : 'Activo (Sin Jets)';
+            this.hasDisk = true;
+            this.hasJets = (this.spin > 0.7);
+        }
+
+        // Asignar timeOffset para los Shaders que usan uTime
+        this.timeOffset = seededRandom(this.lx, this.ly, this.lz, seed + 10) * 1000;
+
+        // 5. ISCO (Innermost Stable Circular Orbit)
+        const iscoFactor = 3.0 - (this.spin * 2.5); // Aproximación lineal: Spin 0 -> 3 Rs, Spin 1 -> 0.5 Rs
+        this.iscoRadius = this.schwarzschildRadius * iscoFactor;
+
+        // 6. TEMPERATURA DEL DISCO (Millones de Kelvin)
+        if (this.hasDisk) {
+            const baseTemp = 10000000; // 10 Millones K para masa estelar
+            this.diskTemperature = (baseTemp / Math.pow(this.mass, 0.33)) * this.accretionRate;
+        } else {
+            this.diskTemperature = 0;
+        }
+
+        // Orientación aleatoria del sistema y disco en el espacio
+        this.inclinationX = seededRandom(this.lx, this.ly, this.lz, seed + 4) * Math.PI * 2;
+        this.inclinationY = seededRandom(this.lx, this.ly, this.lz, seed + 5) * Math.PI * 2;
+        this.inclinationZ = seededRandom(this.lx, this.ly, this.lz, seed + 6) * Math.PI * 2;
+
+        // Eliminamos toda dependencia de THREE.js, mallas y materiales.
+        // EDSSM Fase 1 Completada.
     }
 
     update(dt) {
         super.update(dt);
-        if (this.diskOuterMost) this.diskOuterMost.rotation.z -= 0.1 * dt;
-        if (this.diskOuter) this.diskOuter.rotation.z -= 0.2 * dt;
-        if (this.diskMid) this.diskMid.rotation.z -= 0.5 * dt;
-        if (this.diskInner) {
-            this.diskInner.rotation.z -= 1.0 * dt;
 
-            // Efecto pulsante en los jets y la corona
-            const pulse = 1.0 + Math.sin(Date.now() * 0.005) * 0.1;
-            this.jet.scale.set(pulse, 1, pulse);
-            this.corona.scale.set(pulse, pulse, pulse);
+        if (this.planets && this.planets.length > 0) {
+            for (let planet of this.planets) {
+                planet.update(dt, this.lx, this.ly, this.lz);
+            }
         }
     }
 }

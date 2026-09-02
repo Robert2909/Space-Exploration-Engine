@@ -88,3 +88,7 @@ Cuando se solicite un refactor, una limpieza, "robustecer" el código o implemen
 3. Si tienes dudas entre hacer un parche rápido que rompe la arquitectura o una solución elegante pero más extensa (involucrando la creación de nuevos archivos y sistemas de eventos), **elige SIEMPRE la solución elegante y modular**. El usuario prefiere esperar más a tener código "sucio".
 4. Busca de manera implacable código viejo que interactúe directamente con el DOM en scripts no-UI y conviértelo a Eventos incondicionalmente.
 5. **Regla del Boy Scout (Refactorización Proactiva):** Si al modificar un archivo notas que existen *números mágicos* o nombres de variables que rompen las Reglas 7 y 8, o una lógica sucia, DEBES corregirlo proactivamente en ese mismo cambio. No ignores el código basura circundante.
+
+
+### Regla 7: Delegación Visual EDSSM (Fase 2)
+Las entidades cósmicas complejas (como Agujeros Negros, Cuásares) no deben construir su malla (THREE.Mesh) ni compilar sus Shaders internamente en su clase base (BlackHole.js). La responsabilidad de generar y adjuntar visuales costosos o mallas matemáticas recae sobre el sistema de carga (Chunk.js). Esto asegura que la clase base mantenga exclusivamente la matemática y las propiedades físicas (OOP), mientras que el Chunk maneja el montaje de la escena (Delegación Visual), cumpliendo con el SRP (Principio de Responsabilidad Única).

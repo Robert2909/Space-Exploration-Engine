@@ -1,9 +1,11 @@
 import { CelestialBody } from './CelestialBody.js';
+import { Config } from '../../core/Config.js';
 
 export class Star extends CelestialBody {
     constructor(config) {
         super(config);
         this.group = 'Estrella';
+        this.icon = Config.STAR_ICON;
         this.sunColor = config.sunColor; // Hex color
         this.planets = config.planets || []; // Array of Planet instances
         

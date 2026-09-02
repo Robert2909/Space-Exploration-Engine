@@ -83,7 +83,11 @@ export class SpaceState extends GameState {
                     nearbyBodies.push({ 
                         name: sys.name, type: sys.type, group: sys.group || 'Estrella', 
                         radius: sys.radius, x: sys.lx + cx, y: sys.ly + cy, z: sys.lz + cz, 
-                        distSq: distSq, temperature: sys.temperature, sunColor: sys.sunColor 
+                        distSq: distSq, temperature: sys.temperature, sunColor: sys.sunColor,
+                        icon: sys.icon, colorString: sys.colorString,
+                        // BlackHole props
+                        mass: sys.mass, spin: sys.spin, subType: sys.subType, hasDisk: sys.hasDisk, diskTemperature: sys.diskTemperature,
+                        ergosphereRadius: sys.ergosphereRadius, schwarzschildRadius: sys.schwarzschildRadius, iscoRadius: sys.iscoRadius
                     });
                 }
 
@@ -104,6 +108,7 @@ export class SpaceState extends GameState {
                               name: p.name, type: p.type, group: 'Planeta',
                               radius: p.radius, x: p.lx + cx, y: p.ly + cy, z: p.lz + cz,
                               distSq: distSq, color: p.color, atmosphereDensity: p.atmosphereDensity,
+                              icon: p.icon, colorString: p.colorString,
                               temperature: p.temperature, orbitRadius: p.orbitRadius, orbitSpeed: p.orbitSpeed, rotationSpeed: p.rotationSpeed, rotationY: p.rotationY,
                               mesh: p.mesh, terrainVariance: p.terrainVariance,
                               starX: sys.lx + cx, starY: sys.ly + cy, starZ: sys.lz + cz,
@@ -121,6 +126,16 @@ export class SpaceState extends GameState {
 
                     const pullRadius = sys.radius * Config.BLACK_HOLE_PULL_RADIUS_MULT;
                     const panicRadius = sys.radius * Config.BLACK_HOLE_PANIC_RANGE_MULT;
+                    const eventHorizon = sys.radius * Config.BLACK_HOLE_EVENT_HORIZON_MULT;
+
+                    // -- 1. Fuerza de Marea Letal (Espaguetización) --
+                    // Escala empírica basada en M / r^3
+                    const tidalLethality = (sys.mass * 1e12) / (dist * dist * dist);
+                    if (tidalLethality > 15 && engine.controls.velocity.length() > 0) {
+                        EventManager.emit(EVENTS.PLAYER_DEATH, { cause: 'Espaguetización por Marea Gravitatoria' });
+                        engine.controls.velocity.set(0, 0, 0); // Congelar nave
+                        return; // Terminar actualización de físicas
+                    }
 
                     if (dist < pullRadius) {
                         const normalizedDist = Math.max(0.005, dist / pullRadius);
@@ -139,15 +154,26 @@ export class SpaceState extends GameState {
 
                         engine.controls.velocity.add(this._localDir.multiplyScalar(forceStr * dt));
 
-                        // Fricción aplastante si cruzas el horizonte de eventos
-                        if (dist < sys.radius * Config.BLACK_HOLE_EVENT_HORIZON_MULT) {
+                        // -- 2. Frame-Dragging (Arrastre del Espacio-Tiempo) en Ergósfera --
+                        if (dist < sys.ergosphereRadius && sys.spin > 0) {
+                            // Torque transversal
+                            const up = new THREE.Vector3(0, 1, 0);
+                            const dragDir = new THREE.Vector3().crossVectors(up, this._worldDir).normalize();
+                            
+                            const dragDistNorm = Math.max(0, 1 - (dist - eventHorizon) / (sys.ergosphereRadius - eventHorizon));
+                            const frameDragStrength = sys.spin * dragDistNorm * (Config.PLAYER_SPEED_MAX * 0.5);
+                            
+                            this._localDir.copy(dragDir).applyQuaternion(this._camInverseQuat);
+                            engine.controls.velocity.add(this._localDir.multiplyScalar(frameDragStrength * dt));
+                        }
+
+                        // -- 3. Fricción aplastante si cruzas el horizonte de eventos --
+                        if (dist < eventHorizon) {
                             engine.controls.velocity.multiplyScalar(0.95);
                         }
                     }
 
-                    const eventHorizon = sys.radius * Config.BLACK_HOLE_EVENT_HORIZON_MULT;
-
-                    // Pánico visual (Glitches): Aumentamos el rango para que dé miedo antes
+                    // -- 4. Pánico visual (Glitches) --
                     if (dist < panicRadius) {
                         let panicNorm = 0;
                         if (dist <= eventHorizon) {
