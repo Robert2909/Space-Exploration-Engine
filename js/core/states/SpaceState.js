@@ -85,9 +85,11 @@ export class SpaceState extends GameState {
                         radius: sys.radius, x: sys.lx + cx, y: sys.ly + cy, z: sys.lz + cz, 
                         distSq: distSq, temperature: sys.temperature, sunColor: sys.sunColor,
                         icon: sys.icon, colorString: sys.colorString,
-                        // BlackHole props
+                        // BlackHole props físicos completos
                         mass: sys.mass, spin: sys.spin, subType: sys.subType, hasDisk: sys.hasDisk, diskTemperature: sys.diskTemperature,
-                        ergosphereRadius: sys.ergosphereRadius, schwarzschildRadius: sys.schwarzschildRadius, iscoRadius: sys.iscoRadius
+                        ergosphereRadius: sys.ergosphereRadius, schwarzschildRadius: sys.schwarzschildRadius, iscoRadius: sys.iscoRadius,
+                        shadowRadius: sys.shadowRadius, horizonRadius: sys.horizonRadius, spinAxis: sys.spinAxis, accretionRate: sys.accretionRate,
+                        activityState: sys.activityState, jetLength: sys.jetLength, jetRadius: sys.jetRadius, hasJets: sys.hasJets
                     });
                 }
 
@@ -126,15 +128,34 @@ export class SpaceState extends GameState {
 
                     const pullRadius = sys.radius * Config.BLACK_HOLE_PULL_RADIUS_MULT;
                     const panicRadius = sys.radius * Config.BLACK_HOLE_PANIC_RANGE_MULT;
-                    const eventHorizon = sys.radius * Config.BLACK_HOLE_EVENT_HORIZON_MULT;
+                    const eventHorizon = sys.horizonRadius || (sys.radius * Config.BLACK_HOLE_EVENT_HORIZON_MULT);
 
-                    // -- 1. Fuerza de Marea Letal (Espaguetización) --
-                    // Escala empírica basada en M / r^3
-                    const tidalLethality = (sys.mass * 1e12) / (dist * dist * dist);
-                    if (tidalLethality > 15 && engine.controls.velocity.length() > 0) {
+                    // -- 1. Fuerza de Marea Gravitatoria Diferencial (Espaguetización F_marea ∝ M / r^3) --
+                    const tidalForce = sys.getTidalForce ? sys.getTidalForce(dist) : ((sys.mass * 1e12) / (dist * dist * dist));
+                    if (tidalForce > 20 && engine.controls.velocity.length() > 0) {
                         EventManager.emit(EVENTS.PLAYER_DEATH, { cause: 'Espaguetización por Marea Gravitatoria' });
                         engine.controls.velocity.set(0, 0, 0); // Congelar nave
                         return; // Terminar actualización de físicas
+                    }
+
+                    // -- 2. Interacción con Jets Relativistas Bipolares (Blandford-Znajek) --
+                    if (sys.hasJets && sys.jetLength) {
+                        const spinAxis = sys.spinAxis || { x: 0, y: 1, z: 0 };
+                        const spinVec = new THREE.Vector3(spinAxis.x, spinAxis.y, spinAxis.z).normalize();
+                        const toShip = new THREE.Vector3().subVectors(pos, this._bhPos);
+                        const alongJet = toShip.dot(spinVec);
+                        const perpDistSq = toShip.lengthSq() - (alongJet * alongJet);
+                        const jetRadius = sys.jetRadius || (sys.schwarzschildRadius * 0.35);
+
+                        if (Math.abs(alongJet) < sys.jetLength && perpDistSq < (jetRadius * 3.0) * (jetRadius * 3.0)) {
+                            // Dentro de la columna del jet polar: empuje cinético divergente y radiación sincrotrón
+                            const pushSign = Math.sign(alongJet) || 1.0;
+                            const jetForce = spinVec.clone().multiplyScalar(pushSign);
+                            this._camInverseQuat.copy(engine.camera.quaternion).invert();
+                            this._localDir.copy(jetForce).applyQuaternion(this._camInverseQuat);
+                            engine.controls.velocity.add(this._localDir.multiplyScalar(Config.PLAYER_SPEED_MAX * 1.8 * dt));
+                            maxPanic = Math.max(maxPanic, Config.BLACK_HOLE_PANIC_STRENGTH * 1.4);
+                        }
                     }
 
                     if (dist < pullRadius) {
@@ -142,49 +163,43 @@ export class SpaceState extends GameState {
 
                         // Gravedad estilo 1/r^2
                         let forceStr = (1 / (normalizedDist * normalizedDist)) * Config.BLACK_HOLE_GRAVITY_STRENGTH;
-
-                        // Limitar la fuerza para evitar ser disparado a Narnia
-                        forceStr = Math.min(forceStr, Config.PLAYER_SPEED_MAX * 0.8);
+                        forceStr = Math.min(forceStr, Config.PLAYER_SPEED_MAX * 0.85);
 
                         // El vector 'dir' está en espacio del mundo. La velocidad de la nave está en espacio local.
-                        // Convertimos 'dir' a espacio local usando el cuaternión inverso de la cámara.
                         this._worldDir.subVectors(this._bhPos, pos).normalize();
                         this._camInverseQuat.copy(engine.camera.quaternion).invert();
                         this._localDir.copy(this._worldDir).applyQuaternion(this._camInverseQuat);
 
                         engine.controls.velocity.add(this._localDir.multiplyScalar(forceStr * dt));
 
-                        // -- 2. Frame-Dragging (Arrastre del Espacio-Tiempo) en Ergósfera --
+                        // -- 3. Frame-Dragging (Arrastre Inercial en Ergósfera) por eje 3D --
                         if (dist < sys.ergosphereRadius && sys.spin > 0) {
-                            // Torque transversal
-                            const up = new THREE.Vector3(0, 1, 0);
-                            const dragDir = new THREE.Vector3().crossVectors(up, this._worldDir).normalize();
+                            const spinAxis = sys.spinAxis || { x: 0, y: 1, z: 0 };
+                            const spinVec = new THREE.Vector3(spinAxis.x, spinAxis.y, spinAxis.z).normalize();
+                            const dragDir = new THREE.Vector3().crossVectors(spinVec, this._worldDir).normalize();
                             
                             const dragDistNorm = Math.max(0, 1 - (dist - eventHorizon) / (sys.ergosphereRadius - eventHorizon));
-                            const frameDragStrength = sys.spin * dragDistNorm * (Config.PLAYER_SPEED_MAX * 0.5);
+                            const frameDragStrength = sys.spin * dragDistNorm * (Config.PLAYER_SPEED_MAX * 0.6);
                             
                             this._localDir.copy(dragDir).applyQuaternion(this._camInverseQuat);
                             engine.controls.velocity.add(this._localDir.multiplyScalar(frameDragStrength * dt));
                         }
 
-                        // -- 3. Fricción aplastante si cruzas el horizonte de eventos --
+                        // -- 4. Fricción y atrapamiento en el horizonte de eventos --
                         if (dist < eventHorizon) {
-                            engine.controls.velocity.multiplyScalar(0.95);
+                            engine.controls.velocity.multiplyScalar(0.92);
                         }
                     }
 
-                    // -- 4. Pánico visual (Glitches) --
+                    // -- 5. Pánico visual y distorsión electromagnética --
                     if (dist < panicRadius) {
                         let panicNorm = 0;
                         if (dist <= eventHorizon) {
                             panicNorm = 1.0;
                         } else {
-                            // Normalizar: 0 en panicRadius, 1.0 en eventHorizon
                             panicNorm = 1 - ((dist - eventHorizon) / (panicRadius - eventHorizon));
                         }
-
-                        // Curva exponencial: Empieza suave, y cuando estás muy cerca tiembla horriblemente
-                        const panic = Math.pow(panicNorm, 3) * Config.BLACK_HOLE_PANIC_STRENGTH;
+                        const panic = Math.pow(panicNorm, 2.5) * Config.BLACK_HOLE_PANIC_STRENGTH;
                         if (panic > maxPanic) maxPanic = panic;
                     }
                 }
@@ -249,7 +264,7 @@ export class SpaceState extends GameState {
         }
 
         // Notificar nivel de pánico al UI
-        EventManager.emit(EVENTS.BLACKHOLE_PANIC, { level: maxPanic });
+        EventManager.emit(EVENTS.BLACK_HOLE_PANIC, { level: maxPanic });
         // Almacenar en el engine para los sistemas (ej. InteractionSystem)
         engine.nearbyBodies = nearbyBodies;
 

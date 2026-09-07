@@ -191,11 +191,11 @@ export const Config = {
     // ==========================================
     // FÍSICAS DE LA NAVE (JUGADOR)
     // ==========================================
-    PLAYER_SPEED: 6000, // Velocidad base de vuelo (unidades por segundo)
-    PLAYER_SPEED_SCROLL_MULT: 1.15, // Multiplicador de velocidad por tic de la rueda del ratón (Exponencial)
-    PLAYER_SPEED_MIN_STEP: 600, // Velocidad mínima para arrancar desde cero con la rueda
-    PLAYER_SPEED_MAX: 60000, // Límite de velocidad base para evitar romper la simulación física
-    PLAYER_BOOST_MULTIPLIER: 20, // Multiplicador de velocidad al presionar Shift (Hyperdrive)
+    PLAYER_SPEED: 3000, // Velocidad base de vuelo (unidades por segundo)
+    PLAYER_SPEED_SCROLL_MULT: 1.10, // Multiplicador de velocidad por tic de la rueda del ratón (Exponencial)
+    PLAYER_SPEED_MIN_STEP: 300, // Velocidad mínima para arrancar desde cero con la rueda
+    PLAYER_SPEED_MAX: 30000, // Límite de velocidad base para evitar romper la simulación física
+    PLAYER_BOOST_MULTIPLIER: 50, // Multiplicador de velocidad al presionar Shift (Hyperdrive)
     PLAYER_FRICTION: 0.985, // Fricción en el espacio (1.0 = patinar infinito, 0.5 = freno brusco)
     PLAYER_BRAKE_FRICTION: 0.90, // Fricción al presionar [ESPACIO] para frenar
     MOUSE_SENSITIVITY: 0.0010, // Sensibilidad del giro de cámara con el ratón
@@ -270,16 +270,16 @@ export const Config = {
     // ==========================================
     // PILOTO AUTOMÁTICO Y CINEMÁTICAS
     // ==========================================
-    AUTOPILOT_MIN_SPEED: 60000, // Velocidad mínima de viaje (unidades por segundo)
-    AUTOPILOT_MAX_SPEED: 60000000000, // Velocidad máxima permitida (50M uds/s)
+    AUTOPILOT_MIN_SPEED: 30000, // Velocidad mínima de viaje (unidades por segundo)
+    AUTOPILOT_MAX_SPEED: 30000000000, // Velocidad máxima permitida (50M uds/s)
     AUTOPILOT_DESIRED_SECONDS: 1.0, // Segundos teóricos en los que queremos que llegue al objetivo para escalar velocidad
     AUTOPILOT_BRAKE_MULTIPLIER: 0.70, // Desaceleración violenta por frame al llegar (Salto cuántico)
     AUTOPILOT_BRAKE_ZONE_MULT: 1, // Multiplicador de radio para iniciar la frenada cuántica
     AUTOPILOT_ARRIVAL_MULT: 3, // Multiplicador de radio para detenerse y orbitar (Cinemático FOV)
-    AUTOPILOT_MAX_ARRIVAL_DISTANCE: 6000000, // Límite máximo absoluto de distancia de órbita para monstruosidades
+    AUTOPILOT_MAX_ARRIVAL_DISTANCE: 600000000, // Límite máximo absoluto de distancia de órbita para monstruosidades
     AUTOPILOT_APPROACH_LOCK_MULT: 1.5, // Multiplicador relativo a la órbita final para bloquear cámara y mostrar alerta
     AUTOPILOT_FREELOOK_TIMEOUT: 3000, // Ms de inactividad libre antes de re-alinear vista
-    AUTOPILOT_MAX_SPEED_NORMAL: 600000, // Velocidad crucero normal
+    AUTOPILOT_MAX_SPEED_NORMAL: 300000, // Velocidad crucero normal
     CINEMATIC_ORBIT_SPEED: 0.10, // Velocidad (rad/s) de la órbita de cámara alrededor del objetivo
 
     // ==========================================

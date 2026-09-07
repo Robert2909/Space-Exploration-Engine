@@ -33,7 +33,7 @@ export class UIManager {
         this.setupToggles();
 
         // Efecto Pánico (Agujeros Negros)
-        EventManager.on(EVENTS.BLACKHOLE_PANIC, (payload) => {
+        EventManager.on(EVENTS.BLACK_HOLE_PANIC, (payload) => {
             const level = payload.level || 0;
             if (level > 0.05) {
                 const blur = Math.random() * level * 5;
@@ -1026,9 +1026,9 @@ export class UIManager {
 
         if (isBlackHole) {
             setLabel(targetGravity, 'masaSolar');
-            setLabel(radiusEl, 'radioSchwarz');
-            setLabel(targetRot, 'espin');
-            setLabel(targetOrbit, 'ergosfera');
+            setLabel(radiusEl, 'sombraKerr');
+            setLabel(targetRot, 'espinKerr');
+            setLabel(targetOrbit, 'radioISCO');
             setLabel(targetAtmo, 'estadoActividad');
             setLabel(targetTemp, 'tempDisco');
             setLabel(targetTime, 'fuerzaMarea');
@@ -1060,17 +1060,8 @@ export class UIManager {
             if (accretionContainer) accretionContainer.style.display = 'flex';
 
             if (targetAtmo) {
-                let actState = target.activityState;
-                let accRate = target.accretionRate;
-                if (actState === undefined) {
-                    const seed = Math.abs((target.lx || 0) * 738 + (target.ly || 0) * 19 + (target.lz || 0) * 88);
-                    const spin = Math.sin(seed + 2) * 0.5 + 0.5;
-                    accRate = Math.abs(Math.sin((seed + 3) * 1.234));
-                    if (accRate < 0.05) actState = 'Durmiente';
-                    else if (accRate < 0.5) actState = 'Alimentación Lenta';
-                    else if (accRate < 0.8) actState = 'Activo';
-                    else actState = (spin > 0.7) ? 'Quásar' : 'Activo (Sin Jets)';
-                }
+                const actState = target.activityState || 'Activo';
+                const accRate = target.accretionRate !== undefined ? target.accretionRate : 0.5;
                 const massPerYear = (accRate * 1.5).toFixed(2);
                 targetAtmo.innerText = `'${actState}'`;
                 targetAtmo.style.color = '#55ffff';
@@ -1081,46 +1072,50 @@ export class UIManager {
                 }
             }
             if (targetGravity) {
-                const mass = Config.formatNumber(Math.round(target.mass));
+                const mass = Config.formatNumber(Math.round(target.mass || 1000));
                 targetGravity.innerHTML = `${mass} ${mSolSymbol}`;
                 targetGravity.style.color = '#cc55ff';
             }
             if (radiusEl) {
-                const rsVal = target.schwarzschildRadius || (target.radius * 0.1);
-                radiusEl.innerHTML = MeasurementSystem.formatDistance(rsVal);
-                radiusEl.style.color = '#ff5555';
+                const shadowVal = target.shadowRadius || ((target.schwarzschildRadius || 5000) * 2.598);
+                radiusEl.innerHTML = MeasurementSystem.formatDistance(shadowVal);
+                radiusEl.style.color = '#ffaa44';
             }
             if (targetTemp) {
-                if (target.hasDisk) {
-                    targetTemp.innerText = Config.formatNumber(target.diskTemperature) + ' K';
+                if (target.hasDisk && target.diskTemperature) {
+                    targetTemp.innerText = Config.formatNumber(Math.round(target.diskTemperature)) + ' K';
                     targetTemp.style.color = '#ff5555';
                 } else {
-                    targetTemp.innerText = '0 K';
+                    targetTemp.innerText = '0 K (Durmiente)';
                     targetTemp.style.color = '#aaaaaa';
                 }
             }
             if (targetOrbit) {
-                const ergoVal = target.ergosphereRadius || (target.radius * 0.2);
-                targetOrbit.innerHTML = MeasurementSystem.formatDistance(ergoVal);
+                const iscoVal = target.iscoRadius || ((target.schwarzschildRadius || 5000) * 3.0);
+                targetOrbit.innerHTML = MeasurementSystem.formatDistance(iscoVal);
                 targetOrbit.style.color = '#ffaa00';
             }
             if (targetRot) {
-                targetRot.innerText = target.spin ? target.spin.toFixed(3) + ' c' : '0.000 c';
+                const spinVal = target.spin !== undefined ? target.spin.toFixed(3) : '0.000';
+                targetRot.innerText = `${spinVal} a`;
                 targetRot.style.color = '#55ff55';
             }
             if (targetTime) {
+                const dist = Math.sqrt(target.distSq || 1e12);
                 const mass = target.mass || 1000;
-                const rs = target.schwarzschildRadius || 5000;
-                // Calculo falso pero estable de G/km
-                let fakeG = Math.round((mass / Math.pow(rs / 5000, 3)) * 15000);
-                if (fakeG < 100000) {
-                    const pseudoRandom = (mass * 7.38) % 50000;
-                    fakeG = 100000 + pseudoRandom;
+                const tidalForce = (mass * 1e12) / (dist * dist * dist);
+                let tidalLabel = `${tidalForce.toFixed(2)} G/m`;
+                if (tidalForce > 15.0) {
+                    tidalLabel += " ('Letal')";
+                    targetTime.style.color = '#ff2222';
+                } else if (tidalForce > 2.0) {
+                    tidalLabel += " ('Peligro')";
+                    targetTime.style.color = '#ffaa00';
+                } else {
+                    tidalLabel += " ('Estable')";
+                    targetTime.style.color = '#55ff55';
                 }
-
-                const gValue = Config.formatNumber(fakeG);
-                targetTime.innerText = `${gValue} G/km ('Letal')`;
-                targetTime.style.color = '#ff2222';
+                targetTime.innerText = tidalLabel;
                 targetTime.dataset.bhOverride = "true";
             }
             document.getElementById('target-type').style.color = '#aa00ff';

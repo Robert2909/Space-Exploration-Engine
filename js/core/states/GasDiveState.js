@@ -55,7 +55,7 @@ export class GasDiveState extends GameState {
         this._onRightClick = this.onRightClick.bind(this);
         document.addEventListener('contextmenu', this._onRightClick);
 
-        EventManager.emit(EVENTS.HUD_MESSAGE, { message: 'Inmersión Atmosférica Inicializada', type: 'info' });
+        EventManager.emit(EVENTS.OSD_MESSAGE, { message: 'Inmersión Atmosférica Inicializada', type: 'info' });
     }
 
     update(dt) {

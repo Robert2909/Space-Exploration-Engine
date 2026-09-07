@@ -254,6 +254,26 @@ export class Universe {
         }
     }
 
+    getLoadedBlackHoles() {
+        const list = [];
+        for (let [key, chunk] of this.chunks.entries()) {
+            if (chunk !== 'pending' && chunk.systems) {
+                for (let i = 0; i < chunk.systems.length; i++) {
+                    const sys = chunk.systems[i];
+                    if (sys.type === 'Agujero Negro') {
+                        list.push({
+                            worldX: sys.lx + chunk.group.position.x,
+                            worldY: sys.ly + chunk.group.position.y,
+                            worldZ: sys.lz + chunk.group.position.z,
+                            system: sys
+                        });
+                    }
+                }
+            }
+        }
+        return list;
+    }
+
     dispose() {
         for(let [key, chunk] of this.chunks.entries()) {
             if (chunk !== 'pending' && chunk.dispose) {

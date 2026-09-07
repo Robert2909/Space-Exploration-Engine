@@ -26,6 +26,7 @@ export class Engine {
 
         this.controls = new SpaceControls(this.camera, document.body);
         this.universe = new Universe(this.scene);
+        this.renderSystem.setUniverse(this.universe);
         this.ui = new UIManager(this.camera);
 
         this.states = {

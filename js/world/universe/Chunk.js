@@ -9,7 +9,7 @@ import { getRingShaderMaterial } from '../materials/RingShader.js';
 import { Lensflare, LensflareElement } from 'three/addons/objects/Lensflare.js';
 import { Planet } from '../entities/Planet.js';
 import { BlackHole } from '../entities/BlackHole.js';
-import { getLensingShaderMaterial, getAccretionDiskShaderMaterial } from '../materials/BlackHoleShader.js';
+import { getAccretionDiskShaderMaterial } from '../materials/BlackHoleShader.js';
 
 export const SHARED_SPHERE_GEO = new THREE.IcosahedronGeometry(1, 1); // 80 faces, super fast
 export const SHARED_HIGH_POLY_GEO = new THREE.SphereGeometry(1, 128, 128);
@@ -29,6 +29,8 @@ const SHARED_ASTEROID_MAT = new THREE.MeshBasicMaterial({ color: 0x888888 });
 
 const SHARED_PLANET_MAT = new THREE.MeshLambertMaterial({ color: 0xffffff });
 const dummy = new THREE.Object3D();
+const _localCamPos = new THREE.Vector3();
+const _bhQuat = new THREE.Quaternion();
 
 function createGlowTexture() {
     const canvas = document.createElement('canvas');
@@ -454,68 +456,41 @@ export class Chunk {
             blackHole.mesh = new THREE.Group();
             blackHole.mesh.position.set(lx, ly, lz);
 
-            // 1. Horizonte de Eventos y Lente Gravitacional (Shader custom)
+            // 1. Horizonte de Eventos y Lente Gravitacional (Shader custom Bozza/Padé y Bardeen)
             const euler = new THREE.Euler(blackHole.inclinationX, blackHole.inclinationY, blackHole.inclinationZ);
+            blackHole.mesh.rotation.copy(euler); // Rotación unificada del grupo maestro
 
-            const lensingMat = getLensingShaderMaterial();
-            // Lienzo masivo (5x el radio) para que la textura tenga muchísimo espacio para estirarse infinitamente
-            const horizonGeo = new THREE.SphereGeometry(blackHole.schwarzschildRadius * 4.0, 64, 64);
-            const horizonMesh = new THREE.Mesh(horizonGeo, lensingMat);
-            horizonMesh.rotation.copy(euler);
-            blackHole.mesh.add(horizonMesh);
+            // 1. JETS RELATIVISTAS BIPOLARES (Mecanismo Blandford-Znajek en espacio 3D)
+            // El disco de acreción, la sombra de Kerr, los arcos de Gargantúa y la esfera de fotones
+            // son calculados y renderizados analíticamente por RenderSystem con profundidad relativista pura.
+            if (blackHole.hasDisk && blackHole.hasJets) {
+                const jetHeight = blackHole.jetLength || (blackHole.schwarzschildRadius * 200);
+                const jetRadius = blackHole.jetRadius || (blackHole.schwarzschildRadius * 0.35);
 
-            // Centro negro puro (Ocluye lo que haya detrás)
-            const coreGeo = new THREE.SphereGeometry(blackHole.schwarzschildRadius, 64, 64);
-            const coreMat = new THREE.MeshBasicMaterial({ color: 0x000000 });
-            const coreMesh = new THREE.Mesh(coreGeo, coreMat);
-            blackHole.mesh.add(coreMesh);
+                const jetsGroup = new THREE.Group();
 
-            // 2. DISCO DE ACRECIÓN (Esfera Aplastada)
-            if (blackHole.hasDisk) {
-                // Outer radius = ISCO + (Rs * factor de masa y acreción)
-                const outerRadius = blackHole.iscoRadius + (blackHole.schwarzschildRadius * 20 * blackHole.accretionRate);
+                // Jet Polar Norte (+Y)
+                const jetGeoNorth = new THREE.CylinderGeometry(jetRadius, 0.1, jetHeight, 32);
+                jetGeoNorth.translate(0, jetHeight / 2, 0);
 
-                const diskMat = getAccretionDiskShaderMaterial(
-                    blackHole.diskTemperature,
-                    blackHole.accretionRate,
-                    blackHole.spin,
-                    blackHole.iscoRadius,
-                    outerRadius
-                );
+                // Jet Polar Sur (-Y)
+                const jetGeoSouth = new THREE.CylinderGeometry(0.1, jetRadius, jetHeight, 32);
+                jetGeoSouth.translate(0, -jetHeight / 2, 0);
 
-                // Geometría de Toroide (Dona): Permite que el borde interior se curve hacia abajo hacia el agujero negro.
-                // El rendimiento es casi idéntico (apenas unos miles de vértices), el problema anterior de FPS fue por los shaders FBM, no por la geometría.
-                const midRadius = (outerRadius + blackHole.iscoRadius) / 2;
-                const tubeThickness = (outerRadius - blackHole.iscoRadius) / 2;
+                const jetMat = new THREE.MeshBasicMaterial({
+                    color: 0x66ccff, transparent: true, opacity: 0.65,
+                    blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide
+                });
 
-                const diskGeo = new THREE.TorusGeometry(midRadius, tubeThickness, 16, 128);
-                const diskMesh = new THREE.Mesh(diskGeo, diskMat);
+                const northJet = new THREE.Mesh(jetGeoNorth, jetMat);
+                jetsGroup.add(northJet);
 
-                diskMesh.rotation.copy(euler); // Alinear con las normales físicas
-                diskMesh.scale.set(1, 1, 0.035); // Aplastarlo a un nivel equilibrado para la dona
+                const southJet = new THREE.Mesh(jetGeoSouth, jetMat);
+                southJet.rotation.x = Math.PI; // Apunta hacia -Y
+                jetsGroup.add(southJet);
 
-                blackHole.diskMesh = diskMesh; // Guardar referencia para el Chunk.update()
-                blackHole.mesh.add(diskMesh);
-
-                // 3. Jets (Microquásar)
-                if (blackHole.hasJets) {
-                    const jetHeight = blackHole.schwarzschildRadius * 200;
-                    const jetRadius = blackHole.schwarzschildRadius * 0.5;
-                    const jetGeo = new THREE.CylinderGeometry(0.1, jetRadius, jetHeight, 32);
-                    // Desplazar la geometría para que la base empiece en el centro
-                    jetGeo.translate(0, jetHeight / 2, 0);
-
-                    const jetMat = new THREE.MeshBasicMaterial({
-                        color: 0x88ccff, transparent: true, opacity: 0.5,
-                        blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide
-                    });
-
-                    const jetMesh = new THREE.Mesh(jetGeo, jetMat);
-                    jetMesh.rotation.copy(euler);
-
-                    blackHole.jetMesh = jetMesh;
-                    blackHole.mesh.add(jetMesh);
-                }
+                blackHole.jetMesh = jetsGroup;
+                blackHole.mesh.add(jetsGroup);
             }
 
             // Desactivar Frustum Culling para no desaparecer anomalías gigantes
@@ -1181,12 +1156,6 @@ export class Chunk {
 
             // FASE 2 EDSSM: Si es un Agujero Negro, actualizar uniforms críticos para los Shaders
             if (sys.type === 'Agujero Negro' && sys.mesh) {
-                if (sys.hasDisk && sys.diskMesh && camera) {
-                    // Rotar visualmente el disco a velocidad relativista
-                    // Entre más rotación, más dinámico se ve
-                    sys.diskMesh.rotation.z -= (sys.spin * 0.5 + 0.1) * dt;
-                }
-
                 if (sys.hasJets && sys.jetMesh) {
                     // Hacer pulsar ligeramente a los jets
                     const pulse = 1.0 + Math.sin(Date.now() * 0.005) * 0.05;
@@ -1242,16 +1211,28 @@ export class Chunk {
                         }
                     }
 
-                    // Actualizar uniforms específicos de agujeros negros
+                    // Actualizar uniforms específicos de agujeros negros con precisión Float64 en CPU
                     if (sys.type === 'Agujero Negro' && camera) {
                         const now = performance.now() * 0.001;
+
+                        const bhWorldX = sys.lx + this.group.position.x;
+                        const bhWorldY = sys.ly + this.group.position.y;
+                        const bhWorldZ = sys.lz + this.group.position.z;
+
+                        const relCamX = camera.position.x - bhWorldX;
+                        const relCamY = camera.position.y - bhWorldY;
+                        const relCamZ = camera.position.z - bhWorldZ;
+
+                        _localCamPos.set(relCamX, relCamY, relCamZ);
+                        if (sys.mesh.quaternion && (sys.mesh.quaternion.x !== 0 || sys.mesh.quaternion.y !== 0 || sys.mesh.quaternion.z !== 0 || sys.mesh.quaternion.w !== 1)) {
+                            _bhQuat.copy(sys.mesh.quaternion).invert();
+                            _localCamPos.applyQuaternion(_bhQuat);
+                        }
+
                         sys.mesh.traverse((child) => {
                             if (child.isMesh && child.material && child.material.uniforms) {
                                 if (child.material.uniforms.cameraPosLocal) {
-                                    // Transformar la posición de la cámara al espacio local del disco para evitar pérdida de precisión Float32
-                                    const localCamPos = camera.position.clone();
-                                    child.worldToLocal(localCamPos);
-                                    child.material.uniforms.cameraPosLocal.value.copy(localCamPos);
+                                    child.material.uniforms.cameraPosLocal.value.copy(_localCamPos);
                                 }
                                 if (child.material.uniforms.uTime) {
                                     child.material.uniforms.uTime.value = now + sys.timeOffset;
