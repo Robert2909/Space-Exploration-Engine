@@ -435,6 +435,48 @@ export function getGravitationalLensPostMaterial() {
 
             ${GLSL_COLOR_AND_NOISE}
 
+            // Muestreador unificado de plasma relativista del disco de acreción (Novikov-Thorne + Doppler Beaming)
+            vec4 sampleAccretionDisk(vec3 hitPos, vec3 rayDir) {
+                float r = length(hitPos.xz);
+                if (r < uIscoRadius || r > uOuterRadius) return vec4(0.0);
+
+                // Rotación diferencial Kepleriana Omega(r) ~ r^(-1.5)
+                float rRatio = uIscoRadius / max(r, uIscoRadius);
+                float angVel = (1.0 + 2.5 * uSpin) * pow(rRatio, 1.5);
+                float phi = atan(hitPos.z, hitPos.x) - (uTime * angVel);
+                vec2 uv = vec2(cos(phi), sin(phi)) * (r / uOuterRadius * 14.0);
+                float turb = fbm(uv - vec2(uTime * 0.25));
+                turb = pow(turb, 1.15) * 1.4;
+
+                // Doppler Beaming relativista y corrimiento espectral
+                vec3 rad = normalize(vec3(hitPos.x, 0.0, hitPos.z));
+                vec3 vTan = vec3(-rad.z, 0.0, rad.x);
+                float cosTheta = dot(-rayDir, vTan);
+                float beta = min(0.65, sqrt(0.5 * uSchwarzschildRadius / max(r, uIscoRadius)));
+                float gamma = 1.0 / sqrt(max(0.01, 1.0 - beta * beta));
+                float delta = 1.0 / (gamma * (1.0 - beta * cosTheta));
+                float beaming = clamp(pow(delta, 3.8), 0.08, 14.0);
+
+                // Perfil térmico de Novikov-Thorne
+                float tempFact = pow(rRatio, 0.75) * pow(max(0.0, 1.0 - sqrt(rRatio)), 0.25) * 1.8;
+                float gRed = sqrt(max(0.0, 1.0 - uSchwarzschildRadius / max(r, uIscoRadius)));
+                float obsTemp = uTemperature * tempFact * delta * gRed * (0.7 + turb * 0.5);
+
+                vec3 col = temperatureToColor(obsTemp);
+                col = col * beaming * (0.85 + turb * 0.45);
+                if (cosTheta > 0.0) {
+                    col += vec3(0.25, 0.55, 1.00) * cosTheta * uSpin * turb * 0.6;
+                } else {
+                    col += vec3(0.85, 0.20, 0.02) * abs(cosTheta) * uSpin * turb * 0.5;
+                }
+
+                float rNorm = clamp((r - uIscoRadius) / (uOuterRadius - uIscoRadius), 0.0, 1.0);
+                float radialFade = smoothstep(0.0, 0.02, rNorm) * smoothstep(1.0, 0.70, rNorm);
+                float alpha = clamp(uAccretionRate * radialFade * (0.6 + turb * 0.5) * min(beaming, 2.5), 0.0, 1.0);
+
+                return vec4(col, alpha);
+            }
+
             void main() {
                 // 1. GENERACIÓN DEL RAYO 3D EN EL ESPACIO LOCAL DEL AGUJERO NEGRO
                 // Reconstrucción matemática exacta de la línea de visión en el espacio de la cámara
@@ -444,185 +486,144 @@ export function getGravitationalLensPostMaterial() {
                 vec3 rayDirLocal = normalize(uCamToLocal * rayDirCam);
                 vec3 C = uLocalCamPos;
                 float distCam = length(C);
+                vec3 camDirNorm = (distCam > 0.001) ? (C / distCam) : vec3(0.0, 0.0, 1.0);
+
+                // Eje horizontal de proyección intrínseco sobre el plano del disco (Y = 0)
+                vec2 camXZ = C.xz;
+                float distCamXZ = length(camXZ);
+                vec2 dirCamXZ = (distCamXZ > 1.0) ? (camXZ / distCamXZ) : vec2(0.0, 1.0);
 
                 // Parámetro de impacto euclídeo 3D: b = ||C x rayDirLocal||
                 float sClose = -dot(C, rayDirLocal);
                 vec3 Pclose = C + sClose * rayDirLocal;
                 float b = length(Pclose);
 
-                // Descarte 3D físico: Si el rayo pasa completamente fuera del radio de influencia y disco
-                if (b > uMaxInfluenceRadius && (sClose < 0.0 || distCam > uMaxInfluenceRadius)) {
+                // Descarte 3D físico exacto para cámara exterior
+                if (distCam > uMaxInfluenceRadius && (sClose <= 0.0 || b > uMaxInfluenceRadius)) {
                     gl_FragColor = texture2D(tDiffuse, vUv);
                     return;
                 }
 
                 // =========================================================================
-                // 2. DISCO DE ACRECIÓN FRONTAL (ENTRE LA CÁMARA Y EL HORIZONTE)
+                // 2. DISCO DE ACRECIÓN DIRECTO (GEOMETRÍA INTRÍNSECA 3D - SIN CORTES A 90°)
                 // =========================================================================
-                vec3 frontCol = vec3(0.0);
-                float frontAlpha = 0.0;
+                // La división entre el disco frontal (directo) y trasero (lente gravitacional)
+                // es una propiedad geométrica intrínseca e invariante del espacio 3D (axisProj).
+                // Es completamente independiente del ángulo de giro de la cámara (FOV/orientación),
+                // eliminando con absoluta rigurosidad matemática cualquier costura o salto a 90°.
+                vec4 frontDisk = vec4(0.0);
+                float transWidth = max(0.03 * uOuterRadius, 400.0);
 
                 if (uHasDisk > 0.5 && abs(rayDirLocal.y) > 0.00001) {
-                    float tFront = -C.y / rayDirLocal.y;
-                    // Intersección en el hemisferio frontal (más cercano que Pclose)
-                    if (tFront > 0.0 && (sClose <= 0.0 || tFront < sClose)) {
-                        vec3 hitFront = C + tFront * rayDirLocal;
-                        float rFront = length(hitFront.xz);
-                        if (rFront >= uIscoRadius && rFront <= uOuterRadius) {
-                            // Rotación diferencial Kepleriana Omega(r) ~ r^(-1.5)
-                            float rRatioF = uIscoRadius / max(rFront, uIscoRadius);
-                            float angVelF = (1.0 + 2.5 * uSpin) * pow(rRatioF, 1.5);
-                            float phiF = atan(hitFront.z, hitFront.x) - (uTime * angVelF);
-                            vec2 uvF = vec2(cos(phiF), sin(phiF)) * (rFront / uOuterRadius * 14.0);
-                            float turbF = fbm(uvF - vec2(uTime * 0.25));
-                            turbF = pow(turbF, 1.15) * 1.4;
+                    float tDirect = -C.y / rayDirLocal.y;
+                    if (tDirect > 0.0) {
+                        vec3 hitDirect = C + tDirect * rayDirLocal;
+                        float axisProj = (distCamXZ > 1.0) ? dot(hitDirect.xz, dirCamXZ) : uOuterRadius;
+                        float frontWeight = smoothstep(-transWidth, transWidth, axisProj);
 
-                            // Doppler Beaming relativista y corrimiento espectral
-                            vec3 radF = normalize(vec3(hitFront.x, 0.0, hitFront.z));
-                            vec3 vTanF = vec3(-radF.z, 0.0, radF.x);
-                            float cosThetaF = dot(-rayDirLocal, vTanF);
-                            float betaF = min(0.65, sqrt(0.5 * uSchwarzschildRadius / max(rFront, uIscoRadius)));
-                            float gammaF = 1.0 / sqrt(max(0.01, 1.0 - betaF * betaF));
-                            float deltaF = 1.0 / (gammaF * (1.0 - betaF * cosThetaF));
-                            float beamingF = clamp(pow(deltaF, 3.8), 0.08, 14.0);
-
-                            // Perfil térmico de Novikov-Thorne
-                            float tempFactF = pow(rRatioF, 0.75) * pow(max(0.0, 1.0 - sqrt(rRatioF)), 0.25) * 1.8;
-                            float gRedF = sqrt(max(0.0, 1.0 - uSchwarzschildRadius / max(rFront, uIscoRadius)));
-                            float obsTempF = uTemperature * tempFactF * deltaF * gRedF * (0.7 + turbF * 0.5);
-
-                            vec3 baseColF = temperatureToColor(obsTempF);
-                            frontCol = baseColF * beamingF * (0.85 + turbF * 0.45);
-                            if (cosThetaF > 0.0) {
-                                frontCol += vec3(0.25, 0.55, 1.00) * cosThetaF * uSpin * turbF * 0.6;
-                            } else {
-                                frontCol += vec3(0.85, 0.20, 0.02) * abs(cosThetaF) * uSpin * turbF * 0.5;
-                            }
-
-                            float rNormF = clamp((rFront - uIscoRadius) / (uOuterRadius - uIscoRadius), 0.0, 1.0);
-                            float radialFadeF = smoothstep(0.0, 0.02, rNormF) * smoothstep(1.0, 0.70, rNormF);
-                            frontAlpha = clamp(uAccretionRate * radialFadeF * (0.6 + turbF * 0.5) * min(beamingF, 2.5), 0.0, 1.0);
+                        if (frontWeight > 0.0) {
+                            vec4 directSample = sampleAccretionDisk(hitDirect, rayDirLocal);
+                            frontDisk = vec4(directSample.rgb, directSample.a * frontWeight);
                         }
                     }
-                }
-
-                if (frontAlpha >= 0.98) {
-                    gl_FragColor = vec4(frontCol, 1.0);
-                    return;
                 }
 
                 // =========================================================================
                 // 3. ASIMETRÍA DE BARDEEN (KERR) Y CORTE DEL HORIZONTE DE SUCESOS
                 // =========================================================================
-                vec3 camDirNorm = (distCam > 0.001) ? (C / distCam) : vec3(0.0, 0.0, 1.0);
                 float cosInc = clamp(dot(camDirNorm, vec3(0.0, 1.0, 0.0)), -1.0, 1.0);
                 float sinInc = sqrt(max(0.0, 1.0 - cosInc * cosInc));
                 vec3 impactDir = (b > 0.001) ? normalize(Pclose) : vec3(1.0, 0.0, 0.0);
                 float cosPhi = dot(impactDir, vec3(1.0, 0.0, 0.0));
                 float rShadowCrit = uShadowRadiusWorld * (1.0 - 0.22 * uSpin * sinInc * cosPhi);
 
-                // Rayo atrapado por el horizonte de eventos: sombra negra impenetrable
-                if (b <= rShadowCrit) {
-                    vec3 finalCol = frontCol * frontAlpha;
+                // Rayo atrapado por el horizonte: solo cuando se mira hacia el agujero negro (sClose > 0)
+                if (sClose > 0.0 && b <= rShadowCrit) {
+                    // El disco frontal pasa limpiamente por delante del horizonte
+                    vec3 finalCol = frontDisk.rgb * frontDisk.a;
                     gl_FragColor = vec4(finalCol, 1.0);
                     return;
                 }
 
                 // =========================================================================
-                // 4. ESFERA Y ANILLO DE FOTONES (PHOTON RING & SPHERE RELATIVISTAS)
+                // 4. FACTOR DE ORIENTACIÓN GEODÉSICA Y CONTINUIDAD C^1 A 360 GRADOS
                 // =========================================================================
-                // En relatividad general (Thorne et al. 2015, EHT 2019), el anillo de fotones es
-                // una caústica esbelta y nítida en b_crit, modulada por el Doppler orbital relativista.
-                float distFromShadow = b - rShadowCrit;
+                float cosViewToBH = clamp(sClose / max(distCam, 1.0), -1.0, 1.0);
+                float wForward = smoothstep(0.0, 0.15, cosViewToBH);
+                float forwardLens = smoothstep(-0.05, 0.25, cosViewToBH);
 
-                // A. Anillo de Fotones crítico n = 1 (Caústica nítida y esbelta ~1.2% del radio de sombra)
-                float ringWidth = max(0.012 * rShadowCrit, 12.0);
-                float photonRing = exp(-pow(distFromShadow / ringWidth, 2.0));
+                // =========================================================================
+                // 5. ESFERA Y ANILLO DE FOTONES (PHOTON RING & SPHERE RELATIVISTAS)
+                // =========================================================================
+                vec3 photonColor = vec3(0.0);
+                if (sClose > 0.0) {
+                    float distFromShadow = b - rShadowCrit;
+                    float ringWidth = max(0.012 * rShadowCrit, 12.0);
+                    float photonRing = exp(-pow(distFromShadow / ringWidth, 2.0));
+                    float haloWidth = 0.040 * rShadowCrit;
+                    float photonHalo = exp(-pow(distFromShadow / haloWidth, 1.5));
+                    float spinDoppler = clamp(1.0 + 0.65 * uSpin * cosPhi, 0.35, 2.0);
 
-                // B. Halo orbital en la región de inmersión (plunging flow r ≈ 1.5 Rs, ancho ~4%)
-                float haloWidth = 0.040 * rShadowCrit;
-                float photonHalo = exp(-pow(distFromShadow / haloWidth, 1.5));
-
-                // Asimetría Doppler relativista de los fotones orbitando en la dirección prógrada (+Y)
-                // El lado en aproximación (cosPhi > 0) se amplifica naturalmente, el lado en alejamiento se atenúa
-                float spinDoppler = clamp(1.0 + 0.65 * uSpin * cosPhi, 0.35, 2.0);
-
-                vec3 photonColor;
-                if (uHasDisk > 0.5) {
-                    // Esfera de fotones activa: caústica blanca-oro brillante y nítida sin saturación plana
-                    vec3 ringCol = vec3(1.00, 0.98, 0.92) * (photonRing * 1.85);
-                    vec3 haloCol = vec3(1.00, 0.70, 0.22) * (photonHalo * 0.75);
-                    photonColor = (ringCol + haloCol) * spinDoppler;
-                } else {
-                    // Agujero negro durmiente: caústica sutil azulada de luz estelar capturada
-                    vec3 ringCol = vec3(0.92, 0.97, 1.00) * (photonRing * 1.35);
-                    vec3 haloCol = vec3(0.40, 0.70, 1.00) * (photonHalo * 0.40);
-                    photonColor = (ringCol + haloCol) * spinDoppler;
+                    if (uHasDisk > 0.5) {
+                        vec3 ringCol = vec3(1.00, 0.98, 0.92) * (photonRing * 1.85);
+                        vec3 haloCol = vec3(1.00, 0.70, 0.22) * (photonHalo * 0.75);
+                        photonColor = (ringCol + haloCol) * spinDoppler;
+                    } else {
+                        vec3 ringCol = vec3(0.92, 0.97, 1.00) * (photonRing * 1.35);
+                        vec3 haloCol = vec3(0.40, 0.70, 1.00) * (photonHalo * 0.40);
+                        photonColor = (ringCol + haloCol) * spinDoppler;
+                    }
                 }
 
                 // =========================================================================
-                // 5. DEFLEXIÓN GRAVITACIONAL DE BOZZA / PADÉ EN CAMPO FUERTE
+                // 6. DEFLEXIÓN GRAVITACIONAL DE BOZZA / PADÉ EN CAMPO FUERTE (UNIFICADA)
                 // =========================================================================
+                float minRayDist = (sClose > 0.0) ? b : distCam;
+                float lensBoundary = smoothstep(uMaxInfluenceRadius, uMaxInfluenceRadius * 0.35, minRayDist);
+
                 float safeDenom = max(b - 1.02 * rShadowCrit, 0.001 * rShadowCrit);
-                float alphaDeflection = (2.0 * uSchwarzschildRadius / max(b, 1.0)) + (1.35 * uSchwarzschildRadius / safeDenom);
-                float lensBoundary = smoothstep(uMaxInfluenceRadius, uMaxInfluenceRadius * 0.65, b);
-                float defAngle = min(alphaDeflection, 6.283) * lensBoundary;
+                float alphaStrong = (1.35 * uSchwarzschildRadius / safeDenom) * wForward;
+                float alphaWeak = (2.0 * uSchwarzschildRadius / max(minRayDist, 1.0));
+                float alphaDeflection = (alphaWeak + alphaStrong) * lensBoundary;
+                float defAngle = min(alphaDeflection, 6.283) * forwardLens;
+
+                float swirl = uSpin * exp(-pow(max(0.0, (minRayDist / rShadowCrit) - 1.0), 0.7) * 2.5) * 0.50 * lensBoundary * wForward;
 
                 vec3 deflectedDir = normalize(rayDirLocal - (impactDir * sin(defAngle) * 0.82));
-                
-                // Arrastre Lense-Thirring alrededor del eje de giro +Y
-                float swirl = uSpin * exp(-pow(max(0.0, (b / rShadowCrit) - 1.0), 0.7) * 2.5) * 0.50 * lensBoundary;
-                float sS = sin(swirl), cS = cos(swirl);
-                deflectedDir.xz = mat2(cS, -sS, sS, cS) * deflectedDir.xz;
+                if (abs(swirl) > 0.0001) {
+                    float sS = sin(swirl), cS = cos(swirl);
+                    deflectedDir.xz = mat2(cS, -sS, sS, cS) * deflectedDir.xz;
+                }
 
                 // =========================================================================
-                // 6. ARCOS DE GARGANTÚA (PROYECCIÓN CURVADA DEL DISCO TRASERO)
+                // 7. ARCOS DE GARGANTÚA (PROYECCIÓN CURVADA DEL DISCO TRASERO - NO CONFINADOS)
                 // =========================================================================
+                // La porción trasera del disco de acreción no es un plano duplicado adicional:
+                // ES la propia distorsión relativista unificada. El plasma se curva majestuosamente
+                // sobre y bajo el horizonte de sucesos, tocando directamente el anillo de fotones
+                // y extendiéndose libremente hasta uOuterRadius (sin confinamiento artificial).
                 vec3 archCol = vec3(0.0);
                 float archAlpha = 0.0;
 
-                if (uHasDisk > 0.5 && abs(deflectedDir.y) > 0.0001) {
+                if (sClose > 0.0 && uHasDisk > 0.5 && abs(deflectedDir.y) > 0.0001) {
                     float tBack = -Pclose.y / deflectedDir.y;
                     if (tBack > 0.0) {
                         vec3 hitBack = Pclose + tBack * deflectedDir;
-                        float rBack = length(hitBack.xz);
-                        if (rBack >= uIscoRadius && rBack <= uOuterRadius) {
-                            float rRatioB = uIscoRadius / max(rBack, uIscoRadius);
-                            float angVelB = (1.0 + 2.5 * uSpin) * pow(rRatioB, 1.5);
-                            float phiB = atan(hitBack.z, hitBack.x) - (uTime * angVelB);
-                            vec2 uvB = vec2(cos(phiB), sin(phiB)) * (rBack / uOuterRadius * 14.0);
-                            float turbB = fbm(uvB - vec2(uTime * 0.25));
-                            turbB = pow(turbB, 1.15) * 1.4;
+                        float axisProjBack = (distCamXZ > 1.0) ? dot(hitBack.xz, dirCamXZ) : -uOuterRadius;
+                        float rearWeight = smoothstep(transWidth, -transWidth, axisProjBack);
 
-                            vec3 radB = normalize(vec3(hitBack.x, 0.0, hitBack.z));
-                            vec3 vTanB = vec3(-radB.z, 0.0, radB.x);
-                            float cosThetaB = dot(-deflectedDir, vTanB);
-                            float betaB = min(0.65, sqrt(0.5 * uSchwarzschildRadius / max(rBack, uIscoRadius)));
-                            float gammaB = 1.0 / sqrt(max(0.01, 1.0 - betaB * betaB));
-                            float deltaB = 1.0 / (gammaB * (1.0 - betaB * cosThetaB));
-                            float beamingB = clamp(pow(deltaB, 3.8), 0.08, 14.0);
-
-                            float tempFactB = pow(rRatioB, 0.75) * pow(max(0.0, 1.0 - sqrt(rRatioB)), 0.25) * 1.8;
-                            float gRedB = sqrt(max(0.0, 1.0 - uSchwarzschildRadius / max(rBack, uIscoRadius)));
-                            float obsTempB = uTemperature * tempFactB * deltaB * gRedB * (0.7 + turbB * 0.5);
-
-                            vec3 baseColB = temperatureToColor(obsTempB);
-                            archCol = baseColB * beamingB * (0.85 + turbB * 0.45);
-                            if (cosThetaB > 0.0) {
-                                archCol += vec3(0.25, 0.55, 1.00) * cosThetaB * uSpin * turbB * 0.6;
-                            } else {
-                                archCol += vec3(0.85, 0.20, 0.02) * abs(cosThetaB) * uSpin * turbB * 0.5;
+                        if (rearWeight > 0.0) {
+                            vec4 backDisk = sampleAccretionDisk(hitBack, deflectedDir);
+                            if (backDisk.a > 0.0) {
+                                archCol = backDisk.rgb;
+                                archAlpha = backDisk.a * rearWeight * wForward;
                             }
-
-                            float rNormB = clamp((rBack - uIscoRadius) / (uOuterRadius - uIscoRadius), 0.0, 1.0);
-                            float radialFadeB = smoothstep(0.0, 0.02, rNormB) * smoothstep(1.0, 0.70, rNormB);
-                            archAlpha = clamp(uAccretionRate * radialFadeB * (0.6 + turbB * 0.5) * min(beamingB, 2.5), 0.0, 1.0);
                         }
                     }
                 }
 
                 // =========================================================================
-                // 7. REFRACCIÓN DEL UNIVERSO REAL DE FONDO
+                // 8. REFRACCIÓN DEL UNIVERSO REAL DE FONDO (CONTINUIDAD GEODÉSICA C^1)
                 // =========================================================================
                 vec3 defCam = uLocalToCam * deflectedDir;
                 vec2 defScreenUV = vUv;
@@ -630,19 +631,20 @@ export function getGravitationalLensPostMaterial() {
                     float invZ = -1.0 / defCam.z;
                     float projX = (defCam.x * invZ) / (2.0 * uAspect * uTanHalfFov) + 0.5;
                     float projY = (defCam.y * invZ) / (2.0 * uTanHalfFov) + 0.5;
-                    defScreenUV = clamp(vec2(projX, projY), 0.0005, 0.9995);
+                    defScreenUV = clamp(vec2(projX, projY), 0.0001, 0.9999);
                 }
-                vec4 bgSky = texture2D(tDiffuse, defScreenUV);
-                vec3 lensedSky = mix(texture2D(tDiffuse, vUv).rgb, bgSky.rgb, lensBoundary);
+
+                vec2 finalScreenUV = mix(vUv, defScreenUV, lensBoundary * forwardLens);
+                vec3 lensedSky = texture2D(tDiffuse, finalScreenUV).rgb;
 
                 // =========================================================================
-                // 8. COMPOSICIÓN RELATIVISTA MULTICAPA
+                // 9. COMPOSICIÓN RELATIVISTA MULTICAPA UNIFICADA
                 // =========================================================================
-                // Lo que está detrás del horizonte (arcos de Gargantúa + cosmos curvado + esfera de fotones)
+                // Fondo: cosmos lensed + arcos curvados de Gargantúa + anillo de fotones
                 vec3 behindColor = lensedSky * (1.0 - archAlpha * 0.88) + archCol * archAlpha + photonColor;
 
                 // Composición con el frente del disco (plano Z frontal)
-                vec3 finalColor = behindColor * (1.0 - frontAlpha) + frontCol * frontAlpha;
+                vec3 finalColor = behindColor * (1.0 - frontDisk.a) + frontDisk.rgb * frontDisk.a;
 
                 gl_FragColor = vec4(finalColor, 1.0);
             }

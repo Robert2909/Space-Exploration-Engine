@@ -106,8 +106,9 @@ export class RenderSystem {
                     this._toBH.subVectors(this._bhWorldPos, this.camera.position);
                     const dist = this._toBH.length();
 
-                    const outerRadius = bh.system.outerDiskRadius || (bh.system.iscoRadius + bh.system.schwarzschildRadius * 20.0);
-                    const systemRadius = Math.max(outerRadius * 1.25, bh.system.shadowRadius * 6.0);
+                    const diskRadius = bh.system.hasDisk ? (bh.system.outerDiskRadius || (bh.system.iscoRadius + bh.system.schwarzschildRadius * 20.0)) : 0;
+                    const outerRadius = diskRadius > 0 ? diskRadius : (bh.system.iscoRadius + bh.system.schwarzschildRadius * 20.0);
+                    const systemRadius = Math.max(diskRadius * 3.5, bh.system.shadowRadius * 30.0);
 
                     // Comprobación de visibilidad tridimensional rigurosa (Frustum Culling real):
                     // 1. Si la nave está dentro del radio del sistema (dist <= systemRadius), está inmersa en él: siempre activo.
@@ -126,6 +127,9 @@ export class RenderSystem {
                     const safeDist = Math.max(dist, 1.0);
                     const viewHeightAtDist = 2.0 * safeDist * tanHalfFov;
                     const shadowRadiusUV = bh.system.shadowRadius / viewHeightAtDist;
+
+                    // Si está fuera del sistema y su tamaño angular en pantalla es menor a ~0.3 píxeles, ignorar para rendimiento
+                    if (dist > systemRadius && shadowRadiusUV < 0.0003) continue;
 
                     // Priorizar el agujero negro con mayor presencia visual en la cámara
                     const angularPriority = dist <= systemRadius ? (1e9 - dist) : shadowRadiusUV;

@@ -189,21 +189,6 @@ export const Config = {
     REFERENCE_HABITABLE_ZONE_U: 15000000, // Distancia de la Tierra al Sol en unidades (Zona habitable / Luz óptima)
 
     // ==========================================
-    // FÍSICAS DE LA NAVE (JUGADOR)
-    // ==========================================
-    PLAYER_SPEED: 3000, // Velocidad base de vuelo (unidades por segundo)
-    PLAYER_SPEED_SCROLL_MULT: 1.10, // Multiplicador de velocidad por tic de la rueda del ratón (Exponencial)
-    PLAYER_SPEED_MIN_STEP: 300, // Velocidad mínima para arrancar desde cero con la rueda
-    PLAYER_SPEED_MAX: 30000, // Límite de velocidad base para evitar romper la simulación física
-    PLAYER_BOOST_MULTIPLIER: 50, // Multiplicador de velocidad al presionar Shift (Hyperdrive)
-    PLAYER_FRICTION: 0.985, // Fricción en el espacio (1.0 = patinar infinito, 0.5 = freno brusco)
-    PLAYER_BRAKE_FRICTION: 0.90, // Fricción al presionar [ESPACIO] para frenar
-    MOUSE_SENSITIVITY: 0.0010, // Sensibilidad del giro de cámara con el ratón
-    CINEMATIC_CAMERA_FRICTION: 0.97, // Conservación de inercia del ratón en modo cinemático (1.0 = infinito)
-    CINEMATIC_CAMERA_SENSITIVITY: 0.0001, // Sensibilidad reducida para el modo cinemático
-    ROLL_SPEED: 2.0, // Velocidad máxima de alabeo (rotar en el eje Z con Q y E)
-
-    // ==========================================
     // RENDERIZADO Y MEMORIA DEL TERRENO
     // ==========================================
     TERRAIN_CHUNK_SIZE: 5000, // Tamaño de cada bloque de terreno generado (En u métricas)
@@ -233,25 +218,6 @@ export const Config = {
     TERRAIN_VAR_EXPONENT_RANGE: 0.6, // Rango aleatorio a sumar (0.8 + 0.6 = Máximo 1.4x aplanador)
 
     // ==========================================
-    // ==========================================
-    GASDIVE_SPEED_BASE: 2000,
-    GASDIVE_SPEED_MAX: 20000,
-    GASDIVE_SPEED_MIN_STEP: 200,
-    GASDIVE_SPEED_SCROLL_MULT: 1.15,
-    GASDIVE_BOOST_MULTIPLIER: 2,
-
-    // ==========================================
-    // ==========================================
-    TERRAIN_PLAYER_SPEED: 15, // Velocidad base al caminar (m/s)
-    TERRAIN_PLAYER_SPRINT_MULT: 2.5, // Multiplicador al correr con Shift
-    TERRAIN_JUMP_FORCE: 12, // Fuerza del salto inicial
-    TERRAIN_BASE_GRAVITY: 25, // Gravedad base (1G modificado por jugabilidad)
-    TERRAIN_JETPACK_MAX_FUEL: 250, // Capacidad máxima del jetpack
-    TERRAIN_JETPACK_CONSUME: 25, // Gasto de combustible por segundo
-    TERRAIN_JETPACK_REFILL: 50, // Recarga de combustible por segundo
-    TERRAIN_MOUSE_SENSITIVITY: 0.0015, // Sensibilidad de la vista en tierra
-
-    // ==========================================
     // PARÁMETROS ESPECÍFICOS DE TERRENO Y CLIMA
     // ==========================================
     TERRAIN_SHIP_SPAWN_DISTANCE: 25,
@@ -268,10 +234,25 @@ export const Config = {
     TERRAIN_LIFTOFF_ATMOSPHERE_HEIGHT: 100000,
 
     // ==========================================
+    // FÍSICAS DE LA NAVE
+    // ==========================================
+    PLAYER_SPEED: 30000, // Velocidad base de vuelo (unidades por segundo)
+    PLAYER_SPEED_MAX: 300000, // Límite de velocidad base para evitar romper la simulación física
+    PLAYER_BOOST_MULTIPLIER: 30, // Multiplicador de velocidad al presionar Shift (Hyperdrive)
+    PLAYER_SPEED_SCROLL_MULT: 1.10, // Multiplicador de velocidad por tic de la rueda del ratón (Exponencial)
+    PLAYER_SPEED_MIN_STEP: 1, // Velocidad mínima para arrancar desde cero con la rueda
+    PLAYER_FRICTION: 0.985, // Fricción en el espacio (1.0 = patinar infinito, 0.5 = freno brusco)
+    PLAYER_BRAKE_FRICTION: 0.90, // Fricción al presionar [ESPACIO] para frenar
+    MOUSE_SENSITIVITY: 0.0010, // Sensibilidad del giro de cámara con el ratón
+    CINEMATIC_CAMERA_FRICTION: 0.97, // Conservación de inercia del ratón en modo cinemático (1.0 = infinito)
+    CINEMATIC_CAMERA_SENSITIVITY: 0.0001, // Sensibilidad reducida para el modo cinemático
+    ROLL_SPEED: 2.0, // Velocidad máxima de alabeo (rotar en el eje Z con Q y E)
+
+    // ==========================================
     // PILOTO AUTOMÁTICO Y CINEMÁTICAS
     // ==========================================
-    AUTOPILOT_MIN_SPEED: 30000, // Velocidad mínima de viaje (unidades por segundo)
-    AUTOPILOT_MAX_SPEED: 30000000000, // Velocidad máxima permitida (50M uds/s)
+    AUTOPILOT_MIN_SPEED: 300000, // Velocidad mínima de viaje (unidades por segundo)
+    AUTOPILOT_MAX_SPEED: 30000000000, // Velocidad máxima permitida
     AUTOPILOT_DESIRED_SECONDS: 1.0, // Segundos teóricos en los que queremos que llegue al objetivo para escalar velocidad
     AUTOPILOT_BRAKE_MULTIPLIER: 0.70, // Desaceleración violenta por frame al llegar (Salto cuántico)
     AUTOPILOT_BRAKE_ZONE_MULT: 1, // Multiplicador de radio para iniciar la frenada cuántica
@@ -281,6 +262,25 @@ export const Config = {
     AUTOPILOT_FREELOOK_TIMEOUT: 3000, // Ms de inactividad libre antes de re-alinear vista
     AUTOPILOT_MAX_SPEED_NORMAL: 300000, // Velocidad crucero normal
     CINEMATIC_ORBIT_SPEED: 0.10, // Velocidad (rad/s) de la órbita de cámara alrededor del objetivo
+
+    // ==========================================
+    // ==========================================
+    TERRAIN_PLAYER_SPEED: 15, // Velocidad base al caminar (m/s)
+    TERRAIN_PLAYER_SPRINT_MULT: 2.5, // Multiplicador al correr con Shift
+    TERRAIN_JUMP_FORCE: 12, // Fuerza del salto inicial
+    TERRAIN_BASE_GRAVITY: 25, // Gravedad base (1G modificado por jugabilidad)
+    TERRAIN_JETPACK_MAX_FUEL: 250, // Capacidad máxima del jetpack
+    TERRAIN_JETPACK_CONSUME: 25, // Gasto de combustible por segundo
+    TERRAIN_JETPACK_REFILL: 50, // Recarga de combustible por segundo
+    TERRAIN_MOUSE_SENSITIVITY: 0.0015, // Sensibilidad de la vista en tierra
+
+    // ==========================================
+    // ==========================================
+    GASDIVE_SPEED_BASE: 2000,
+    GASDIVE_SPEED_MAX: 20000,
+    GASDIVE_SPEED_MIN_STEP: 200,
+    GASDIVE_SPEED_SCROLL_MULT: 1.15,
+    GASDIVE_BOOST_MULTIPLIER: 2,
 
     // ==========================================
     // CONTROLES Y ATAJOS DE TECLADO (HOTKEYS)
